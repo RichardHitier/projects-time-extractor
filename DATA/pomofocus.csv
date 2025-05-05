@@ -1,0 +1,431 @@
+date,project,task,minutes,startTime,endTime
+20240528,"","",25,12:09,12:34
+20240528,"","",92,15:20,17:19
+20240528,"","",8,18:09,18:17
+20240529,"","",50,09:13,10:31
+20240529,"","",25,11:31,11:56
+20240530,"","",100,08:35,11:07
+20240530,"","",25,11:42,12:07
+20240605,"","",75,09:52,12:09
+20240605,"","",50,14:17,15:10
+20240605,"","",75,16:05,18:04
+20240607,"","",25,08:33,08:58
+20240607,"","",25,09:37,10:30
+20240607,"","",25,13:51,14:16
+20240610,"","",50,08:52,10:01
+20240610,"","",25,11:42,12:07
+20240610,"","",102,14:47,17:21
+20240611,"","",25,09:42,10:07
+20240611,"","",0,11:33,11:33
+20240829,"BHT DEV","sat_occ & nb_durations -> check",25,09:40,10:05
+20240829,"BHT DEV","confidence indice ""CONF"" -> check ",50,10:11,11:11
+20240829,"BHT DEV","confidence indice ""CONF"" -> check ",25,16:31,16:56
+20240903,"BHT DEV","duration to previous mission ",50,08:07,09:09
+20240903,"BHT DEV","duration to previous mission ",50,10:25,11:34
+20240903,"BHT DEV","confidence indice ""CONF"" -> check ",1,16:09,16:09
+20240903,"BHT DEV","duration to previous mission ",50,14:42,16:09
+20240903,"BHT DEV","fix add-to-db",48,16:09,17:14
+20240904,"BHT DEV","fix add-to-db",35,08:10,09:07
+20240904,"BHT DEV","fix add-to-db",1,09:38,09:38
+20240904,"BHT DEV","fix add-to-db",2,15:54,15:57
+20240904,"BHT DEV","fix add-to-db",10,16:39,16:49
+20240904,"","fix add-to-db",0,17:21,17:21
+20240905,"BHT DEV","conf idx to db",46,13:50,15:01
+20240905,"BHT DEV","conf idx to db",4,16:09,16:13
+20240905,"BHT DEV","conf idx to db",24,17:03,17:28
+20240906,"BHT DEV","conf idx to db",26,05:31,05:57
+20240909,"BHT DEV","conf idx to db",69,08:12,09:59
+20240909,"BHT DEV","conf idx to db",25,11:32,11:57
+20240909,"BHT DEV","conf idx to db",50,16:00,17:15
+20240909,"BHT DEV","conf idx to db",18,17:47,18:25
+20240910,"BHT DEV","conf idx to db",51,09:48,11:24
+20240910,"BHT DEV","conf idx to db",124,14:11,17:45
+20240911,"BHT DEV","conf idx to db",8,07:59,08:08
+20240911,"BHT DEV","sortable table",47,08:08,08:59
+20240911,"PRO COACHING","journal des expériences",6,09:16,09:23
+20240911,"BHT DEV","Solo / intervalle association",100,09:23,11:59
+20240912,"BHT DEV","Solo / intervalle association",50,08:09,09:16
+20240912,"BHT DEV","Solo / intervalle association",75,10:03,11:28
+20240912,"BHT DEV","Solo / intervalle association",26,14:13,15:10
+20240912,"BHT DEV","Paper2Event linking",2,15:10,15:13
+20240912,"BHT DEV","AUTOF: sqlalchemy",44,15:13,16:16
+20240912,"BHT DEV","Paper2Event linking",2,16:16,16:18
+20240913,"PERSO ADMIN","VEN 13/09",50,08:17,09:15
+20240913,"PERSO ADMIN","VEN 13/09",25,10:00,10:34
+20240913,"PERSO ADMIN","VEN 13/09",25,11:30,11:55
+20240913,"PRO ADMIN","Ven 13 Sept",100,12:56,15:04
+20240917,"PERSO ADMIN","VEN 13/09",25,09:17,09:42
+20240917,"PRO ADMIN","Compta Jours",25,10:32,10:57
+20240917,"PRO ADMIN","Compta Jours",25,11:29,11:54
+20240917,"CALIPSO ADMIN","Chiffrage",25,15:23,15:48
+20240918,"CALIPSO ADMIN","Chiffrage",1,15:33,15:35
+20240919,"CALIPSO ADMIN","Chiffrage",21,08:49,09:32
+20240919,"PRO ADMIN","Salaire et Budget",25,10:19,10:51
+20240919,"PRO ADMIN","Salaire et Budget",25,13:17,13:42
+20240923,"CALIPSO ADMIN","Chiffrage",43,09:11,09:56
+20240923,"CALIPSO ADMIN","Chiffrage",5,11:20,11:25
+20240923,"PERSO ACTION","Pgrm Velo",25,11:25,11:50
+20240923,"PRO ADMIN","Tableau de Bord",24,13:59,14:28
+20240923,"PERSO ADMIN","VEN 13/09",0,14:28,14:28
+20240923,"PRO ADMIN","Ven 13 Sept",0,14:28,14:28
+20240923,"PRO AUTO_FORMATION","sqlalchemy",0,14:28,14:28
+20240923,"BHT DEV","sortable table",0,14:28,14:28
+20240923,"BHT DEV","conf idx to db",0,14:28,14:28
+20240923,"BHT DEV","fix add-to-db",0,14:28,14:28
+20240923,"BHT DEV","duration to previous mission ",0,14:28,14:28
+20240923,"BHT DEV","confidence indice ""CONF"" -> check ",0,14:28,14:28
+20240923,"BHT DEV","sat_occ & nb_durations -> check",0,14:29,14:29
+20240923,"BHT DEV","Solo / intervalle association",0,14:29,14:29
+20240923,"PRO ADMIN","Tableau de Bord",0,14:29,14:29
+20240923,"BHT DEV","Paper2Event linking",0,14:29,14:29
+20240923,"PRO COACHING","journal des expériences",0,14:29,14:29
+20240923,"PRO ADMIN","Compta Jours",0,14:29,14:29
+20240923,"PRO ADMIN","Salaire et Budget",0,14:29,14:29
+20240923,"CALIPSO ADMIN","Chiffrage",0,14:29,14:29
+20240923,"PERSO ACTION","Pgrm Velo",0,14:29,14:29
+20240923,"PERSO ADMIN","VEN 13/09",0,14:29,14:29
+20240923,"PRO ADMIN","Ven 13 Sept",1,14:29,14:31
+20240923,"PERSO ADMIN","VEN 13/09",0,14:31,14:31
+20240923,"PRO ADMIN","Ven 13 Sept",0,14:31,14:31
+20240923,"PRO AUTO_FORMATION","sqlalchemy",0,14:31,14:31
+20240923,"BHT DEV","sortable table",0,14:32,14:32
+20240923,"BHT DEV","conf idx to db",0,14:32,14:32
+20240923,"BHT DEV","fix add-to-db",0,14:32,14:32
+20240923,"BHT DEV","duration to previous mission ",0,14:32,14:32
+20240923,"BHT DEV","confidence indice ""CONF"" -> check ",0,14:32,14:32
+20240923,"BHT DEV","sat_occ & nb_durations -> check",0,14:32,14:32
+20240923,"BHT DEV","confidence indice ""CONF"" -> check ",0,14:32,14:32
+20240923,"BHT DEV","sat_occ & nb_durations -> check",0,14:32,14:32
+20240923,"BHT DEV","Solo / intervalle association",0,14:33,14:33
+20240923,"PRO ADMIN","Tableau de Bord",0,14:33,14:33
+20240923,"BHT DEV","Paper2Event linking",0,14:33,14:33
+20240923,"PRO COACHING","journal des expériences",0,14:33,14:33
+20240923,"PRO ADMIN","Compta Jours",0,14:33,14:33
+20240923,"PRO ADMIN","Salaire et Budget",0,14:33,14:33
+20240923,"CALIPSO ADMIN","Chiffrage",0,14:33,14:33
+20240923,"PERSO ACTION","Pgrm Velo",0,14:33,14:33
+20240923,"PRO ADMIN","Tableau de Bord",11,14:37,15:15
+20240923,"CALIPSO ADMIN","Chiffrage",25,15:15,15:39
+20240923,"CALIPSO ADMIN","Chiffrage",35,17:45,18:44
+20240923,"CALIPSO ADMIN","Plannification Tâches",15,18:44,18:59
+20240924,"CALIPSO ADMIN","Plannification Tâches",25,08:26,08:51
+20240924,"CALIPSO ADMIN","Plannification Tâches",25,10:00,10:25
+20240924,"BHT DEV","Quick fixes",50,11:05,12:20
+20240924,"BHT DEV","Quick fixes",0,16:03,16:03
+20240924,"BHT DEV","Quick fixes",33,16:38,17:21
+20240925,"BHT DEV","Quick fixes",42,08:44,09:26
+20240925,"BHT DEV","Quick fixes",30,14:40,15:10
+20240926,"CALIPSO ADMIN","Plannification Tâches",24,10:59,11:24
+20240926,"BHT DEV","Quick fixes",37,11:24,12:08
+20240926,"BHT ADMIN","Plannification",8,12:08,12:17
+20240926,"BHT ADMIN","Plannification",11,13:34,13:45
+20240926,"CALIPSO DEV","Calipso1 Stability",14,13:45,13:59
+20240926,"BHT ADMIN","Plannification",10,14:28,15:05
+20240926,"CALIPSO DEV","Calipso1 Stability",32,15:05,15:49
+20240926,"PERSO DEV","chevres",8,15:50,15:58
+20240926,"BHT DEV","Catalog Post Filtering",25,19:04,19:42
+20240926,"BHT ADMIN","Plannification",11,19:42,19:53
+20240926,"BHT DEV","Catalog Post Filtering",1,19:53,19:55
+20240927,"BHT ADMIN","CI/CD: Deliver",8,08:07,08:15
+20240927,"BHT DEV","Catalog Post Filtering",67,08:15,09:53
+20240927,"BHT DEV","Catalog Post Filtering",100,10:28,13:05
+20241001,"BHT DEV","Catalog Post Filtering",0,08:16,08:16
+20241001,"BHT DEV","Plot NConf",25,08:17,08:47
+20241001,"BHT DEV","Plot NConf",25,09:37,10:02
+20241001,"PRO ADMIN","Salaire et Budget",33,10:20,11:02
+20241001,"PERSO ADMIN","Coups de fil",0,11:02,11:02
+20241001,"BHT DEV","Plot NConf",21,11:06,11:27
+20241001,"BHT DEV","Plot NConf",21,14:48,15:24
+20241001,"BHT DEV","Catalog Post Filtering",78,15:24,17:18
+20241002,"BHT DEV","Catalog Post Filtering",50,08:23,09:31
+20241002,"BHT DEV","Catalog Post Filtering",70,10:07,11:56
+20241002,"BHT DEV","Catalog Post Filtering",30,14:49,15:19
+20241003,"BHT DEV","Catalog Post Filtering",18,09:17,09:35
+20241003,"PRO ADMIN","Salaire et Budget",4,09:51,09:55
+20241003,"BHT DEV","Catalog Post Filtering",54,09:56,11:53
+20241003,"CALIPSO DEV","Flow Meter Studies",1,12:02,12:02
+20241003,"CALIPSO DEV","Flow Meter Studies",8,13:16,13:24
+20241003,"CALIPSO ADMIN","Calipso 1 : setting dev env",17,13:24,13:41
+20241003,"BHT DEV","Catalog Post Filtering",58,14:09,15:37
+20241003,"CALIPSO ADMIN","Calipso 1 : setting dev env",17,15:37,15:54
+20241004,"BHT DEV","Catalog Post Filtering",25,08:56,09:21
+20241004,"BHT DEV","Catalog Post Filtering",50,10:06,11:03
+20241004,"BHT DEV","Catalog Post Filtering",50,11:37,12:28
+20241004,"BHT DEV","Catalog Post Filtering",100,15:07,17:29
+20241007,"BHT DEV","Catalog Post Filtering",0,08:18,08:28
+20241007,"PERSO ADMIN","Tâches du matin",25,08:36,09:01
+20241007,"PERSO ADMIN","Tâches du matin",25,09:51,10:16
+20241007,"BHT DEV","Catalog Post Filtering",35,14:48,15:35
+20241008,"BHT DEV","Catalog Post Filtering",49,08:07,09:20
+20241008,"BHT DEV","Catalog Post Filtering",0,09:50,09:50
+20241008,"BHT DEV","Catalog Post Filtering",47,10:27,11:22
+20241008,"BHT DEV","Catalog Post Filtering",28,12:42,13:10
+20241008,"BHT DEV","Catalog Post Filtering",25,16:38,17:03
+20241009,"BHT DEV","Catalog Post Filtering",50,07:55,09:08
+20241009,"BHT DEV","Enhance Pipeline 2024_Oct",50,10:50,11:47
+20241014,"BHT DEV","Enhance Pipeline 2024_Oct",25,08:23,08:48
+20241014,"BHT DEV","Enhance Pipeline 2024_Oct",25,14:18,14:43
+20241014,"BHT DEV","Enhance Pipeline 2024_Oct",39,15:29,16:29
+20241014,"PERSO ACTION","Tâches",11,21:08,21:18
+20241014,"BHT DEV","Enhance Pipeline 2024_Oct",25,21:20,21:45
+20241015,"BHT DEV","Enhance Pipeline 2024_Oct",49,08:23,09:23
+20241015,"BHT DEV","Enhance Pipeline 2024_Oct",36,09:55,11:02
+20241015,"BHT DEV","Enhance Pipeline 2024_Oct",23,12:36,12:59
+20241015,"BHT DEV","Enhance Pipeline 2024_Oct",8,15:08,15:15
+20241015,"BHT DEV","Enhance Pipeline 2024_Oct",2,15:55,15:57
+20241016,"BHT DEV","Enhance Pipeline 2024_Oct",4,08:20,08:24
+20241016,"PRO ADMIN","Réunion",4,08:33,08:37
+20241016,"PERSO ACTION","Tâches",8,11:39,11:47
+20241016,"PRO ACTION_CO","Réseaux Sociaux",25,14:28,14:53
+20241016,"BHT DEV","Enhance Pipeline 2024_Oct",25,14:54,15:19
+20241017,"PRO ACTION_CO","Réseaux Sociaux",25,09:39,10:04
+20241017,"CALIPSO DEV","Install Spare Calipso1",50,13:10,14:00
+20241017,"CALIPSO DEV","Install Spare Calipso1",25,15:10,15:35
+20241018,"CALIPSO DEV","Install Spare Calipso1",50,08:19,09:09
+20241018,"CALIPSO DEV","Install Spare Calipso1",50,10:28,11:18
+20241018,"CALIPSO DEV","Install Spare Calipso1",75,13:12,15:08
+20241021,"CALIPSO DEV","Install Spare Calipso1",25,10:09,10:34
+20241021,"CALIPSO DEV","Install Spare Calipso1",43,14:36,15:46
+20241022,"CALIPSO DEV","Install Spare Calipso1",34,08:16,08:58
+20241022,"CALIPSO DEV","Install Spare Calipso1",66,09:32,10:47
+20241022,"CALIPSO DEV","Install Spare Calipso1",50,16:07,16:58
+20241023,"CALIPSO DEV","Install Spare Calipso1",1,12:28,12:29
+20241024,"CALIPSO DEV","Install Spare Calipso1",25,09:43,10:08
+20241024,"CALIPSO DEV","Install Spare Calipso1",25,14:30,14:55
+20241024,"CALIPSO DEV","Install Spare Calipso1",25,15:47,16:12
+20241025,"CALIPSO DEV","Install Spare Calipso1",9,09:08,09:36
+20241025,"CALIPSO DEV","Install Spare Calipso1",16,10:09,10:25
+20241025,"CALIPSO DEV","Install Spare Calipso1",50,11:20,12:19
+20241025,"CALIPSO DEV","Install Spare Calipso1",50,15:27,16:34
+20241028,"PRO ACTION_CO","Orientation",49,18:18,19:08
+20241029,"PRO ACTION_CO","Orientation",4,11:16,11:20
+20241029,"CALIPSO DEV","IIRO input TM",21,11:20,11:42
+20241029,"CALIPSO DEV","IIRO input TM",50,14:23,15:35
+20241031,"CALIPSO DEV","IIRO input TM",50,09:23,11:07
+20241031,"CALIPSO DEV","IIRO input TM",150,14:44,17:51
+20241104,"CALIPSO DEV","IIRO input TM",6,09:53,09:59
+20241105,"CALIPSO DEV","IIRO input TM",25,09:06,09:31
+20241105,"CALIPSO DEV","IIRO input TM",50,10:49,11:54
+20241105,"CALIPSO DEV","IIRO input TM",83,15:40,17:09
+20241106,"CALIPSO DEV","IIRO input TM",42,08:31,09:13
+20241106,"CALIPSO DEV","IIRO input TM",25,10:05,10:30
+20241106,"CALIPSO DEV","IIRO input TM",16,11:18,11:34
+20241106,"CALIPSO DEV","IIRO input TM",25,14:43,15:08
+20241107,"CALIPSO DEV","IIRO input TM",25,10:09,10:57
+20241107,"CALIPSO DEV","IIRO input TM",29,11:37,12:07
+20241107,"CALIPSO DEV","IIRO input TM",46,13:42,14:52
+20241107,"CALIPSO DEV","IIRO input TM",25,15:24,15:51
+20241107,"CALIPSO DEV","IIRO input TM",75,16:40,18:00
+20241108,"CALIPSO DEV","IIRO input TM",26,09:55,10:27
+20241108,"CALIPSO DEV","Documentation",29,10:27,10:58
+20241108,"CALIPSO DEV","IIRO input TM",3,11:26,11:37
+20241108,"CALIPSO DEV","IIRO input TM",47,13:53,15:02
+20241108,"CALIPSO DEV","IIRO input TM",25,15:54,16:19
+20241112,"CALIPSO DEV","IIRO input TM",25,08:25,08:51
+20241112,"CALIPSO DEV","IIRO input TM",25,09:41,10:06
+20241112,"CALIPSO DEV","IIRO input TM",50,10:58,11:54
+20241112,"CALIPSO DEV","IIRO input TM",50,14:59,16:06
+20241112,"CALIPSO DEV","IIRO input TM",25,16:49,17:14
+20241113,"CALIPSO DEV","IIRO input TM",50,07:54,08:54
+20241113,"CALIPSO DEV","IIRO input TM",25,09:39,10:04
+20241113,"PRO ADMIN","Salaire et Budget",7,10:07,10:14
+20241114,"CALIPSO DEV","IIRO input TM",88,09:58,11:38
+20241114,"CALIPSO DEV","Install IIRO_INPUTS on C1",75,13:57,15:12
+20241114,"CALIPSO DEV","Install IIRO_INPUTS on C1",25,16:00,16:25
+20241115,"PRO ADMIN","Facture OCT 2024",4,08:33,08:37
+20241115,"CALIPSO ADMIN","Calipso days counting",46,08:37,09:24
+20241115,"CALIPSO ADMIN","Calipso days counting",17,10:31,10:49
+20241115,"PRO ADMIN","Facture OCT 2024",22,10:49,11:20
+20241115,"PERSO ADMIN","Résa Stages Apnée",36,11:20,11:56
+20241115,"PERSO ADMIN","Divers paiements",25,12:04,12:29
+20241115,"CALIPSO ADMIN","Calipso days counting",1,16:33,16:35
+20241115,"PERSO ACTIONS","Comptage Vélo/PPG",99,16:35,18:52
+20241118,"PERSO DEV","Comptage Vélo/PPG",50,13:55,14:45
+20241118,"PRO DEV","Project days counting",50,14:55,16:01
+20241118,"PRO DEV","Project days counting",44,17:16,18:05
+20241119,"PRO DEV","Project days counting",25,08:06,08:31
+20241119,"PRO DEV","Project days counting",50,11:14,12:04
+20241119,"PRO DEV","Project days counting",25,12:49,13:14
+20241119,"PRO DEV","Project days counting",35,15:03,15:46
+20241119,"PRO DEV","Project days counting",15,16:43,16:57
+20241120,"PRO DEV","Project days counting",25,08:01,08:26
+20241120,"PRO DEV","Project days counting",50,10:39,11:45
+20241120,"PRO DEV","Project days counting",25,14:53,15:18
+20241120,"PRO DEV","Project days counting",50,18:14,19:04
+20241121,"CALIPSO ADMIN","Calipso days counting",10,08:21,08:31
+20241121,"PERSO ADMIN","Divers paiements",16,09:25,09:42
+20241121,"PRO ADMIN","Divers paiements",38,09:42,10:24
+20241121,"PERSO ADMIN","caf, compta, etc",12,10:24,10:36
+20241121,"PERSO ADMIN","caf, compta, etc",50,11:09,12:16
+20241121,"PERSO ADMIN","caf, compta, etc",25,14:33,14:58
+20241121,"PERSO ADMIN","caf, compta, etc",50,15:51,16:41
+20241122,"PERSO ADMIN","caf, compta, etc",0,08:05,08:05
+20241122,"PERSO DEV","Compter la compta",25,08:05,08:30
+20241122,"PERSO DEV","Compter la compta",50,10:12,11:16
+20241122,"PERSO DEV","Compter la compta",25,12:16,12:41
+20241122,"PERSO DEV","Compter la compta",39,15:50,16:29
+20241122,"PERSO DEV","Compter la compta",50,17:02,18:01
+20241125,"PERSO DEV","Compter la compta",38,09:47,10:26
+20241125,"PERSO ACTIONS","Divers",11,10:26,10:37
+20241125,"BHT ADMIN","compta jours",50,10:52,11:59
+20241126,"BHT ADMIN","compta jours",27,08:11,09:00
+20241126,"PRO DEV","git analysis",73,09:50,11:29
+20241126,"PRO ADMIN","Divers paiements",50,14:54,15:44
+20241126,"PRO ADMIN","Divers paiements",0,16:49,16:49
+20241126,"PRO DEV","git analysis",25,16:49,17:14
+20241127,"BHT DEV","redémarrage",30,08:17,08:53
+20241127,"BHT DEV","redémarrage",45,10:04,11:13
+20241128,"BHT DEV","redémarrage",50,10:23,11:32
+20241128,"BHT DEV","redémarrage",75,15:49,17:04
+20241129,"BHT DEV","redémarrage",67,08:06,09:23
+20241129,"BHT DEV","redémarrage",33,10:08,10:59
+20241202,"BHT DEV","redémarrage",5,08:27,08:32
+20241202,"PERSO DEV","Echauffement du matin",20,08:32,08:52
+20241202,"PERSO DEV","Echauffement du matin",62,10:07,11:29
+20241202,"BHT DEV","redémarrage",14,13:56,14:10
+20241202,"BHT DEV","sutime tries",35,14:10,14:50
+20241202,"PRO ACTION_CO","coaching ",65,15:02,16:08
+20241202,"PRO ACTION_CO","coaching ",25,19:46,20:11
+20241202,"PRO ACTION_CO","coaching ",50,21:11,22:01
+20241203,"PRO ACTION_CO","coaching ",125,15:22,18:01
+20241204,"PRO ADMIN","Divers paiements",37,08:07,08:44
+20241204,"BHT DEV","sutime tries",0,08:45,08:45
+20241204,"PRO ACTION_CO","coaching ",7,09:16,09:23
+20241204,"BHT DEV","sutime tries",6,09:23,09:29
+20241204,"PRO ADMIN","Divers paiements",5,09:35,09:40
+20241204,"BHT DEV","sutime tries",45,09:40,10:25
+20241204,"PRO ACTION_CO","coaching ",25,10:25,10:50
+20241204,"BHT DEV","sutime tries",25,10:53,11:18
+20241205,"BHT DEV","sutime tries",125,09:10,12:05
+20241205,"BHT DEV","sutime tries",50,13:21,14:13
+20241205,"BHT DEV","sutime tries",63,14:53,15:58
+20241205,"CALIPSO DEV","uv displacement",12,15:58,16:10
+20241205,"BHT DEV","sutime tries",25,16:13,16:38
+20241206,"PRO ADMIN","Divers paiements",25,09:04,09:29
+20241206,"BHT DEV","sutime tries",67,09:29,10:36
+20241206,"PERSO ACTIONS","planning velo",58,11:05,12:04
+20241206,"BHT DEV","sutime tries",50,14:42,15:34
+20241209,"PRO ACTION_CO","coaching ",50,08:11,09:14
+20241209,"PRO ACTION_CO","coaching ",25,10:07,10:32
+20241209,"BHT DEV","sutime tries",50,10:46,11:53
+20241209,"BHT DEV","sutime tries",0,13:53,13:53
+20241209,"BHT DEV","sutime tries",50,15:18,16:08
+20241210,"BHT DEV","sutime tries",75,07:57,09:36
+20241210,"BHT DEV","sutime tries",50,11:12,12:02
+20241210,"BHT DEV","sutime tries",125,15:05,17:21
+20241211,"BHT DEV","sutime tries",25,08:11,08:36
+20241211,"BHT DEV","sutime tries",55,09:06,10:31
+20241211,"BHT DEV","sutime tries",45,11:03,11:48
+20241211,"BHT DEV","sutime tries",50,14:24,15:22
+20241212,"BHT DEV","sutime tries",35,09:52,10:32
+20241212,"BHT DEV","sutime tries",15,11:20,11:35
+20241212,"BHT DEV","sutime tries",0,13:59,13:59
+20241212,"CALIPSO DEV","uv displacement",125,14:19,16:57
+20241216,"CALIPSO DEV","uv displacement",125,09:35,12:25
+20241216,"CALIPSO DEV","uv displacement",150,13:21,16:12
+20241217,"BHT DEV","sutime tries",100,08:58,11:14
+20241217,"BHT DEV","sutime tries",25,12:44,13:09
+20241217,"CALIPSO DEV","uv displacement",25,14:49,15:15
+20241217,"BHT DEV","sutime tries",50,15:15,16:13
+20241218,"PRO ACTION_CO","coaching ",25,08:24,08:49
+20241218,"PRO ACTION_CO","coaching ",50,09:28,10:43
+20241218,"BHT DEV","sutime tries",50,10:50,11:47
+20241219,"BHT DEV","sutime tries",175,09:29,12:29
+20241220,"BHT DEV","sutime tries",75,08:21,10:02
+20241220,"BHT DEV","sutime tries",25,10:57,11:22
+20241220,"BHT DEV","sutime tries",25,14:49,15:14
+20241220,"BHT DEV","sutime tries",37,17:13,18:09
+20241223,"BHT DEV","sutime tries",25,20:32,20:57
+20241230,"BHT DEV","sutime tries",67,08:28,10:05
+20241230,"BHT DEV","sutime tries",43,11:02,11:54
+20241230,"PERSO ACTIONS","planning velo",32,15:47,16:31
+20241230,"BHT DEV","sutime tries",25,16:58,17:23
+20241231,"PERSO DEV","Echauffement du matin",18,09:14,09:32
+20241231,"BHT DEV","sutime tries",7,09:32,09:39
+20241231,"BHT DEV","sutime tries",75,10:59,12:27
+20241231,"BHT DEV","sutime tries",175,14:01,17:08
+20250109,"BHT DEV","sutime tries",25,08:21,08:46
+20250109,"BHT DEV","sutime tries",50,10:36,11:26
+20250110,"BHT DEV","sutime tries",25,08:49,09:14
+20250110,"BHT DEV","sutime tries",25,10:01,10:26
+20250113,"PERSO ADMIN","caf, compta, etc",4,08:01,08:05
+20250113,"BHT DEV","sutime tries",46,08:05,08:51
+20250113,"BHT DEV","sutime tries",25,12:02,12:27
+20250114,"BHT DEV","sutime tries",19,08:12,08:30
+20250114,"BHT DEV","Traitement Massif",31,08:31,09:02
+20250114,"BHT DEV","Traitement Massif",150,09:37,12:27
+20250114,"BHT DEV","Traitement Massif",2,14:32,14:34
+20250114,"BHT DEV","Traitement Massif",123,15:17,17:31
+20250115,"BHT DEV","Traitement Massif",25,08:15,08:40
+20250115,"BHT DEV","Traitement Massif",25,11:00,11:25
+20250115,"BHT DEV","Traitement Massif",75,16:26,17:48
+20250116,"BHT DEV","Traitement Massif",125,09:30,12:27
+20250116,"BHT DEV","Traitement Massif",100,13:23,15:04
+20250116,"BHT DEV","Traitement Massif",100,16:26,18:07
+20250120,"BHT DEV","Traitement Massif",75,08:25,10:11
+20250120,"BHT DEV","Traitement Massif",50,10:44,11:35
+20250120,"BHT DEV","Traitement Massif",75,14:54,16:10
+20250120,"BHT DEV","Traitement Massif",25,17:31,17:56
+20250121,"BHT DEV","Traitement Massif",125,08:41,12:00
+20250121,"BHT DEV","Traitement Massif",25,14:52,15:17
+20250121,"BHT DEV","Traitement Massif",25,15:51,16:16
+20250122,"BHT DEV","Traitement Massif",25,08:18,08:43
+20250122,"BHT DEV","Traitement Massif",50,10:18,11:11
+20250122,"BHT DEV","Traitement Massif",25,17:24,17:49
+20250123,"BHT DEV","Traitement Massif",75,09:29,10:45
+20250123,"BHT DEV","Traitement Massif",50,11:31,12:21
+20250123,"BHT DEV","Traitement Massif",100,14:22,16:15
+20250124,"BHT DEV","Traitement Massif",50,08:10,09:02
+20250124,"BHT DEV","Traitement Massif",50,10:18,11:18
+20250124,"BHT DEV","Traitement Massif",25,15:11,15:36
+20250127,"PERSO ACTIONS","planning velo",25,08:21,08:46
+20250127,"PERSO ACTIONS","Plannifications",25,08:47,09:12
+20250127,"PRO ADMIN","Divers paiements",25,09:36,10:01
+20250127,"PRO ADMIN","Compta Jours",100,10:02,11:44
+20250127,"BHT DEV","Traitement Massif",75,15:38,17:04
+20250128,"BHT DEV","Traitement Massif",50,08:18,09:26
+20250128,"BHT DEV","Traitement Massif",0,11:47,11:47
+20250129,"BHT DEV","Traitement Massif",0,08:14,08:14
+20250129,"PERSO ADMIN","caf, compta, etc",25,08:14,08:39
+20250129,"BHT DEV","Traitement Massif",51,08:47,10:05
+20250129,"PERSO TEMPS_LIBRE","Recherche Veste",7,10:05,10:12
+20250129,"BHT DEV","Traitement Massif",92,10:12,11:46
+20250129,"","",50,14:18,15:08
+20250130,"","",50,08:08,09:00
+20250130,"","",50,09:44,10:58
+20250131,"PRO ADMIN","Divers paiements",7,08:31,08:38
+20250131,"PERSO ADMIN","caf, compta, etc",118,08:38,11:09
+20250131,"PERSO ADMIN","caf, compta, etc",25,13:23,13:48
+20250131,"BHT DEV","Traitement Massif",1,13:59,14:00
+20250131,"BHT DEV","Traitement Massif",24,15:41,16:06
+20250131,"BHT DEV","Traitement Massif",75,16:41,18:15
+20250203,"PERSO ADMIN","caf, compta, etc",50,08:03,08:53
+20250203,"BHT DEV","Traitement Massif",25,09:01,09:26
+20250203,"PRO ACTION_CO","Certif Python",10,09:38,09:48
+20250203,"BHT DEV","Traitement Massif",15,09:48,10:03
+20250203,"BHT DEV","Traitement Massif",25,10:39,11:04
+20250203,"BHT DEV","Traitement Massif",25,14:49,15:14
+20250204,"PERSO ADMIN","caf, compta, etc",25,08:02,08:27
+20250204,"PERSO ADMIN","caf, compta, etc",0,08:58,08:58
+20250204,"BHT DEV","Traitement Massif",10,08:58,09:08
+20250204,"BHT DEV","Traitement Massif",31,10:20,10:57
+20250204,"BHT DEV","Traitement Massif",9,11:28,11:37
+20250204,"BHT DEV","Traitement Massif",75,14:55,16:21
+20250205,"PERSO ADMIN","caf, compta, etc",25,08:39,09:08
+20250205,"BHT DEV","Traitement Massif",25,09:19,09:45
+20250205,"BHT DEV","Traitement Massif",25,10:55,11:20
+20250205,"BHT DEV","Traitement Massif",50,14:39,15:31
+20250205,"PERSO ADMIN","caf, compta, etc",50,16:48,18:00
+20250206,"PERSO ADMIN","caf, compta, etc",25,09:14,09:45
+20250206,"BHT DEV","Traitement Massif",49,09:45,10:50
+20250206,"CALIPSO DEV","Operating Systems",27,10:50,11:33
+20250206,"BHT DEV","Traitement Massif",50,11:38,12:28
+20250206,"BHT DEV","Traitement Massif",125,14:07,16:54
+20250207,"PERSO ADMIN","caf, compta, etc",25,08:03,08:28
+20250207,"BHT DEV","Traitement Massif",75,08:35,10:20
+20250207,"BHT DEV","Traitement Massif",75,11:20,12:46
+20250207,"BHT DEV","Traitement Massif",75,14:28,15:56
+20250208,"PERSO ADMIN","caf, compta, etc",25,08:49,09:24
+20250208,"BHT DEV","Traitement Massif",100,09:24,11:04
+20250208,"BHT DEV","Traitement Massif",50,19:06,19:57
+20250208,"BHT DEV","Traitement Massif",50,20:37,21:28
