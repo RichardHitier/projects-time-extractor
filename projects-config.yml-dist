@@ -1,5 +1,8 @@
 calipso:
   git_dirs:
+  - /home/richard/01DEV/CalipsoProject/iesa-dispatcher-studio/.git
+  - /home/richard/01DEV/CalipsoProject/lees-dispatcher-studio/.git
+  - /home/richard/01DEV/CalipsoProject/calibration-dispatcher-clients/.git
   - /home/richard/01DEV/CalipsoProject/calipso-dispatcher-clients/.git
   - /home/richard/01DEV/CalipsoProject/calipso-dispatcher-studio-1/.git
   - /home/richard/01DEV/CalipsoProject/calipso-net-module/.git
