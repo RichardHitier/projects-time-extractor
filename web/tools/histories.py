@@ -319,8 +319,10 @@ def merge_all_histories(pomo_df, superprod_df, superweb_df):
 
 if __name__ == "__main__":
     pd.set_option('display.max_rows', None)
-    available_options = ['pomofocus', 'superprod', 'pomo_bht', 'super_bht', 'git_bht',
-                         'daily_bht', 'hours_bht', 'merged_all', 'merged_bht']
+    available_options = ['hours_calipso', 'daily_calipso', 'git_all',
+                         'pomofocus', 'superprod', 'pomo_bht',
+                         'super_bht', 'git_bht', 'daily_bht', 'hours_bht',
+                         'merged_all', 'merged_bht']
     import sys
     from config import load_config
 
@@ -345,6 +347,26 @@ if __name__ == "__main__":
         print(pomo_minutes('bht', pomofocus_to_df(pomofocus_file)))
     elif cli_arg == 'git_bht':
         print(project_to_df('bht'))
+    elif cli_arg == 'daily_calipso':
+        print(daily_commits(project_to_df('calipso')))
+    elif cli_arg == 'hours_calipso':
+        import locale
+        locale.setlocale(locale.LC_TIME, 'fr_FR.UTF-8')
+        # get raw df
+        calipso_hpd = hours_per_day(project_to_df('calipso')).dropna()
+        # cut from 2025-01-01
+        calipso_hpd = calipso_hpd.loc['2025-01-01':]
+        # change index format for printing
+        df_print = calipso_hpd.copy()
+        df_print.index = (
+            df_print.index
+            .strftime('%A')
+            .str.ljust(10)
+            + ' '
+            + df_print.index.strftime('%Y-%m-%d')
+        )
+        print(df_print)
+
     elif cli_arg == 'daily_bht':
         print(daily_commits(project_to_df('bht')))
     elif cli_arg == 'hours_bht':
@@ -352,8 +374,9 @@ if __name__ == "__main__":
     elif cli_arg == 'merged_bht':
         print(merge_histories('bht', pomofocus_file, superprod_file))
     elif cli_arg == 'merged_all':
-        all_df = merge_all_histories(pomofocus_to_df(pomofocus_file), superprod_to_df(superprod_file),
-                                 superprod_to_df(webprod_file))
+        all_df = merge_all_histories(pomofocus_to_df(pomofocus_file),
+                                     superprod_to_df(superprod_file),
+                                     superprod_to_df(webprod_file))
         print(all_df.columns)
         print(len(all_df))
         all_df = all_df.truncate(before='20250101')
