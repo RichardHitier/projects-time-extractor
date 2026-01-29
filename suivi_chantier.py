@@ -22,8 +22,10 @@ def report():
     return rapport, df
 
 
+
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
+import pandas as pd
 
 def plot(df):
     projets = df['PROJET'].unique()
@@ -32,10 +34,9 @@ def plot(df):
     colors = plt.cm.tab20.colors
     color_map = {p: colors[i % len(colors)] for i, p in enumerate(projets)}
 
-    # plots plus hauts
     fig, axes = plt.subplots(
         n_projets, 1,
-        figsize=(16, 5 * n_projets),   # hauteur augmentée
+        figsize=(16, 5 * n_projets),
         sharey=True
     )
 
@@ -45,28 +46,35 @@ def plot(df):
     for ax, projet in zip(axes, projets):
         d = df[df['PROJET'] == projet].copy()
         d = d.groupby('DATE')['JOURS'].sum().reset_index()
-
-        # s'assurer que DATE est bien un datetime
         d['DATE'] = pd.to_datetime(d['DATE'])
 
         ax.bar(d['DATE'], d['JOURS'], color=color_map[projet])
-        ax.set_title(f"Projet : {projet}", pad=15)
         ax.set_ylabel("JOURS")
         ax.grid(True, alpha=0.3)
 
-        # ticks réguliers : toutes les semaines
+        # --- Titre dans le plot ---
+        ax.text(
+            0.01, 0.95,
+            f"Projet : {projet}",
+            transform=ax.transAxes,
+            fontsize=10,
+            fontweight='normal',
+            va='top',
+            ha='left'
+        )
+
+        # ticks réguliers
         ax.xaxis.set_major_locator(mdates.WeekdayLocator(interval=1))
-        ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
+        ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y%m%d'))
 
-        # rotation propre
-        ax.tick_params(axis='x', rotation=45)
+        ax.tick_params(axis='x', rotation=0, pad=12)
+        ax.set_xlabel("DATE", labelpad=15)
 
-    axes[-1].set_xlabel("DATE")
+    # --- C'est ici que l'on ajoute de l'espace entre les plots ---
+    plt.subplots_adjust(hspace=1.5)   # augmente l’espace entre les subplots
 
     plt.tight_layout()
     plt.show()
-
-
 
 
 if __name__ == "__main__":
