@@ -22,34 +22,50 @@ def report():
     return rapport, df
 
 
+import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
 
 def plot(df):
-    # 5) Graphiques : histogramme par projet
     projets = df['PROJET'].unique()
     n_projets = len(projets)
 
-    # une couleur par projet
-    colors = plt.cm.tab20.colors  # palette
+    colors = plt.cm.tab20.colors
     color_map = {p: colors[i % len(colors)] for i, p in enumerate(projets)}
 
-    fig, axes = plt.subplots(n_projets, 1, figsize=(14, 4*n_projets), sharex=True, sharey=True)
+    # plots plus hauts
+    fig, axes = plt.subplots(
+        n_projets, 1,
+        figsize=(16, 5 * n_projets),   # hauteur augmentée
+        sharey=True
+    )
 
     if n_projets == 1:
         axes = [axes]
 
     for ax, projet in zip(axes, projets):
-        d = df[df['PROJET'] == projet]
+        d = df[df['PROJET'] == projet].copy()
         d = d.groupby('DATE')['JOURS'].sum().reset_index()
 
+        # s'assurer que DATE est bien un datetime
+        d['DATE'] = pd.to_datetime(d['DATE'])
+
         ax.bar(d['DATE'], d['JOURS'], color=color_map[projet])
-        ax.set_title(f"Projet : {projet}")
+        ax.set_title(f"Projet : {projet}", pad=15)
         ax.set_ylabel("JOURS")
         ax.grid(True, alpha=0.3)
+
+        # ticks réguliers : toutes les semaines
+        ax.xaxis.set_major_locator(mdates.WeekdayLocator(interval=1))
+        ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
+
+        # rotation propre
+        ax.tick_params(axis='x', rotation=45)
 
     axes[-1].set_xlabel("DATE")
 
     plt.tight_layout()
     plt.show()
+
 
 
 
