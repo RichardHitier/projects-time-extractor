@@ -36,6 +36,7 @@ def plot(df):
     fig, axes = plt.subplots(
         n_projets, 1,
         figsize=(16, 5 * n_projets),
+        sharex=True,
         sharey=True
     )
 
@@ -66,7 +67,7 @@ def plot(df):
         ax.xaxis.set_major_locator(mdates.WeekdayLocator(interval=1))
         ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y%m%d'))
 
-        ax.tick_params(axis='x', rotation=0, pad=12)
+        ax.tick_params(axis='x', rotation=45, pad=12)
         ax.set_xlabel("DATE", labelpad=15)
 
     # --- C'est ici que l'on ajoute de l'espace entre les plots ---
