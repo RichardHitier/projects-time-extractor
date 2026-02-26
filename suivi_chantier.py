@@ -24,9 +24,29 @@ def report():
     return rapport, df
 
 
+def plot_all_projects(df):
+    d = df.groupby('DATE')['JOURS'].sum().reset_index()
+    d['DATE'] = pd.to_datetime(d['DATE'])
+
+    plt.figure(figsize=(16, 6))
+    plt.bar(d['DATE'], d['JOURS'], color='steelblue')
+    plt.xlabel("DATE", labelpad=15)
+    plt.ylabel("JOURS")
+    plt.title("Total JOURS par DATE")
+    plt.grid(True, alpha=0.3)
+
+    # ticks réguliers
+    plt.gca().xaxis.set_major_locator(mdates.WeekdayLocator(interval=1))
+    plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%Y%m%d'))
+
+    plt.xticks(rotation=45)
+    # plt.tight_layout()
+    # ax.tick_params(axis='x', rotation=45, pad=12)
+    # ax.set_xlabel("DATE", labelpad=15)
+    plt.show()
 
 
-def plot(df):
+def plot_by_projects(df):
     projets = df['PROJET'].unique()
     n_projets = len(projets)
 
@@ -79,7 +99,7 @@ def plot(df):
 
 if __name__ == "__main__":
 
-    actions = ['report', 'plot']
+    actions = ['txt_report', 'plot_by_project', 'plot_all_projects']
 
     import sys
     def givarg(actions):
@@ -89,8 +109,10 @@ if __name__ == "__main__":
     if len(sys.argv) < 2 or sys.argv[1] not in actions:
         givarg(actions)
 
-    report, suivi_df = report()
-    if ( sys.argv[1] == 'report'):
-        print(report)
-    elif ( sys.argv[1] == 'plot'):
-        plot(suivi_df)
+    my_report, suivi_df = report()
+    if ( sys.argv[1] == 'txt_report'):
+        print(my_report)
+    elif ( sys.argv[1] == 'plot_by_project'):
+        plot_by_projects(suivi_df)
+    elif ( sys.argv[1] == 'plot_all_projects'):
+        plot_all_projects(suivi_df)
