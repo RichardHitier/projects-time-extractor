@@ -1,6 +1,7 @@
-
-import pandas as pd
 import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
+import pandas as pd
+
 
 def report():
 
@@ -9,7 +10,8 @@ def report():
 
     # 2) Concaténer toutes les feuilles sauf la première
     sheets = list(xls.keys())[1:]  # toutes sauf la première
-    df = pd.concat([xls[s] for s in sheets], ignore_index=True)
+    df = pd.concat([xls[s].dropna() for s in sheets],
+                    ignore_index=True)
 
     # 3) Nettoyer les colonnes si besoin
     df.columns = df.columns.str.strip()
@@ -23,9 +25,6 @@ def report():
 
 
 
-import matplotlib.pyplot as plt
-import matplotlib.dates as mdates
-import pandas as pd
 
 def plot(df):
     projets = df['PROJET'].unique()
@@ -89,8 +88,8 @@ if __name__ == "__main__":
     if len(sys.argv) < 2 or sys.argv[1] not in actions:
         givarg(actions)
 
-    repont, suivi_df = report()
+    report, suivi_df = report()
     if ( sys.argv[1] == 'report'):
-        print(repont)
+        print(report)
     elif ( sys.argv[1] == 'plot'):
         plot(suivi_df)
