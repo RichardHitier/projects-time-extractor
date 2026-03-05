@@ -2,7 +2,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 
-CSV_PATH = "report.csv"
+CSV_PATH = "DATA/pomofocus_report.csv"
 SEP = "\t"
 
 # Lecture
