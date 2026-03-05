@@ -35,7 +35,7 @@ color_map = {t: colors[i % len(colors)] for i, t in enumerate(tasks)}
 for _, row in df.iterrows():
     y = task_to_y[row[TASK_COLUMN]]
     duration = (row["end_dt"] - row["start_dt"]).total_seconds() / 3600
-    print(row["start_dt"], row["end_dt"], duration)
+    print(row["start_dt"], row["end_dt"], row[TASK_COLUMN], duration)
 
     plt.barh(
         y=y,
