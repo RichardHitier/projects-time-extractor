@@ -326,9 +326,10 @@ if __name__ == "__main__":
     import sys
     from config import load_config
 
-    pomofocus_file = load_config()["POMOFOCUS_FILEPATH"]
-    superprod_file = load_config()["SUPERPROD_FILEPATH"]
-    webprod_file = load_config()["WEBPROD_FILEPATH"]
+    _config = load_config()
+    pomofocus_file = _config["POMOFOCUS_FILEPATH"]
+    superprod_file = _config["SUPERPROD_FILEPATH"]
+    webprod_file = _config["WEBPROD_FILEPATH"]
     cli_arg = None
     if len(sys.argv) > 1:
         cli_arg = sys.argv[1]

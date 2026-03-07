@@ -1,12 +1,16 @@
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
+from config import load_config
 
-CSV_PATH = "DATA/pomofocus_report.csv"
+
 SEP = "\t"
 
 # Lecture
-df = pd.read_csv(CSV_PATH, sep=SEP)
+_config = load_config()
+pomofocus_file = _config["POMOFOCUS_FILEPATH"]
+
+df = pd.read_csv(pomofocus_file, sep=SEP)
 
 # Conversion explicite date + heure
 df["start_dt"] = pd.to_datetime(
