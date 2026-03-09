@@ -1,8 +1,32 @@
 import argparse
+from glob import glob
+
+import pandas as pd
+from config import load_config
+
 
 
 def cmd_pomo_merge(args):
-    raise NotImplementedError
+    DEDUP_KEYS = ["date", "startTime", "endTime", "project", "task"]
+    CSV_SEP = ","
+    _config = load_config()
+    # pomofocus_filepath = _config["POMOFOCUS_FILEPATH"]
+    pomofocus_filepath = "try-pomofocus.csv"
+    data_directory  = _config["PPT_DATA_DIR"]
+    pomfiles = glob(f"{data_directory}/pomofocus*.csv")
+    frames = []
+    for f in pomfiles:
+        df = pd.read_csv(f, sep=CSV_SEP)
+        frames.append(df)
+    merged = pd.concat(frames, ignore_index=True)
+    len_before = len(merged)
+    merged = merged.drop_duplicates(subset=DEDUP_KEYS)
+    merged = merged.sort_values(["date", "startTime"])
+    len_after = len(merged)
+    merged.to_csv(pomofocus_filepath, sep=CSV_SEP, index=False)
+    print(f"Files processed: {pomfiles}")
+    print(f"Records before deduplication: {len_before}")
+    print(f"Records after deduplication: {len_after}")
 
 def cmd_report(args):
     raise NotImplementedError
