@@ -72,11 +72,11 @@ def _view_table(df):
     print(type(daily))
     print(daily.head())
     daily["duration_h"] = daily["minutes"] / 60
-    print(f"\n{'date':<12} {'project':<20} {'task':<25} {'duration_h':>10}")
-    print("-" * 69)
+    print(f"\n{'date':<12} ,{'project':<20} ,{'task':<25} ,{'duration_h':>10}")
+    print("-" * 73)
     for _, row in daily.iterrows():
         print(
-            f"{row['date'].strftime('%Y-%m-%d'):<12} {row['project']:<20} {row['task'][:20]:<20} {row['duration_h']:>10.2f}"
+            f"{row['date'].strftime('%Y-%m-%d'):<12} ,{row['project']:<20} ,{row['task'][:20]:<20} ,{row['duration_h']:>10.2f}"
         )
 def cmd_report(args):
     df = _load_pomo_for_report(args.days, args.project)
