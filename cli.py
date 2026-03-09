@@ -67,16 +67,20 @@ def _view_project(df):
 
 
 def _view_table(df):
+    import locale
+    locale.setlocale(locale.LC_NUMERIC, "fr_FR.UTF-8")
     daily = df.groupby(["date", "project", "task"])["minutes"].sum().reset_index()
     daily = daily.sort_values("date")
     print(type(daily))
     print(daily.head())
     daily["duration_h"] = daily["minutes"] / 60
-    print(f"\n{'date':<12} ,{'project':<20} ,{'task':<25} ,{'duration_h':>10}")
+
+    print(f"\n{'date':<12} ;{'project':<20} ;{'task':<20} ;{'duration_h':>10}")
     print("-" * 73)
     for _, row in daily.iterrows():
+        value = locale.format_string("%10.2f", row['duration_h'])
         print(
-            f"{row['date'].strftime('%Y-%m-%d'):<12} ,{row['project']:<20} ,{row['task'][:20]:<20} ,{row['duration_h']:>10.2f}"
+            f"{row['date'].strftime('%Y-%m-%d'):<12}; {row['project']:<20}; {row['task'][:20]:<20}; {value}"
         )
 def cmd_report(args):
     df = _load_pomo_for_report(args.days, args.project)
