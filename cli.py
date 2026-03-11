@@ -1,7 +1,6 @@
 import argparse
-from glob import glob
-from os import path
-from pathlib import Path
+import os
+import shutil
 
 import pandas as pd
 from config import load_config
@@ -10,18 +9,22 @@ _config = load_config()
 
 POMO_FILE = _config["POMOFOCUS_FILEPATH"]
 DATA_DIR  = _config["DATA_DIR"]
+BCKP_DIR  = os.path.join(_config["DATA_DIR"], "bckp")
 CSV_SEP = ","
 
 def _read_pomo(pomo_file: str) -> pd.DataFrame:
     df = pd.read_csv(pomo_file, sep=CSV_SEP, encoding="utf-8-sig", dtype=str)
     df.columns = df.columns.str.strip()
-    df["project"] = df["project"].str.strip().str.strip('"')
-    df["task"]    = df["task"].str.strip().str.strip('"')
+    df["project"] = (
+        df["project"].str.strip().str.strip('"').str.replace("/", "_", regex=False)
+    )
+    df["task"] = df["task"].str.strip().str.strip('"')
     return df
 
 def cmd_pomo_merge(args):
+    print("Merging Pomofocus exports...")
     DEDUP_KEYS = ["date", "startTime", "endTime", "project", "task"]
-    pomfiles = glob(f"{DATA_DIR}/pomofocus*.csv")
+    pomfiles = [os.path.join(DATA_DIR, f) for f in ["pomofocus.csv", "report.csv"]]
     frames = []
     for f in pomfiles:
         df = _read_pomo(f)
@@ -31,6 +34,17 @@ def cmd_pomo_merge(args):
     merged = merged.drop_duplicates(subset=DEDUP_KEYS)
     merged = merged.sort_values(["date", "startTime"])
     len_after = len(merged)
+    backup_path = os.path.join(BCKP_DIR, f"pomofocus_{pd.Timestamp.
+                                                      now().
+                                                      strftime('%Y%m%d_%H%M%S')}.csv")
+    if not os.path.exists(BCKP_DIR):
+        os.makedirs(BCKP_DIR)
+    i = 0
+    while os.path.exists(backup_path):
+        i += 1
+        backup_path = backup_path.replace(".csv", f"_{i}.csv")
+
+    shutil.copyfile(POMO_FILE, backup_path)
     merged.to_csv(POMO_FILE, sep=CSV_SEP, index=False)
     print(f"Files processed: {pomfiles}")
     print(f"Records before deduplication: {len_before}")
@@ -134,6 +148,4 @@ def main():
 
 
 if __name__ == "__main__":
-    print(POMO_FILE )
-    print(DATA_DIR  )
-    # main()
+    main()
