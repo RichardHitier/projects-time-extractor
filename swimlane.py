@@ -31,8 +31,9 @@ def color_for(p):
 
 # ── Chargement & parsing ──────────────────────────────────────────────────────
 def load(path):
-    df = pd.read_csv(path, sep="\t", encoding="utf-8-sig")
+    df = pd.read_csv(path, sep=",", encoding="utf-8-sig")
     df.columns = df.columns.str.strip()
+
     df["project"] = df["project"].str.strip().str.strip('"')
     df["task"]    = df["task"].str.strip().str.strip('"')
     df = df[df["minutes"] > 0].copy()
@@ -125,7 +126,7 @@ def plot(df, output="swimlane.png"):
 
     fig.tight_layout()
     fig.savefig(output, dpi=150, bbox_inches="tight", facecolor="#0d1117")
-    print(f"OK : {output}")
+    print(f"Image generated : {output}")
 
 if __name__ == "__main__":
     _config = load_config()
@@ -133,4 +134,5 @@ if __name__ == "__main__":
     csv_path = sys.argv[1] if len(sys.argv) > 1 else pomofocus_file
     output   = sys.argv[2] if len(sys.argv) > 2 else "swimlane.png"
     df = load(csv_path)
+    df = df[df["date_only"] >= (datetime.now().date() - timedelta(days=30))]
     plot(df, output)
