@@ -51,7 +51,7 @@ def cmd_pomo_merge(args):
     print(f"Records after deduplication: {len_after}")
 
 def _load_pomo_for_report(days, project):
-    if not POMO_FILE.exists():
+    if not os.path.exists(POMO_FILE):
         print(f"Pomofocus export not found: {POMO_FILE}."
                " Run 'timer pomo-merge' first.")
         return
@@ -87,13 +87,23 @@ def _view_table(df):
     print(daily.head())
     daily["duration_h"] = daily["minutes"] / 60
 
-    print(f"\n{'date':<12} ;{'project':<20} ;{'task':<20} ;{'duration_h':>10}")
-    print("-" * 73)
+    header_line = (
+        f"\n{'date':<12}; {'project':<20}; {'task':<35}; "
+        f"{'duration_h':>10}"
+    )
+    print(header_line)
+    print("-" * len(header_line))
     for _, row in daily.iterrows():
-        value = locale.format_string("%10.2f", row['duration_h'])
+        value = locale.format_string("%3.2f", row['duration_h'])
+        date_str = row['date'].strftime('%Y-%m-%d')
+        project_str = row['project']
+        task_str = row['task'][:35]
+        ratio_str = f"={value}/8"
         print(
-            f"{row['date'].strftime('%Y-%m-%d'):<12}; {row['project']:<20}; {row['task'][:20]:<20}; {value}"
+            f"{date_str:<12}; {project_str:<20}; {task_str:<35}; "
+            f"{ratio_str:>10}"
         )
+
 def cmd_report(args):
     df = _load_pomo_for_report(args.days, args.project)
     if df is not None:
