@@ -32,6 +32,9 @@ def load_projects(projects_path=projects_filepath):
 def load_config(config_path=config_filepath):
     ppt_root_dir = os.path.dirname(__file__)
     config = _load_yaml_config(config_path)
+    config["DATA_DIR"] = os.path.join(
+        ppt_root_dir, config["PPT_DATA_DIR"]
+    )
     config["POMOFOCUS_FILEPATH"] = os.path.join(
         ppt_root_dir, config["PPT_DATA_DIR"], config["POMOFOCUS_FILENAME"]
     )

@@ -9,8 +9,7 @@ from config import load_config
 _config = load_config()
 
 POMO_FILE = _config["POMOFOCUS_FILEPATH"]
-DATA_DIR = Path(__file__).parent 
-POMO_OUT = DATA_DIR / POMO_FILE
+DATA_DIR  = _config["DATA_DIR"]
 CSV_SEP = ","
 
 def _read_pomo(pomo_file: str) -> pd.DataFrame:
@@ -22,8 +21,7 @@ def _read_pomo(pomo_file: str) -> pd.DataFrame:
 
 def cmd_pomo_merge(args):
     DEDUP_KEYS = ["date", "startTime", "endTime", "project", "task"]
-    data_directory  = _config["PPT_DATA_DIR"]
-    pomfiles = glob(f"{data_directory}/pomofocus*.csv")
+    pomfiles = glob(f"{DATA_DIR}/pomofocus*.csv")
     frames = []
     for f in pomfiles:
         df = _read_pomo(f)
@@ -33,17 +31,17 @@ def cmd_pomo_merge(args):
     merged = merged.drop_duplicates(subset=DEDUP_KEYS)
     merged = merged.sort_values(["date", "startTime"])
     len_after = len(merged)
-    merged.to_csv(POMO_OUT, sep=CSV_SEP, index=False)
+    merged.to_csv(POMO_FILE, sep=CSV_SEP, index=False)
     print(f"Files processed: {pomfiles}")
     print(f"Records before deduplication: {len_before}")
     print(f"Records after deduplication: {len_after}")
 
 def _load_pomo_for_report(days, project):
-    if not POMO_OUT.exists():
-        print(f"Pomofocus export not found: {POMO_OUT}."
+    if not POMO_FILE.exists():
+        print(f"Pomofocus export not found: {POMO_FILE}."
                " Run 'timer pomo-merge' first.")
         return
-    df = _read_pomo(POMO_OUT)
+    df = _read_pomo(POMO_FILE)
     df['minutes'] = pd.to_numeric(df['minutes'], errors='coerce').fillna(0).astype(int)
     df['date'] = pd.to_datetime(df['date'], format='%Y%m%d', errors='coerce')
 
@@ -136,4 +134,6 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    print(POMO_FILE )
+    print(DATA_DIR  )
+    # main()
