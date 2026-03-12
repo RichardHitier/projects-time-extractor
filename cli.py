@@ -83,25 +83,27 @@ def _view_table(df):
     locale.setlocale(locale.LC_NUMERIC, "fr_FR.UTF-8")
     daily = df.groupby(["date", "project", "task"])["minutes"].sum().reset_index()
     daily = daily.sort_values("date")
-    print(type(daily))
-    print(daily.head())
     daily["duration_h"] = daily["minutes"] / 60
+    daily[["project", "sub_project"]] = (
+        daily["project"].str.split("_", n=1, expand=True).fillna("")
+    )
 
     header_line = (
-        f"\n{'date':<12}; {'project':<20}; {'task':<35}; "
-        f"{'duration_h':>10}"
+        f"\n{'date':<12}; {'project':<20}; {'sub_project':<20}; {'task':<35}; "
+        f"{'duration_d':>10}; {'duration_h':>10}"
     )
     print(header_line)
     print("-" * len(header_line))
     for _, row in daily.iterrows():
-        value = locale.format_string("%3.2f", row['duration_h'])
+        duration_h = locale.format_string("%3.2f", row['duration_h'])
+        duration_d = locale.format_string("%3.2f", row['duration_h']/8)
         date_str = row['date'].strftime('%Y-%m-%d')
         project_str = row['project']
         task_str = row['task'][:35]
-        ratio_str = f"={value}/8"
+        sub_project_str = row['sub_project'][:20]
         print(
-            f"{date_str:<12}; {project_str:<20}; {task_str:<35}; "
-            f"{ratio_str:>10}"
+            f"{date_str:<12}; {project_str:<20}; {sub_project_str:<20}; "
+            f"{task_str:<35}; {duration_d:>10}; {duration_h:>10}"
         )
 
 def cmd_report(args):
