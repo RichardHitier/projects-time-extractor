@@ -4,6 +4,8 @@ import shutil
 
 import pandas as pd
 from config import load_config
+import locale
+locale.setlocale(locale.LC_NUMERIC, "fr_FR.UTF-8")
 
 _config = load_config()
 
@@ -13,6 +15,10 @@ BCKP_DIR  = os.path.join(_config["DATA_DIR"], "bckp")
 CSV_SEP = ","
 
 def _read_pomo(pomo_file: str) -> pd.DataFrame:
+    if not os.path.exists(POMO_FILE):
+        print(f"Pomofocus export not found: {POMO_FILE}."
+               " Run 'timer pomo-merge' first.")
+        return
     df = pd.read_csv(pomo_file, sep=CSV_SEP, encoding="utf-8-sig", dtype=str)
     df.columns = df.columns.str.strip()
     df["project"] = (
@@ -24,7 +30,20 @@ def _read_pomo(pomo_file: str) -> pd.DataFrame:
 def cmd_pomo_merge(args):
     print("Merging Pomofocus exports...")
     DEDUP_KEYS = ["date", "startTime", "endTime", "project", "task"]
-    pomfiles = [os.path.join(DATA_DIR, f) for f in ["pomofocus.csv", "report.csv"]]
+    report_file_name =  "report.csv"
+    downloaded_report_path = os.path.join(_config["HOME_DIR"], report_file_name)
+    data_report_path = os.path.join(DATA_DIR, report_file_name)
+    pomfiles = [POMO_FILE]
+    if os.path.exists(downloaded_report_path):
+        print(f" Moving {downloaded_report_path} to data directory...")
+        shutil.move(downloaded_report_path, data_report_path)
+    else:
+        print(f"No downloaded report found at {downloaded_report_path}.")
+    if os.path.exists(data_report_path):
+        print(f"Include {data_report_path} in the merge.")
+        pomfiles.append(data_report_path)
+    else:
+        print(f"No report found at {data_report_path}.")
     frames = []
     for f in pomfiles:
         df = _read_pomo(f)
@@ -37,35 +56,31 @@ def cmd_pomo_merge(args):
     backup_path = os.path.join(BCKP_DIR, f"pomofocus_{pd.Timestamp.
                                                       now().
                                                       strftime('%Y%m%d_%H%M%S')}.csv")
-    if not os.path.exists(BCKP_DIR):
-        os.makedirs(BCKP_DIR)
-    i = 0
-    while os.path.exists(backup_path):
-        i += 1
-        backup_path = backup_path.replace(".csv", f"_{i}.csv")
-
-    shutil.copyfile(POMO_FILE, backup_path)
+    shutil.move(POMO_FILE, backup_path)
     merged.to_csv(POMO_FILE, sep=CSV_SEP, index=False)
     print(f"Files processed: {pomfiles}")
     print(f"Records before deduplication: {len_before}")
     print(f"Records after deduplication: {len_after}")
 
 def _load_pomo_for_report(days, project):
-    if not os.path.exists(POMO_FILE):
-        print(f"Pomofocus export not found: {POMO_FILE}."
-               " Run 'timer pomo-merge' first.")
-        return
     df = _read_pomo(POMO_FILE)
     df['minutes'] = pd.to_numeric(df['minutes'], errors='coerce').fillna(0).astype(int)
     df['date'] = pd.to_datetime(df['date'], format='%Y%m%d', errors='coerce')
 
+    daily = df.groupby(["date", "project", "task"])["minutes"].sum().reset_index()
+    daily = daily.sort_values("date")
+    daily["duration_h"] = daily["minutes"] / 60
+    daily["duration_d"] = daily["duration_h"] / 8
+    daily[["project", "sub_project"]] = (
+        daily["project"].str.split("_", n=1, expand=True).fillna("")
+    )
     cutoff = pd.Timestamp.today().normalize() - pd.Timedelta(days=days - 1)
-    df = df[df["date"] >= cutoff]
+    daily = daily[daily["date"] >= cutoff]
 
     if project:
-        df = df[df["project"] == project]
+        daily = daily[daily["project"] == project]
 
-    return df
+    return daily
 
 
 def _view_project(df):
@@ -79,14 +94,6 @@ def _view_project(df):
 
 
 def _view_table(df):
-    import locale
-    locale.setlocale(locale.LC_NUMERIC, "fr_FR.UTF-8")
-    daily = df.groupby(["date", "project", "task"])["minutes"].sum().reset_index()
-    daily = daily.sort_values("date")
-    daily["duration_h"] = daily["minutes"] / 60
-    daily[["project", "sub_project"]] = (
-        daily["project"].str.split("_", n=1, expand=True).fillna("")
-    )
 
     header_line = (
         f"\n{'date':<12}; {'project':<20}; {'sub_project':<20}; {'task':<35}; "
@@ -94,9 +101,9 @@ def _view_table(df):
     )
     print(header_line)
     print("-" * len(header_line))
-    for _, row in daily.iterrows():
+    for _, row in df.iterrows():
         duration_h = locale.format_string("%3.2f", row['duration_h'])
-        duration_d = locale.format_string("%3.2f", row['duration_h']/8)
+        duration_d = locale.format_string("%3.2f", row['duration_d'])
         date_str = row['date'].strftime('%Y-%m-%d')
         project_str = row['project']
         task_str = row['task'][:35]
@@ -106,6 +113,23 @@ def _view_table(df):
             f"{task_str:<35}; {duration_d:>10}; {duration_h:>10}"
         )
 
+def _view_export(df):
+
+    header_line = (
+        f"\n{'date'};{'project'};{'sub_project'};{'task'};{'duration_d'}"
+    )
+    print(header_line)
+    for _, row in df.iterrows():
+        duration_d = locale.format_string("%3.2f", row['duration_d'])
+        date_str = row['date'].strftime('%Y-%m-%d')
+        project_str = row['project']
+        task_str = row['task'][:35]
+        sub_project_str = row['sub_project'][:20]
+        print(
+            f"{date_str};{project_str};{sub_project_str};"
+            f"{task_str};{duration_d}"
+        )
+
 def cmd_report(args):
     df = _load_pomo_for_report(args.days, args.project)
     if df is not None:
@@ -113,6 +137,8 @@ def cmd_report(args):
             _view_table(df)
         elif args.view == "project":
             _view_project(df)
+        elif args.view == "export":
+            _view_export(df)
         else:
             print(f"Unknown view: {args.view}")
 
@@ -130,12 +156,16 @@ def build_parser():
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
-    p_merge = sub.add_parser("pomo-merge", help="Merge pomofocus exports → pomofocus.csv")
+    p_merge = sub.add_parser("pomo-merge",
+                             help="Merge pomofocus exports → pomofocus.csv")
     p_merge.set_defaults(func=cmd_pomo_merge)
 
     p_report = sub.add_parser("report", help="Text report time/project/day")
-    p_report.add_argument("--days", type=int, default=7, metavar="N",help="Number of days to report (default: 7)")
-    p_report.add_argument("--view", default="table", choices=["table", "project"], help="Report format")
+    p_report.add_argument("--days", type=int, default=7, metavar="N",
+                          help="Number of days to report (default: 7)")
+    p_report.add_argument("--view", default="table",
+                          choices=["table", "project", "export"],
+                          help="Report format")
     p_report.add_argument("--project", default=None, metavar="NAME")
     p_report.set_defaults(func=cmd_report)
 

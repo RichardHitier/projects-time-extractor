@@ -31,7 +31,11 @@ def load_projects(projects_path=projects_filepath):
 
 def load_config(config_path=config_filepath):
     ppt_root_dir = os.path.dirname(__file__)
+    home_dir = os.path.expanduser("~")
     config = _load_yaml_config(config_path)
+    config["HOME_DIR"] = os.path.join(
+        home_dir, config["PPT_DL_DIR"]
+    )
     config["DATA_DIR"] = os.path.join(
         ppt_root_dir, config["PPT_DATA_DIR"]
     )
