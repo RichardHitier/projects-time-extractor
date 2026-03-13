@@ -2,6 +2,7 @@ import argparse
 import os
 import shutil
 
+from matplotlib import pyplot as plt
 import pandas as pd
 from config import load_config
 import locale
@@ -48,6 +49,23 @@ def _load_pomo_for_report(days, project):
     if project:
         daily = daily[daily["project"] == project]
 
+    return daily
+
+def _load_pomo_for_swimlane(date_from, date_to):
+    df = _read_pomo(POMO_FILE)
+    df = df[df["project"].isin(_config["EXPORT_PROJECTS"])]
+
+    df["date"] = pd.to_datetime(df["date"], format="%Y%m%d")
+    if date_from:
+        date_from = pd.to_datetime(date_from, format='%Y%m%d', errors='coerce')
+        df = df[df["date"] >= date_from]
+
+    if date_to:
+        date_to = pd.to_datetime(date_to, format='%Y%m%d', errors='coerce')
+        df = df[df["date"] <= date_to]
+
+    df["minutes"] = pd.to_numeric(df["minutes"])
+    daily = df.groupby(["date", "project"], as_index=False).agg(minutes=("minutes", "sum"))
     return daily
 
 
@@ -146,7 +164,16 @@ def cmd_report(args):
             print(f"Unknown view: {args.view}")
 
 def cmd_swimlane(args):
-    raise NotImplementedError
+    df = _load_pomo_for_swimlane(args.date_from, args.date_to)
+    df_plot = df.pivot(index="date", columns="project", values="minutes").fillna(0)
+    df_plot.plot(kind="bar", stacked=True)
+
+    plt.ylabel("minutes")
+    plt.xlabel("date")
+    plt.title("Time spent per project per day")
+
+    plt.show()
+
 
 def cmd_plot(args):
     raise NotImplementedError
@@ -193,4 +220,7 @@ def main():
 
 
 if __name__ == "__main__":
+    # print(_config["EXPORT_PROJECTS"])
+    # df = _read_pomo(POMO_FILE)
+    # print(df)
     main()
