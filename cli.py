@@ -24,8 +24,32 @@ def _read_pomo(pomo_file: str) -> pd.DataFrame:
     df["project"] = (
         df["project"].str.strip().str.strip('"').str.replace("/", "_", regex=False)
     )
+    df[["project", "sub_project"]] = (
+        df["project"].str.split("_", n=1, expand=True).fillna("")
+    )
     df["task"] = df["task"].str.strip().str.strip('"')
     return df
+
+def _load_pomo_for_report(days, project):
+    df = _read_pomo(POMO_FILE)
+    df = df[df["project"].isin(_config["EXPORT_PROJECTS"])]
+    df['minutes'] = pd.to_numeric(df['minutes'], errors='coerce').fillna(0).astype(int)
+    df['date'] = pd.to_datetime(df['date'], format='%Y%m%d', errors='coerce')
+
+    daily = df.groupby(["date", "project", "sub_project", "task"])["minutes"].sum().reset_index()
+    daily = daily.sort_values("date")
+    daily["duration_h"] = daily["minutes"] / 60
+    daily["duration_d"] = daily["duration_h"] / 8
+    cutoff = pd.Timestamp.today().normalize() - pd.Timedelta(days=days - 1)
+    daily = daily[daily["date"] >= cutoff]
+
+    daily = daily.sort_values(["date", "project"])
+
+    if project:
+        daily = daily[daily["project"] == project]
+
+    return daily
+
 
 def cmd_pomo_merge(args):
     print("Merging Pomofocus exports...")
@@ -61,27 +85,6 @@ def cmd_pomo_merge(args):
     print(f"Files processed: {pomfiles}")
     print(f"Records before deduplication: {len_before}")
     print(f"Records after deduplication: {len_after}")
-
-def _load_pomo_for_report(days, project):
-    df = _read_pomo(POMO_FILE)
-    df['minutes'] = pd.to_numeric(df['minutes'], errors='coerce').fillna(0).astype(int)
-    df['date'] = pd.to_datetime(df['date'], format='%Y%m%d', errors='coerce')
-
-    daily = df.groupby(["date", "project", "task"])["minutes"].sum().reset_index()
-    daily = daily.sort_values("date")
-    daily["duration_h"] = daily["minutes"] / 60
-    daily["duration_d"] = daily["duration_h"] / 8
-    daily[["project", "sub_project"]] = (
-        daily["project"].str.split("_", n=1, expand=True).fillna("")
-    )
-    cutoff = pd.Timestamp.today().normalize() - pd.Timedelta(days=days - 1)
-    daily = daily[daily["date"] >= cutoff]
-
-    if project:
-        daily = daily[daily["project"] == project]
-
-    return daily
-
 
 def _view_project(df):
     for project, grp in df.groupby("project"):
