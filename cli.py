@@ -51,24 +51,6 @@ def _load_pomo_for_report(days, project):
 
     return daily
 
-def _load_pomo_for_swimlane(date_from, date_to):
-    df = _read_pomo(POMO_FILE)
-    df = df[df["project"].isin(_config["EXPORT_PROJECTS"])]
-
-    df["date"] = pd.to_datetime(df["date"], format="%Y%m%d")
-    if date_from:
-        date_from = pd.to_datetime(date_from, format='%Y%m%d', errors='coerce')
-        df = df[df["date"] >= date_from]
-
-    if date_to:
-        date_to = pd.to_datetime(date_to, format='%Y%m%d', errors='coerce')
-        df = df[df["date"] <= date_to]
-
-    df["minutes"] = pd.to_numeric(df["minutes"])
-    daily = df.groupby(["date", "project"], as_index=False).agg(minutes=("minutes", "sum"))
-    return daily
-
-
 def cmd_pomo_merge(args):
     print("Merging Pomofocus exports...")
     DEDUP_KEYS = ["date", "startTime", "endTime", "project", "task"]
@@ -163,9 +145,32 @@ def cmd_report(args):
         else:
             print(f"Unknown view: {args.view}")
 
+def _load_pomo_for_swimlane(date_from, date_to):
+    df = _read_pomo(POMO_FILE)
+    df = df[df["project"].isin(_config["EXPORT_PROJECTS"])]
+
+    df["date"] = pd.to_datetime(df["date"], format="%Y%m%d")
+    if date_from:
+        date_from = pd.to_datetime(date_from, format='%Y%m%d', errors='coerce')
+        df = df[df["date"] >= date_from]
+
+    if date_to:
+        date_to = pd.to_datetime(date_to, format='%Y%m%d', errors='coerce')
+        df = df[df["date"] <= date_to]
+
+    df["minutes"] = pd.to_numeric(df["minutes"])
+    daily = df.groupby(["date", "project"], as_index=False).agg(minutes=("minutes", "sum"))
+
+
+    return daily
+
+
 def cmd_swimlane(args):
     df = _load_pomo_for_swimlane(args.date_from, args.date_to)
+    df_plot =  df.set_index("date")
     df_plot = df.pivot(index="date", columns="project", values="minutes").fillna(0)
+    date_range = pd.date_range(df_plot.index.min(), df_plot.index.max(), freq="D")
+    df_plot = df_plot.reindex(date_range, fill_value=0)
     df_plot.plot(kind="bar", stacked=True)
 
     plt.ylabel("minutes")
