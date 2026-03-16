@@ -181,8 +181,8 @@ def _load_pomo_for_swimlane(date_from, date_to):
         date_to = pd.to_datetime(date_to, format='%Y%m%d', errors='coerce')
         df = df[df["date"] <= date_to]
 
-    df["minutes"] = pd.to_numeric(df["minutes"])
-    daily = df.groupby(["date", "project"], as_index=False).agg(minutes=("minutes", "sum"))
+    df["duration_m"] = pd.to_numeric(df["duration_m"])
+    daily = df.groupby(["date", "project"], as_index=False).agg(minutes=("duration_m", "sum"))
 
 
     return daily
