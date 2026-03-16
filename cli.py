@@ -22,34 +22,56 @@ def _read_pomo(pomo_file: str) -> pd.DataFrame:
         return
     df = pd.read_csv(pomo_file, sep=CSV_SEP, encoding="utf-8-sig", dtype=str)
     df.columns = df.columns.str.strip()
-    df["project"] = (
-        df["project"].str.strip().str.strip('"').str.replace("/", "_", regex=False)
+    df["project"] = ( df["project"]
+        .str.strip().astype(str)
+        .str.strip('"')
+        .str.replace("/", "_", regex=False)
+        .str.replace(r"\s+", " ", regex=True)
+        )
+
+    df["task"] = ( df["task"]
+        .str.strip().astype(str)
+        .str.strip('"')
+        .str.replace(r"\s+", " ", regex=True)
     )
-    df[["project", "sub_project"]] = (
-        df["project"].str.split("_", n=1, expand=True).fillna("")
-    )
-    df["task"] = df["task"].str.strip().str.strip('"')
     return df
 
-def _load_pomo_for_report(days, project):
+def _load_pomo_for_all():
     df = _read_pomo(POMO_FILE)
+    df["date"] = pd.to_datetime(df["date"], format="%Y%m%d", errors="coerce")
+    df["startTime"] = pd.to_datetime(df["startTime"], format="%H:%M").dt.time
+    df["endTime"] = pd.to_datetime(df["endTime"], format="%H:%M").dt.time
+    df["minutes"] = ( pd.to_numeric(df["minutes"], errors="coerce")
+                      .fillna(0).astype(int) )
+    df["duration_m"] = df["minutes"]
+    df["duration_h"] = df["minutes"] / 60
+    df["duration_d"] = df["duration_h"] / 8
+    df.drop(columns=["minutes"], inplace=True)
+    df[["project", "sub_project"]] = ( df["project"]
+        .str.split("_", n=1, expand=True).fillna("")
+    )
+    return df
+
+
+def _load_pomo_for_report( days, project):
+    df = _load_pomo_for_all()
     df = df[df["project"].isin(_config["EXPORT_PROJECTS"])]
-    df['minutes'] = pd.to_numeric(df['minutes'], errors='coerce').fillna(0).astype(int)
-    df['date'] = pd.to_datetime(df['date'], format='%Y%m%d', errors='coerce')
 
-    daily = df.groupby(["date", "project", "sub_project", "task"])["minutes"].sum().reset_index()
-    daily = daily.sort_values("date")
-    daily["duration_h"] = daily["minutes"] / 60
-    daily["duration_d"] = daily["duration_h"] / 8
+    df = df.sort_values("date")
     cutoff = pd.Timestamp.today().normalize() - pd.Timedelta(days=days - 1)
-    daily = daily[daily["date"] >= cutoff]
+    df = df[df["date"] >= cutoff]
 
-    daily = daily.sort_values(["date", "project"])
+    df = df.sort_values(["date", "project"])
 
     if project:
-        daily = daily[daily["project"] == project]
+        df = df[df["project"] == project]
 
-    return daily
+    df = ( df.groupby(["date", "project", "sub_project", "task"],
+                       as_index=False)
+                .sum( numeric_only=True)
+    )
+
+    return df
 
 def cmd_pomo_merge(args):
     print("Merging Pomofocus exports...")
@@ -89,7 +111,7 @@ def cmd_pomo_merge(args):
 def _view_project(df):
     for project, grp in df.groupby("project"):
         print(f"\nProject: {project}")
-        daily = grp.groupby("date")["minutes"].sum()
+        daily = grp.groupby("date")["duration_m"].sum()
         for date, minutes in daily.items():
             print(
                 f"  - {date.strftime('%Y-%m-%d')} :  duration = {minutes / 60:5.2f} h"
@@ -100,11 +122,12 @@ def _view_table(df):
 
     header_line = (
         f"\n{'date':<12}; {'project':<20}; {'sub_project':<20}; {'task':<35}; "
-        f"{'duration_d':>10}; {'duration_h':>10}"
+        f"{'duration_m':>10}; {'duration_d':>10}; {'duration_h':>10}"
     )
     print(header_line)
     print("-" * len(header_line))
     for _, row in df.iterrows():
+        duration_m = locale.format_string("%3.2f", row['duration_m'])
         duration_h = locale.format_string("%3.2f", row['duration_h'])
         duration_d = locale.format_string("%3.2f", row['duration_d'])
         date_str = row['date'].strftime('%Y-%m-%d')
@@ -113,7 +136,7 @@ def _view_table(df):
         sub_project_str = row['sub_project'][:20]
         print(
             f"{date_str:<12}; {project_str:<20}; {sub_project_str:<20}; "
-            f"{task_str:<35}; {duration_d:>10}; {duration_h:>10}"
+            f"{task_str:<35}; {duration_m:>10}; {duration_d:>10}; {duration_h:>10}"
         )
 
 def _view_export(df):
@@ -146,7 +169,7 @@ def cmd_report(args):
             print(f"Unknown view: {args.view}")
 
 def _load_pomo_for_swimlane(date_from, date_to):
-    df = _read_pomo(POMO_FILE)
+    df = _load_pomo_for_all()
     df = df[df["project"].isin(_config["EXPORT_PROJECTS"])]
 
     df["date"] = pd.to_datetime(df["date"], format="%Y%m%d")
@@ -225,7 +248,6 @@ def main():
 
 
 if __name__ == "__main__":
-    # print(_config["EXPORT_PROJECTS"])
-    # df = _read_pomo(POMO_FILE)
+    df = _load_pomo_for_all()
     # print(df)
     main()
