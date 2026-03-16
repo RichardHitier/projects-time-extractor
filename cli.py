@@ -168,10 +168,8 @@ def cmd_report(args):
         else:
             print(f"Unknown view: {args.view}")
 
-def _load_pomo_for_swimlane(date_from, date_to):
+def _load_pomo_for_day_bars(date_from, date_to):
     df = _load_pomo_for_all()
-    df = df[df["project"].isin(_config["EXPORT_PROJECTS"])]
-
     df["date"] = pd.to_datetime(df["date"], format="%Y%m%d")
     if date_from:
         date_from = pd.to_datetime(date_from, format='%Y%m%d', errors='coerce')
@@ -182,23 +180,44 @@ def _load_pomo_for_swimlane(date_from, date_to):
         df = df[df["date"] <= date_to]
 
     df["duration_m"] = pd.to_numeric(df["duration_m"])
-    daily = df.groupby(["date", "project"], as_index=False).agg(minutes=("duration_m", "sum"))
-
+    daily = df.groupby(["date", "project"], as_index=False).agg(hours=("duration_h", "sum"))
 
     return daily
 
 
-def cmd_swimlane(args):
-    df = _load_pomo_for_swimlane(args.date_from, args.date_to)
+def cmd_day_bars(args):
+    df = _load_pomo_for_day_bars(args.date_from, args.date_to)
     df_plot =  df.set_index("date")
-    df_plot = df.pivot(index="date", columns="project", values="minutes").fillna(0)
+    df_plot = df.pivot(index="date", columns="project", values="hours").fillna(0)
     date_range = pd.date_range(df_plot.index.min(), df_plot.index.max(), freq="D")
     df_plot = df_plot.reindex(date_range, fill_value=0)
-    df_plot.plot(kind="bar", stacked=True)
 
-    plt.ylabel("minutes")
-    plt.xlabel("date")
-    plt.title("Time spent per project per day")
+    if args.view == "txt":
+        print(df_plot)
+        return
+
+    fig, ax = plt.subplots(figsize=(10, 6))
+
+
+    df_plot.plot(
+        ax=ax,
+        kind="bar",
+        stacked=True,
+        colormap="tab20",   # couleurs plus lisibles
+        width=0.8
+    )
+
+
+    plt.ylabel("Hours", fontsize=12)
+    plt.xlabel("Date", fontsize=12)
+    plt.title("Time spent per project per day", fontsize=14)
+
+    labels = [d.strftime("%d %b") for d in df_plot.index]
+    ax.set_xticklabels(labels, rotation=45, ha="right")
+
+    plt.grid(axis="y", linestyle="--", alpha=0.4)
+
+    plt.legend(title="Project", bbox_to_anchor=(1.02, 1), loc="upper left")
 
     plt.show()
 
@@ -227,11 +246,12 @@ def build_parser():
     p_report.add_argument("--project", default=None, metavar="NAME")
     p_report.set_defaults(func=cmd_report)
 
-    p_swim = sub.add_parser("swimlane", help="Generate swimlane PNG")
-    p_swim.add_argument("--output", default="swimlane.png")
-    p_swim.add_argument("--from",   dest="date_from", metavar="YYYYMMDD")
-    p_swim.add_argument("--to",     dest="date_to",   metavar="YYYYMMDD")
-    p_swim.set_defaults(func=cmd_swimlane)
+    p_day_bars = sub.add_parser("day-bars", help="Generate day bars PNG")
+    p_day_bars.add_argument("--view", default="plot", choices=["txt", "plot"])
+    p_day_bars.add_argument("--output", default="day_bars.png")
+    p_day_bars.add_argument("--from",   dest="date_from", metavar="YYYYMMDD")
+    p_day_bars.add_argument("--to",     dest="date_to",   metavar="YYYYMMDD")
+    p_day_bars.set_defaults(func=cmd_day_bars)
 
     p_plot = sub.add_parser("plot", help="Annual view by project")
     p_plot.add_argument("--year",   type=int, help="Year (default: current)")
@@ -248,6 +268,4 @@ def main():
 
 
 if __name__ == "__main__":
-    df = _load_pomo_for_all()
-    # print(df)
     main()
