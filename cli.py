@@ -1,5 +1,6 @@
 import argparse
 import os
+import re
 import shutil
 
 from matplotlib import pyplot as plt
@@ -121,11 +122,14 @@ def _view_project(df):
 def _view_table(df):
 
     header_line = (
-        f"\n{'date':<12}; {'project':<20}; {'sub_project':<20}; {'task':<35}; "
-        f"{'duration_m':>10}; {'duration_d':>10}; {'duration_h':>10}"
+        f"{'date':<12}| {'project':<20}| {'sub_project':<20}| {'task':<35}| "
+        f"{'duration_m':>10} | {'duration_d':>10} | {'duration_h':>10}"
     )
+    print()
     print(header_line)
-    print("-" * len(header_line))
+    separation_line = header_line.replace('|', '+')
+    separation_line = re.sub(r"[^+]", "-", separation_line)
+    print(separation_line)
     for _, row in df.iterrows():
         duration_m = locale.format_string("%3.2f", row['duration_m'])
         duration_h = locale.format_string("%3.2f", row['duration_h'])
@@ -135,8 +139,8 @@ def _view_table(df):
         task_str = row['task'][:35]
         sub_project_str = row['sub_project'][:20]
         print(
-            f"{date_str:<12}; {project_str:<20}; {sub_project_str:<20}; "
-            f"{task_str:<35}; {duration_m:>10}; {duration_d:>10}; {duration_h:>10}"
+            f"{date_str:<12}| {project_str:<20}| {sub_project_str:<20}| "
+            f"{task_str:<35}| {duration_m:>10} | {duration_d:>10} | {duration_h:>10}"
         )
 
 def _view_export(df):
