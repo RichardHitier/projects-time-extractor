@@ -172,8 +172,10 @@ def cmd_report(args):
         else:
             print(f"Unknown view: {args.view}")
 
-def _load_pomo_for_day_bars(date_from, date_to):
+def _load_pomo_for_day_bars(date_from, date_to, project):
     df = _load_pomo_for_all()
+    if project:
+        df = df[df["project"] == project]
     df["date"] = pd.to_datetime(df["date"], format="%Y%m%d")
     if date_from:
         date_from = pd.to_datetime(date_from, format='%Y%m%d', errors='coerce')
@@ -190,11 +192,12 @@ def _load_pomo_for_day_bars(date_from, date_to):
 
 
 def cmd_day_bars(args):
-    df = _load_pomo_for_day_bars(args.date_from, args.date_to)
+    df = _load_pomo_for_day_bars(args.date_from, args.date_to, args.project)
     df_plot =  df.set_index("date")
     df_plot = df.pivot(index="date", columns="project", values="hours").fillna(0)
     date_range = pd.date_range(df_plot.index.min(), df_plot.index.max(), freq="D")
     df_plot = df_plot.reindex(date_range, fill_value=0)
+
 
     if args.view == "txt":
         print(df_plot)
@@ -251,10 +254,11 @@ def build_parser():
     p_report.set_defaults(func=cmd_report)
 
     p_day_bars = sub.add_parser("day-bars", help="Generate day bars PNG")
-    p_day_bars.add_argument("--view", default="plot", choices=["txt", "plot"])
-    p_day_bars.add_argument("--output", default="day_bars.png")
+    p_day_bars.add_argument("-v", "--view", default="plot", choices=["txt", "plot"])
+    p_day_bars.add_argument("-o", "--output", default="day_bars.png")
     p_day_bars.add_argument("--from",   dest="date_from", metavar="YYYYMMDD")
     p_day_bars.add_argument("--to",     dest="date_to",   metavar="YYYYMMDD")
+    p_day_bars.add_argument("-p", "--project",     dest="project")
     p_day_bars.set_defaults(func=cmd_day_bars)
 
     p_plot = sub.add_parser("plot", help="Annual view by project")
