@@ -193,6 +193,8 @@ def _load_pomo_for_day_bars(date_from, date_to, project):
 
 def cmd_day_bars(args):
     df = _load_pomo_for_day_bars(args.date_from, args.date_to, args.project)
+    print(df)
+    print(type(df["date"][0]))
     df_plot =  df.set_index("date")
     df_plot = df.pivot(index="date", columns="project", values="hours").fillna(0)
     date_range = pd.date_range(df_plot.index.min(), df_plot.index.max(), freq="D")
@@ -206,12 +208,14 @@ def cmd_day_bars(args):
     fig, ax = plt.subplots(figsize=(10, 6))
 
 
+    # Plot stacked bars, aligned right on xtick
     df_plot.plot(
         ax=ax,
         kind="bar",
         stacked=True,
         colormap="tab20",   # couleurs plus lisibles
-        width=0.8
+        width=0.8,
+        align="edge"
     )
 
 
@@ -219,8 +223,22 @@ def cmd_day_bars(args):
     plt.xlabel("Date", fontsize=12)
     plt.title("Time spent per project per day", fontsize=14)
 
-    labels = [d.strftime("%d %b") for d in df_plot.index]
-    ax.set_xticklabels(labels, rotation=45, ha="right")
+
+    # Draw tick every monday
+    dates = df_plot.index
+
+    monday_idx = [i for i, d in enumerate(dates) if d.weekday() == 0]
+
+    ax.set_xticks(monday_idx)
+    ax.set_xticklabels(
+        [dates[i].strftime("%a %d/%m") for i in monday_idx],
+        rotation=45,
+        ha="right"
+    )
+
+    # Draw vertical ligne every xtick
+    for x in monday_idx:
+        ax.axvline(x=x, color="black", linewidth=0.8, alpha=0.6)
 
     plt.grid(axis="y", linestyle="--", alpha=0.4)
 

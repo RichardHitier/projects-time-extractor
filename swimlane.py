@@ -125,7 +125,8 @@ def plot(df, output="swimlane.png"):
              color="#f9fafb", fontsize=13, fontweight="bold", va="top")
 
     fig.tight_layout()
-    fig.savefig(output, dpi=150, bbox_inches="tight", facecolor="#0d1117")
+    plt.show()
+    # fig.savefig(output, dpi=150, bbox_inches="tight", facecolor="#0d1117")
     print(f"Image generated : {output}")
 
 if __name__ == "__main__":
