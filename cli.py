@@ -235,7 +235,7 @@ def cmd_day_bars(args):
         rotation=45,
         ha="right"
     )
-    #o
+    #oasnt
 
     # Draw vertical ligne every xtick
     for x in monday_idx:
