@@ -7,6 +7,8 @@ from matplotlib import pyplot as plt
 import pandas as pd
 from config import load_config
 import locale
+
+from core.data import read_pomo, load_all_pomo
 locale.setlocale(locale.LC_NUMERIC, "fr_FR.UTF-8")
 
 _config = load_config()
@@ -16,46 +18,9 @@ DATA_DIR  = _config["DATA_DIR"]
 BCKP_DIR  = os.path.join(_config["DATA_DIR"], "bckp")
 CSV_SEP = ","
 
-def _read_pomo(pomo_file: str) -> pd.DataFrame:
-    if not os.path.exists(POMO_FILE):
-        print(f"Pomofocus export not found: {POMO_FILE}."
-               " Run 'timer pomo-merge' first.")
-        return
-    df = pd.read_csv(pomo_file, sep=CSV_SEP, encoding="utf-8-sig", dtype=str)
-    df.columns = df.columns.str.strip()
-    df["project"] = ( df["project"]
-        .str.strip().astype(str)
-        .str.strip('"')
-        .str.replace("/", "_", regex=False)
-        .str.replace(r"\s+", " ", regex=True)
-        )
-
-    df["task"] = ( df["task"]
-        .str.strip().astype(str)
-        .str.strip('"')
-        .str.replace(r"\s+", " ", regex=True)
-    )
-    return df
-
-def _load_pomo_for_all():
-    df = _read_pomo(POMO_FILE)
-    df["date"] = pd.to_datetime(df["date"], format="%Y%m%d", errors="coerce")
-    df["startTime"] = pd.to_datetime(df["startTime"], format="%H:%M").dt.time
-    df["endTime"] = pd.to_datetime(df["endTime"], format="%H:%M").dt.time
-    df["minutes"] = ( pd.to_numeric(df["minutes"], errors="coerce")
-                      .fillna(0).astype(int) )
-    df["duration_m"] = df["minutes"]
-    df["duration_h"] = df["minutes"] / 60
-    df["duration_d"] = df["duration_h"] / 8
-    df.drop(columns=["minutes"], inplace=True)
-    df[["project", "sub_project"]] = ( df["project"]
-        .str.split("_", n=1, expand=True).fillna("")
-    )
-    return df
-
 
 def _load_pomo_for_report( days, project):
-    df = _load_pomo_for_all()
+    df = load_all_pomo()
     df = df[df["project"].isin(_config["EXPORT_PROJECTS"])]
 
     df = df.sort_values("date")
@@ -93,7 +58,7 @@ def cmd_pomo_merge(args):
         print(f"No report found at {data_report_path}.")
     frames = []
     for f in pomfiles:
-        df = _read_pomo(f)
+        df = read_pomo(f)
         frames.append(df)
     merged = pd.concat(frames, ignore_index=True)
     len_before = len(merged)
@@ -173,7 +138,7 @@ def cmd_report(args):
             print(f"Unknown view: {args.view}")
 
 def _load_pomo_for_day_bars(date_from, date_to, project):
-    df = _load_pomo_for_all()
+    df = load_all_pomo()
     if project:
         df = df[df["project"] == project]
     df["date"] = pd.to_datetime(df["date"], format="%Y%m%d")
