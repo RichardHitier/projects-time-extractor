@@ -74,7 +74,7 @@ def cmd_pomo_merge(args):
     print(f"Records before deduplication: {len_before}")
     print(f"Records after deduplication: {len_after}")
 
-def _view_project(df):
+def _report_view_project(df):
     for project, grp in df.groupby("project"):
         print(f"\nProject: {project}")
         daily = grp.groupby("date")["duration_m"].sum()
@@ -84,7 +84,52 @@ def _view_project(df):
             )
 
 
-def _view_table(df):
+def _parse_task(task_str):
+    m = re.match(r"^#(\d+)\s+(.+?)\s*:\s*(.+)$", task_str.strip())
+
+    if m:
+        issue_id = int(m.group(1))
+        issue_name = m.group(2).strip()
+        task_description = m.group(3).strip()
+    else:
+        issue_id = None
+        issue_name = None
+        task_description = task_str.strip()
+
+    return issue_id, issue_name, task_description
+
+def _report_view_projectlogs(df):
+    df_copy = df.copy()
+
+    parsed = df_copy["task"].apply(_parse_task)
+    df_copy["issue_id"] = parsed.apply(lambda x: x[0])
+    df_copy["issue_name"] = parsed.apply(lambda x: x[1])
+    df_copy["task_description"] = parsed.apply(lambda x: x[2])
+    df_copy["issue_id"] = df_copy["issue_id"].astype("Int64").astype("string").fillna("")
+
+    df_copy = df_copy[["date", "project", "sub_project", "issue_id", "issue_name", "task_description", "duration_d"]]
+    # pd.set_option('display.max_columns', None)
+    # pd.set_option('display.max_colwidth', None)
+    # pd.set_option('display.width', None)
+
+    df_copy["date"] = pd.to_datetime(df_copy["date"])
+    df_copy["month"] = df_copy["date"].dt.to_period("M")
+    locale.setlocale(locale.LC_TIME, "fr_FR.UTF-8")
+
+    df_copy["month_str"] = df_copy["date"].dt.strftime("%B")
+    result = (
+        df_copy.groupby(["month_str", "issue_id", "issue_name", "task_description"], dropna=False)[
+            "duration_d"
+        ]
+        .sum()
+        .reset_index()
+    )
+    result["duration_d"] = result["duration_d"].round(1)
+
+    print(result.to_csv(sep=";", index=False))
+    pass
+
+def _report_view_table(df):
 
     header_line = (
         f"{'date':<12}| {'project':<20}| {'sub_project':<20}| {'task':<35}| "
@@ -108,7 +153,7 @@ def _view_table(df):
             f"{task_str:<35}| {duration_m:>10} | {duration_d:>10} | {duration_h:>10}"
         )
 
-def _view_export(df):
+def _report_view_export(df):
 
     header_line = (
         f"\n{'date'};{'project'};{'sub_project'};{'task'};{'duration_d'}"
@@ -124,18 +169,6 @@ def _view_export(df):
             f"{date_str};{project_str};{sub_project_str};"
             f"{task_str};{duration_d}"
         )
-
-def cmd_report(args):
-    df = _load_pomo_for_report(args.days, args.project)
-    if df is not None:
-        if args.view == "table":
-            _view_table(df)
-        elif args.view == "project":
-            _view_project(df)
-        elif args.view == "export":
-            _view_export(df)
-        else:
-            print(f"Unknown view: {args.view}")
 
 def _load_pomo_for_day_bars(date_from, date_to, project):
     df = load_all_pomo()
@@ -155,6 +188,19 @@ def _load_pomo_for_day_bars(date_from, date_to, project):
 
     return daily
 
+def cmd_report(args):
+    df = _load_pomo_for_report(args.days, args.project)
+    if df is not None:
+        if args.view == "table":
+            _report_view_table(df)
+        elif args.view == "project":
+            _report_view_project(df)
+        elif args.view == "export":
+            _report_view_export(df)
+        elif args.view == "project-logs":
+            _report_view_projectlogs(df)
+        else:
+            print(f"Unknown view: {args.view}")
 
 def cmd_day_bars(args):
     df = _load_pomo_for_day_bars(args.date_from, args.date_to, args.project)
@@ -232,7 +278,7 @@ def build_parser():
     p_report.add_argument("--days", type=int, default=7, metavar="N",
                           help="Number of days to report (default: 7)")
     p_report.add_argument("--view", default="table",
-                          choices=["table", "project", "export"],
+                          choices=["table", "project", "export", "project-logs"],
                           help="Report format")
     p_report.add_argument("--project", default=None, metavar="NAME")
     p_report.set_defaults(func=cmd_report)
