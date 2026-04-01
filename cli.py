@@ -108,9 +108,6 @@ def _report_view_projectlogs(df):
     df_copy["issue_id"] = df_copy["issue_id"].astype("Int64").astype("string").fillna("")
 
     df_copy = df_copy[["date", "project", "sub_project", "issue_id", "issue_name", "task_description", "duration_d"]]
-    # pd.set_option('display.max_columns', None)
-    # pd.set_option('display.max_colwidth', None)
-    # pd.set_option('display.width', None)
 
     df_copy["date"] = pd.to_datetime(df_copy["date"])
     df_copy["month"] = df_copy["date"].dt.to_period("M")
@@ -205,7 +202,25 @@ def cmd_report(args):
 def cmd_day_bars(args):
     df = _load_pomo_for_day_bars(args.date_from, args.date_to, args.project)
     print(df)
-    print(type(df["date"][0]))
+
+    # Tiny hack to show week duration_d aggregation 
+    #
+
+    df_copy = df.copy()
+    df_copy["date"] = pd.to_datetime(df["date"])
+    df_copy["days"] = df_copy["hours"] / 8
+
+    weekly = (
+        df_copy
+        .groupby(df["date"].dt.to_period("W"))["days"]
+        .sum()
+        .reset_index()
+    )
+    print(weekly)
+    #
+    # end of awfull hack
+
+
     df_plot =  df.set_index("date")
     df_plot = df.pivot(index="date", columns="project", values="hours").fillna(0)
     date_range = pd.date_range(df_plot.index.min(), df_plot.index.max(), freq="D")
