@@ -32,7 +32,8 @@ def report_view_projectlogs(df):
     sums duration_d, then prints CSV with ';' separator.
 
     Args:
-        df: DataFrame with columns date, project, sub_project, task, duration_d.
+        df: DataFrame with columns:
+          date, project, sub_project, task, duration_d.
     """
     df_copy = df.copy()
     parsed = df_copy["task"].apply(parse_task)
@@ -40,14 +41,18 @@ def report_view_projectlogs(df):
     df_copy["issue_name"] = parsed.apply(lambda x: x[1])
     df_copy["task_description"] = parsed.apply(lambda x: x[2])
     df_copy["issue_id"] = (
-        df_copy["issue_id"]
-        .astype("Int64")
-        .astype("string")
-        .fillna("")
+        df_copy["issue_id"].astype("Int64").astype("string").fillna("")
     )
     df_copy = df_copy[
-        ["date", "project", "sub_project", "issue_id",
-         "issue_name", "task_description", "duration_d"]
+        [
+            "date",
+            "project",
+            "sub_project",
+            "issue_id",
+            "issue_name",
+            "task_description",
+            "duration_d",
+        ]
     ]
     df_copy["date"] = pd.to_datetime(df_copy["date"])
     df_copy["month"] = df_copy["date"].dt.to_period("M")
@@ -56,7 +61,7 @@ def report_view_projectlogs(df):
     result = (
         df_copy.groupby(
             ["month_str", "issue_id", "issue_name", "task_description"],
-            dropna=False
+            dropna=False,
         )["duration_d"]
         .sum()
         .reset_index()
@@ -100,7 +105,8 @@ def report_view_export(df):
     """Print a semicolon-delimited export of Pomofocus records to stdout.
 
     Args:
-        df: DataFrame with columns date, project, sub_project, task, duration_d.
+        df: DataFrame with columns:
+          date, project, sub_project, task, duration_d.
     """
     header_line = (
         f"\n{'date'};{'project'};{'sub_project'};{'task'};{'duration_d'}"
@@ -135,7 +141,7 @@ def plot_day_bars(df_plot):
         stacked=True,
         colormap="tab20",
         width=0.8,
-        align="edge"
+        align="edge",
     )
     plt.ylabel("Hours", fontsize=12)
     plt.xlabel("Date", fontsize=12)
@@ -147,7 +153,7 @@ def plot_day_bars(df_plot):
     ax.set_xticklabels(
         [dates[i].strftime("%a %d/%m") for i in monday_idx],
         rotation=45,
-        ha="right"
+        ha="right",
     )
     for x in monday_idx:
         ax.axvline(x=x, color="black", linewidth=0.8, alpha=0.6)
