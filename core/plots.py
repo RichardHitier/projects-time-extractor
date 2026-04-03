@@ -79,7 +79,7 @@ def report_view_table(df):
     """
     header_line = (
         f"{'date':<12}| {'project':<20}| {'sub_project':<20}| {'task':<35}| "
-        f"{'duration_m':>10} | {'duration_d':>10} | {'duration_h':>10}"
+        f"{'minutes':>10} | {'hours':>10} | {'days':>10}"
     )
     print()
     print(header_line)
@@ -97,7 +97,7 @@ def report_view_table(df):
         print(
             f"{date_str:<12}| {project_str:<20}| {sub_project_str:<20}| "
             f"{task_str:<35}| "
-            f"{duration_m:>10} | {duration_d:>10} | {duration_h:>10}"
+            f"{duration_m:>10} | {duration_h:>10} | {duration_d:>10}"
         )
 
 
