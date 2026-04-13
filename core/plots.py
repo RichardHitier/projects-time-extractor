@@ -116,8 +116,8 @@ def report_view_export(df):
         duration_d = locale.format_string("%3.2f", row["duration_d"])
         date_str = row["date"].strftime("%Y-%m-%d")
         project_str = row["project"]
-        task_str = row["task"][:35]
-        sub_project_str = row["sub_project"][:20]
+        task_str = row["task"]
+        sub_project_str = row["sub_project"]
         print(
             f"{date_str};{project_str};{sub_project_str};"
             f"{task_str};{duration_d}"
