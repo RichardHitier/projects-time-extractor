@@ -83,17 +83,20 @@ def report_view_table(df):
     """
     header_line = (
         f"{'date':<12}| {'project':<20}| {'sub_project':<20}| {'task':<35}| "
-        f"{'minutes':>10} | {'hours':>10} | {'days':>10}"
+        f"{'minutes':>10} | {'hours':>10} | {'days':>10} | {'cumul':>10}"
     )
     print()
     print(header_line)
     separation_line = header_line.replace("|", "+")
     separation_line = re.sub(r"[^+]", "-", separation_line)
     print(separation_line)
-    for _, row in df.iterrows():
+    cumul = 0.0
+    for _, row in df.sort_values("date", ascending=True).iterrows():
         duration_m = locale.format_string("%3.2f", row["duration_m"])
         duration_h = locale.format_string("%3.2f", row["duration_h"])
         duration_d = locale.format_string("%3.2f", row["duration_d"])
+        cumul += row["duration_d"]
+        cumul_str = locale.format_string("%3.2f", cumul)
         date_str = row["date"].strftime("%Y-%m-%d")
         project_str = row["project"]
         task_str = row["task"][:35]
@@ -101,7 +104,7 @@ def report_view_table(df):
         print(
             f"{date_str:<12}| {project_str:<20}| {sub_project_str:<20}| "
             f"{task_str:<35}| "
-            f"{duration_m:>10} | {duration_h:>10} | {duration_d:>10}"
+            f"{duration_m:>10} | {duration_h:>10} | {duration_d:>10} | {cumul_str:>10}"
         )
 
 
