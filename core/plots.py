@@ -43,6 +43,8 @@ def report_view_projectlogs(df):
     df_copy["issue_id"] = (
         df_copy["issue_id"].astype("Int64").astype("string").fillna("")
     )
+    for col in ["issue_name", "task_description"]:
+        df_copy[col] = df_copy[col].str.strip().str.lower()
     df_copy = df_copy[
         [
             "date",
