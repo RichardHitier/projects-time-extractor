@@ -16,7 +16,9 @@ def report_view_project(df):
         df: DataFrame with columns date, project, duration_m.
     """
     for project, grp in df.groupby("project"):
-        print(f"\nProject: {project}")
+        total_h = grp["duration_m"].sum() / 60
+        total_d = total_h / 8
+        print(f"\nProject: {project}  Total: {total_d:.1f} d")
         daily = grp.groupby("date")["duration_m"].sum()
         for date, minutes in daily.items():
             print(

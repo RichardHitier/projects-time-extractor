@@ -35,7 +35,11 @@ def cmd_pomo_merge(args):
 
 
 def cmd_report(args):
-    df = load_pomo_for_report(args.days, args.project)
+    if args.since:
+        cutoff = pd.to_datetime(args.since, format="%Y%m%d")
+    else:
+        cutoff = pd.Timestamp.today().normalize() - pd.Timedelta(days=args.days - 1)
+    df = load_pomo_for_report(cutoff, args.project)
     if df is not None:
         if args.view == "table":
             report_view_table(df)
@@ -110,6 +114,12 @@ def build_parser():
         default="table",
         choices=["table", "project", "export", "project-logs"],
         help="Report format",
+    )
+    p_report.add_argument(
+        "--since",
+        default=None,
+        metavar="YYYYMMDD",
+        help="Start date (overrides --days)",
     )
     p_report.add_argument("--project", default=None, metavar="NAME")
     p_report.set_defaults(func=cmd_report)

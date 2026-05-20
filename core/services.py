@@ -9,15 +9,15 @@ from core.data import read_pomo, load_all_pomo
 _config = load_config()
 
 
-def load_pomo_for_report(days, project):
+def load_pomo_for_report(cutoff, project):
     """Load and filter Pomofocus data for text reporting.
 
-    Restricts to the configured EXPORT_PROJECTS, keeps only the last `days`
-    days, optionally filters by project name, then aggregates (sum) by
-    date / project / sub_project / task.
+    Restricts to the configured EXPORT_PROJECTS, keeps only records from
+    `cutoff` onwards, optionally filters by project name, then aggregates
+    (sum) by date / project / sub_project / task.
 
     Args:
-        days: Number of calendar days to include (today counts as day 1).
+        cutoff: pd.Timestamp — first date to include.
         project: If set, restrict output to this project name.
 
     Returns:
@@ -26,7 +26,6 @@ def load_pomo_for_report(days, project):
     df = load_all_pomo()
     df = df[df["project"].isin(_config["EXPORT_PROJECTS"])]
     df = df.sort_values("date")
-    cutoff = pd.Timestamp.today().normalize() - pd.Timedelta(days=days - 1)
     df = df[df["date"] >= cutoff]
     df = df.sort_values(["date", "project"])
     if project:
