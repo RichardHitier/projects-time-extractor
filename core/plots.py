@@ -67,7 +67,7 @@ def report_view_projectlogs(df):
         .reset_index()
     )
     result["duration_d"] = result["duration_d"].round(1)
-    print(result.to_csv(sep=";", index=False))
+    print(result.to_csv(sep=";", index=False, decimal=","))
 
 
 def report_view_table(df):
