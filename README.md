@@ -41,15 +41,40 @@ myproject:
 
 ## Usage
 
-### CLI
+### Pomofocus workflow
+
+1. Export the report from [pomofocus.io](https://pomofocus.io) → save `report.csv` into the `DATA/` folder
+2. Merge into the main history:
 
 ```bash
-timer pomo-merge                                      # merge Pomofocus CSV exports
-timer report --days 7 --view table                    # text report for the last 7 days
-timer report --days 30 --project colibri --view project
-timer report --days 30 --view project-logs            # monthly issue log (CSV output)
-timer day-bars --from 20250101 --to 20250131 --view plot
+timer pomo-merge
 ```
+
+### Report views (`timer report`)
+
+```bash
+timer report --days 7 --view table
+```
+Raw table: `date | project | sub_project | task | minutes | hours | days`.
+Useful for checking recent entries.
+
+```bash
+timer report --days 30 --project colibri --view project
+```
+Per-project view: daily durations aggregated, filterable by project.
+
+```bash
+timer report --days 30 --view export
+```
+CSV export (`;` separator): `date;project;sub_project;task;duration_d`.
+Ready to paste into a spreadsheet or external report.
+
+```bash
+timer report --days 30 --view project-logs
+```
+Monthly issue log: parses the `#ID name : description` format and aggregates by month.
+CSV output: `month;issue_id;issue_name;task_description;duration_d`.
+**Primary view for project progress tracking.**
 
 ### Web dashboard
 
