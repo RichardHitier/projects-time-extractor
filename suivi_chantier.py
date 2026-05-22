@@ -24,7 +24,7 @@ def report():
     return rapport, df
 
 
-def plot_all_projects(df):
+def plot_all_projects(df, output="suivi_chantiers_all.png", show=False):
     d = df.groupby('DATE')['JOURS'].sum().reset_index()
     d['DATE'] = pd.to_datetime(d['DATE'])
 
@@ -35,15 +35,16 @@ def plot_all_projects(df):
     plt.title("Total JOURS par DATE")
     plt.grid(True, alpha=0.3)
 
-    # ticks réguliers
     plt.gca().xaxis.set_major_locator(mdates.WeekdayLocator(interval=1))
     plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%Y%m%d'))
 
     plt.xticks(rotation=45)
-    # plt.tight_layout()
-    # ax.tick_params(axis='x', rotation=45, pad=12)
-    # ax.set_xlabel("DATE", labelpad=15)
-    plt.show()
+    if show:
+        plt.show()
+    else:
+        plt.savefig(output, dpi=150, bbox_inches="tight")
+        plt.close()
+        print(f"File {output} created")
 
 
 def plot_by_projects(df, output="suivi_chantiers.png", show=False):
@@ -123,4 +124,7 @@ if __name__ == "__main__":
         output = next((a for a in args if not a.startswith('--')), "suivi_chantiers.png")
         plot_by_projects(suivi_df, output=output, show=show)
     elif sys.argv[1] == 'plot_all_projects':
-        plot_all_projects(suivi_df)
+        args = sys.argv[2:]
+        show = '--show' in args
+        output = next((a for a in args if not a.startswith('--')), "suivi_chantiers_all.png")
+        plot_all_projects(suivi_df, output=output, show=show)
