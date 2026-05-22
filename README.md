@@ -100,7 +100,7 @@ The output uses `;` as separator and `,` as decimal — ready for French-locale 
 ### Web dashboard
 
 ```bash
-python analysis_web.py    # Flask dev server at http://localhost:5000
+FLASK_DEBUG=true FLASK_APP=analysis_web flask run --host=0.0.0.0
 ```
 
 Routes:
