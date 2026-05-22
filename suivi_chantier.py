@@ -46,7 +46,7 @@ def plot_all_projects(df):
     plt.show()
 
 
-def plot_by_projects(df):
+def plot_by_projects(df, output="suivi_chantiers.png", show=False):
     projets = df['PROJET'].unique()
     n_projets = len(projets)
 
@@ -91,10 +91,15 @@ def plot_by_projects(df):
         ax.set_xlabel("DATE", labelpad=15)
 
     # --- C'est ici que l'on ajoute de l'espace entre les plots ---
-    plt.subplots_adjust(hspace=1.5)   # augmente l’espace entre les subplots
+    plt.subplots_adjust(hspace=1.5)
 
     plt.tight_layout()
-    plt.show()
+    if show:
+        plt.show()
+    else:
+        plt.savefig(output, dpi=150, bbox_inches="tight")
+        plt.close()
+        print(f"File {output} created")
 
 
 if __name__ == "__main__":
@@ -110,9 +115,12 @@ if __name__ == "__main__":
         givarg(actions)
 
     my_report, suivi_df = report()
-    if ( sys.argv[1] == 'txt_report'):
+    if sys.argv[1] == 'txt_report':
         print(my_report)
-    elif ( sys.argv[1] == 'plot_by_project'):
-        plot_by_projects(suivi_df)
-    elif ( sys.argv[1] == 'plot_all_projects'):
+    elif sys.argv[1] == 'plot_by_project':
+        args = sys.argv[2:]
+        show = '--show' in args
+        output = next((a for a in args if not a.startswith('--')), "suivi_chantiers.png")
+        plot_by_projects(suivi_df, output=output, show=show)
+    elif sys.argv[1] == 'plot_all_projects':
         plot_all_projects(suivi_df)
