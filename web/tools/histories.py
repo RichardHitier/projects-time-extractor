@@ -1,7 +1,5 @@
 from datetime import datetime, timedelta
 import pandas as pd
-import json
-
 import subprocess
 
 from config import load_projects
@@ -138,7 +136,7 @@ def pomofocus_to_df(pomofocus_file):
     _df.fillna(0, inplace=True)
     # 1- Insert new column 'main_project' keeping first part of project name
     _df.insert(0, 'main_project', "")
-    _df['main_project'] = _df.project.apply(lambda x: x.split()[0] if x != 0 else "")
+    _df['main_project'] = _df.project.apply(lambda x: x.split('_')[0].upper() if x != 0 else "")
 
     return _df
 
@@ -169,100 +167,8 @@ def pomo_minutes(project_name, _my_df):
     return _my_df
 
 
-def super_hours(project_name, _my_df):
-    """Extract the hours series from dataframe for the given project"""
-    projects = load_projects()
-    if project_name not in projects.keys():
-        raise (ProjectError(f"Wrong project name:{project_name}"))
-
-    superprod_projects = projects[project_name]['superprod_projects']
-
-    # 2- extract wanted project only and keep only two columns
-    _my_df = _my_df[_my_df['main_project'].isin(superprod_projects)]
-    _my_df = _my_df.super_hours
-
-    # 4- add missing days reindex
-    _my_df.index = pd.to_datetime(_my_df.index)
-    day_first = _my_df.index[0]
-    day_last = _my_df.index[-1]
-    day_idx = pd.date_range(start=day_first, end=day_last, freq='D')
-    _my_df = _my_df.reindex(day_idx, fill_value=0.0)
-
-    return _my_df
-
-
-def superprod_to_df(superprod_file):
-    """From a super-productivity json file,
-        build and return a dataframe
-    """
-
-    def ts_to_date(ts):
-        return datetime.fromtimestamp(ts / 1000).strftime('%Y-%m-%d %H:%M:%S')
-
-    def delta_hours(start_ts, end_ts):
-        if start_ts is not None and end_ts is not None:
-            return round((end_ts - start_ts) / (1000 * 60 * 60), 2)
-        return None
-
-    with open(superprod_file, 'r', encoding='utf-8') as f:
-        data = json.load(f)
-    projects = data['project']['entities']
-    superprod_data = []
-    for project_id, project in projects.items():
-        proj_name = project.get('title', 'unknown')
-        work_start = project.get('workStart', {})
-        work_end = project.get('workEnd', {})
-        for date_str in sorted(work_start.keys()):
-            start_ts = work_start[date_str]
-            end_ts = work_end[date_str]
-            start = ts_to_date(start_ts) if start_ts else 'undefined'
-            end = ts_to_date(end_ts) if end_ts else 'undefined'
-            hours = delta_hours(start_ts, end_ts)
-            superprod_data.append([date_str, proj_name, start, end, hours])
-
-    df = pd.DataFrame(superprod_data, columns=['date', 'main_project', 'start', 'stop', 'super_hours'])
-    df = df.set_index('date')
-    return df
-
-
-def merge_histories(project_name, pomofocus_file, superprod_file):
-    """
-    Merge git, superproductivity and pomodoro histories in one dataframe
-
-    :param pomofocus_file:
-    :param superprod_file:
-    :param project_name:
-    :return:
-    """
-
-    git_df = project_to_df(project_name)
-    df_to_concat = []
-    if git_df is not None:
-        dly_df = daily_commits(git_df)
-        df_to_concat.append(dly_df)
-        hrs_df = hours_per_day(git_df)
-        df_to_concat.append(hrs_df)
-    minutes_df = pomo_minutes(project_name, pomofocus_to_df(pomofocus_file))
-    df_to_concat.append(minutes_df)
-    superhours_df = super_hours(project_name, superprod_to_df(superprod_file))
-    df_to_concat.append(superhours_df)
-    res_df = pd.concat(df_to_concat, axis=1)
-    res_df.fillna(0.0, inplace=True)
-
-    new_index = pd.date_range(start=res_df.index[0], end=res_df.index[-1])
-    res_df = res_df.reindex(new_index)
-    return res_df
-
-
-def merge_all_histories(pomo_df, superprod_df, superweb_df):
-    """
-    Aggregates Git, Pomofocus et SuperProductivity pour all projects
-
-    :param superweb_df:
-    :param superprod_df:
-    :param pomo_df:
-    :return: merged dataframe
-    """
+def merge_all_histories(pomo_df):
+    """Aggregates Git and Pomofocus histories for all projects."""
     all_projects = load_projects().keys()
     all_df_list = []
 
@@ -288,31 +194,16 @@ def merge_all_histories(pomo_df, superprod_df, superweb_df):
             except Exception as e:
                 print(f"[Pomofocus] {project}: {e}")
 
-            # SuperProductivity
-            try:
-                super_hours_df = super_hours(project, superprod_df)
-                super_hours_df = super_hours_df.to_frame(name="super_hours")
-                super_hours_df["project"] = project
-                web_hours_df = super_hours(project, superweb_df)
-                web_hours_df = web_hours_df.to_frame(name="web_hours")
-                web_hours_df["project"] = project
-                all_df_list.extend([super_hours_df, web_hours_df])
-            except Exception as e:
-                print(f"[SuperProductivity] {project}: {e}")
-
         except Exception as global_err:
             print(f"[Global error] {project}: {global_err}")
 
     if not all_df_list:
         raise RuntimeError("No data collected.")
 
-    # Concatenate
     merged_df = pd.concat(all_df_list)
-
-    # Global reindex
     merged_df.index = pd.to_datetime(merged_df.index)
-    columns = ['project', 'git_commits', 'git_hours', 'git_days', 'pomo_minutes',
-               'super_hours', 'web_hours']
+    columns = ['project', 'git_commits', 'git_hours', 'git_days', 'pomo_minutes']
+    columns = [c for c in columns if c in merged_df.columns]
     merged_df = merged_df[columns]
     return merged_df.sort_index()
 
@@ -320,16 +211,13 @@ def merge_all_histories(pomo_df, superprod_df, superweb_df):
 if __name__ == "__main__":
     pd.set_option('display.max_rows', None)
     available_options = ['hours_calipso', 'daily_calipso', 'git_all',
-                         'pomofocus', 'superprod', 'pomo_bht',
-                         'super_bht', 'git_bht', 'daily_bht', 'hours_bht',
-                         'merged_all', 'merged_bht']
+                         'pomofocus', 'pomo_bht',
+                         'git_bht', 'daily_bht', 'hours_bht', 'merged_all']
     import sys
     from config import load_config
 
     _config = load_config()
     pomofocus_file = _config["POMOFOCUS_FILEPATH"]
-    superprod_file = _config["SUPERPROD_FILEPATH"]
-    webprod_file = _config["WEBPROD_FILEPATH"]
     cli_arg = None
     if len(sys.argv) > 1:
         cli_arg = sys.argv[1]
@@ -338,10 +226,6 @@ if __name__ == "__main__":
         sys.exit()
     if cli_arg == 'pomofocus':
         print(pomofocus_to_df(pomofocus_file))
-    elif cli_arg == 'superprod':
-        print(superprod_to_df(superprod_file))
-    elif cli_arg == 'super_bht':
-        print(super_hours('bht', superprod_to_df(superprod_file)))
     elif cli_arg == 'git_all':
         print('gitall')
     elif cli_arg == 'pomo_bht':
@@ -353,11 +237,8 @@ if __name__ == "__main__":
     elif cli_arg == 'hours_calipso':
         import locale
         locale.setlocale(locale.LC_TIME, 'fr_FR.UTF-8')
-        # get raw df
         calipso_hpd = hours_per_day(project_to_df('calipso')).dropna()
-        # cut from 2025-01-01
         calipso_hpd = calipso_hpd.loc['2025-01-01':]
-        # change index format for printing
         df_print = calipso_hpd.copy()
         df_print.index = (
             df_print.index
@@ -367,17 +248,12 @@ if __name__ == "__main__":
             + df_print.index.strftime('%Y-%m-%d')
         )
         print(df_print)
-
     elif cli_arg == 'daily_bht':
         print(daily_commits(project_to_df('bht')))
     elif cli_arg == 'hours_bht':
         print(hours_per_day(project_to_df('bht')))
-    elif cli_arg == 'merged_bht':
-        print(merge_histories('bht', pomofocus_file, superprod_file))
     elif cli_arg == 'merged_all':
-        all_df = merge_all_histories(pomofocus_to_df(pomofocus_file),
-                                     superprod_to_df(superprod_file),
-                                     superprod_to_df(webprod_file))
+        all_df = merge_all_histories(pomofocus_to_df(pomofocus_file))
         print(all_df.columns)
         print(len(all_df))
         all_df = all_df.truncate(before='20250101')
