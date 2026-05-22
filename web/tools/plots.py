@@ -1,5 +1,4 @@
 import pandas as pd
-
 import matplotlib
 
 matplotlib.use("Agg")  # <- backend non-GUI
@@ -18,7 +17,7 @@ def plot_df(_df):
     try:
         ax[0].set_title("Git Commits per day")
         ax[0].set_ylim([-5, 30])
-        ax[0].plot(_df.index, _df.git_commits.interpolate(method="spline", order=3), color="#bf0a30", lw=2, zorder=-4)
+        ax[0].plot(_df.index, _df.git_commits.interpolate(method="spline", order=2), color="#bf0a30", lw=2, zorder=-4)
         ax[0].scatter(_df.index, _df.git_commits, marker="*", zorder=3, color="lightgreen", edgecolor="black", lw=0.5, s=50)
     except AttributeError:
         pass

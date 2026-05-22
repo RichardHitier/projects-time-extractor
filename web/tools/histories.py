@@ -150,9 +150,11 @@ def pomo_minutes(project_name, _my_df):
         raise (ProjectError(f"Wrong project name:{project_name}"))
 
     pom_project = projects[project_name]['pom_project']
+    if isinstance(pom_project, str):
+        pom_project = [pom_project]
 
     # 2- extract wanted project only and keep only two columns
-    _my_df = _my_df[_my_df['main_project'] == pom_project]
+    _my_df = _my_df[_my_df['main_project'].isin(pom_project)]
     _my_df = _my_df.minutes
 
     # 3- aggregate by day
