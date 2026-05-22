@@ -28,7 +28,7 @@ def plot_all_projects(df, output="suivi_chantiers_all.png", show=False):
     d = df.groupby('DATE')['JOURS'].sum().reset_index()
     d['DATE'] = pd.to_datetime(d['DATE'])
 
-    plt.figure(figsize=(16, 6))
+    plt.figure(figsize=(24, 6))
     plt.bar(d['DATE'], d['JOURS'], color='steelblue')
     plt.xlabel("DATE", labelpad=15)
     plt.ylabel("JOURS")
@@ -56,7 +56,7 @@ def plot_by_projects(df, output="suivi_chantiers.png", show=False):
 
     fig, axes = plt.subplots(
         n_projets, 1,
-        figsize=(16, 5 * n_projets),
+        figsize=(24, 3 * n_projets),
         sharex=True,
         sharey=True
     )
