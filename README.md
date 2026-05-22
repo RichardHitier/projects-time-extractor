@@ -76,6 +76,27 @@ Monthly issue log: parses the `#ID name : description` format and aggregates by 
 CSV output: `month;issue_id;issue_name;task_description;duration_d`.
 **Primary view for project progress tracking.**
 
+#### Task description format
+
+Tasks entered in Pomofocus should follow this convention to enable issue-level grouping:
+
+```
+#<issue_id> <issue_name>: <description>
+```
+
+Example: `#42 auth-refactor: migrate sessions to JWT`
+
+If the format is not matched, the full task string is kept as `task_description` with no issue grouping.
+
+#### Producing a client report
+
+```bash
+timer report --project speasy --since 20250101 --view project-logs > speasy_logs.csv
+```
+
+Open `speasy_logs.csv` in LibreOffice Calc and save as `.ods` to produce the deliverable for the client.
+The output uses `;` as separator and `,` as decimal — ready for French-locale spreadsheets.
+
 ### Web dashboard
 
 ```bash
@@ -85,6 +106,21 @@ python analysis_web.py    # Flask dev server at http://localhost:5000
 Routes:
 - `/projects` — overview across all projects
 - `/commits/<project>` — detail view for a single project
+
+### Internal tracking (`suivi_chantiers.ods`)
+
+`suivi_chantiers.ods` is a manually maintained LibreOffice Calc file with columns
+`DATE`, `PROJET`, `SS-PROJET`, `JOURS`. Each sheet covers a period or worksite.
+
+`suivi_chantier.py` reads it to produce summaries and charts:
+
+```bash
+python suivi_chantier.py txt_report        # total days per project/sub-project
+python suivi_chantier.py plot_by_project   # one bar chart per project
+python suivi_chantier.py plot_all_projects # aggregated daily bars
+```
+
+`timer report --view export` can be used as a source to fill this file manually.
 
 ## Tests
 
