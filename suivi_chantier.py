@@ -1,3 +1,7 @@
+import calendar
+import re
+from datetime import date
+
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 import pandas as pd
@@ -22,7 +26,7 @@ def billing_export(df, period='month'):
     return result
 
 
-def billing_export_days(df):
+def billing_export_days(df, year=None, month=None):
     """Daily billable hours as CSV: J, D, S, H.
 
     J = French day letter (L/M/M/J/V/S/D)
@@ -30,9 +34,15 @@ def billing_export_days(df):
     S = ISO week number
     H = billable hours that day
 
-    All days in range are included, zero-filled.
+    All days of the month are included, zero-filled.
+    Defaults to current month if year/month are not provided.
     """
     DAY_LETTERS = ['L', 'M', 'M', 'J', 'V', 'S', 'D']  # Mon=0 .. Sun=6
+
+    if year is None:
+        year = date.today().year
+    if month is None:
+        month = date.today().month
 
     billable = [p.lower() for p in load_config().get("BILLABLE_PROJECTS", [])]
     df = df[df['PROJET'].str.lower().isin(billable)].copy()
@@ -40,14 +50,23 @@ def billing_export_days(df):
     df['hours'] = df['JOURS'] * 8
 
     daily = df.groupby('DATE')['hours'].sum()
-    date_range = pd.date_range(daily.index.min(), daily.index.max(), freq='D')
+    date_range = pd.date_range(
+        start=pd.Timestamp(year=year, month=month, day=1),
+        end=pd.Timestamp(year=year, month=month, day=calendar.monthrange(year, month)[1]),
+        freq='D'
+    )
     daily = daily.reindex(date_range, fill_value=0.0)
+
+    # weekly totals indexed by the Sunday ending each week
+    weekly = daily.resample('W').sum().round(2)
+    weekly_dict = weekly.to_dict()
 
     result = pd.DataFrame({
         'J': [DAY_LETTERS[d] for d in daily.index.dayofweek],
         'D': daily.index.day,
         'S': daily.index.isocalendar().week.values,
         'H': daily.round(2),
+        'T': [weekly_dict.get(d) if d.dayofweek == 6 else None for d in daily.index],
     })
     return result
 
@@ -149,7 +168,7 @@ def plot_by_projects(df, output="suivi_chantiers.png", show=False):
 
 if __name__ == "__main__":
 
-    actions = ['txt_report', 'plot_by_project', 'plot_all_projects', 'export']
+    actions = ['txt_report', 'plot_by_project', 'plot_all_projects', 'export', 'heightyhours']
 
     import sys
     def givarg(actions):
@@ -174,8 +193,16 @@ if __name__ == "__main__":
         plot_all_projects(suivi_df, output=output, show=show)
     elif sys.argv[1] == 'export':
         args = sys.argv[2:]
-        period = next((a for a in args if a in ('week', 'month', 'days')), 'month')
-        if period == 'days':
-            print(billing_export_days(suivi_df).to_csv(index=False, sep=';', decimal=','))
-        else:
-            print(billing_export(suivi_df, period=period).to_string(index=False))
+        period = next((a for a in args if a in ('week', 'month')), 'month')
+        print(billing_export(suivi_df, period=period).to_string(index=False))
+    elif sys.argv[1] == 'heightyhours':
+        args = sys.argv[2:]
+        # accept "2026-05" or "05" as month argument
+        month_arg = next((a for a in args if re.match(r'^\d{4}-\d{2}$|^\d{2}$', a)), None)
+        year, month = None, None
+        if month_arg:
+            if '-' in month_arg:
+                year, month = map(int, month_arg.split('-'))
+            else:
+                month = int(month_arg)
+        print(billing_export_days(suivi_df, year=year, month=month).to_csv(index=False, sep=';', decimal=',', na_rep=''))
