@@ -6,3 +6,10 @@ POMOFOCUS_FILENAME: "pomofocus.csv"
 SUPERPROD_FILENAME: "super_productivity.json"
 WEBPROD_FILENAME: "web_productivity.json"
 PARQUET_FILENAME: "histories.parquet"
+
+EXPORT_PROJECTS:
+- "project_a"
+- "project_b"
+
+BILLABLE_PROJECTS:
+- "project_a"
