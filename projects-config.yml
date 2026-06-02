@@ -27,7 +27,7 @@ bht:
   - git_irap
 pro:
   git_dirs: []
-  color: "#FF8080"
+  color: "#E03030"
   pom_project:
   - PRO
   - COLIBRI
