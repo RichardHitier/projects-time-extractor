@@ -165,15 +165,18 @@ def _project_color_map(project_names):
     return result
 
 
-def plot_day_bars(df_plot):
-    """Display a stacked bar chart of daily hours per project.
+def plot_day_bars(df_plot, output="day_bars.png", show=False):
+    """Render a stacked bar chart of daily hours per project.
 
+    Saves to `output` by default; displays on screen instead when show=True.
     X-axis ticks are placed on Mondays; vertical lines mark week boundaries.
 
     Args:
         df_plot: DataFrame indexed by date with one column per project,
                  values are hours worked.  Typically produced by pivoting
                  load_pomo_for_day_bars() output.
+        output: File path for the PNG (ignored when show=True).
+        show: If True, call plt.show() instead of saving to file.
     """
     color_map = _project_color_map(df_plot.columns)
     colors = [color_map[col] for col in df_plot.columns]
@@ -202,4 +205,9 @@ def plot_day_bars(df_plot):
         ax.axvline(x=x, color="black", linewidth=0.8, alpha=0.6)
     plt.grid(axis="y", linestyle="--", alpha=0.4)
     plt.legend(title="Project", bbox_to_anchor=(1.02, 1), loc="upper left")
-    plt.show()
+    plt.tight_layout()
+    if show:
+        plt.show()
+    else:
+        plt.savefig(output, dpi=150, bbox_inches="tight")
+        print(f"Saved: {output}")

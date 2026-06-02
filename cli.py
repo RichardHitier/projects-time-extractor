@@ -80,7 +80,7 @@ def cmd_day_bars(args):
         print(df_plot)
         return
 
-    plot_day_bars(df_plot)
+    plot_day_bars(df_plot, output=args.output, show=args.show)
 
 
 def cmd_plot(args):
@@ -138,6 +138,11 @@ def build_parser():
     p_day_bars.add_argument("--from", dest="date_from", metavar="YYYYMMDD")
     p_day_bars.add_argument("--to", dest="date_to", metavar="YYYYMMDD")
     p_day_bars.add_argument("-p", "--project", dest="project")
+    p_day_bars.add_argument(
+        "--show",
+        action="store_true",
+        help="Display chart on screen instead of saving to file",
+    )
     p_day_bars.set_defaults(func=cmd_day_bars)
 
     p_plot = sub.add_parser("plot", help="Annual view by project")
