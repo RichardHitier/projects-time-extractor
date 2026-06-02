@@ -39,7 +39,7 @@ def cmd_report(args):
         cutoff = pd.to_datetime(args.since, format="%Y%m%d")
     else:
         cutoff = pd.Timestamp.today().normalize() - pd.Timedelta(days=args.days - 1)
-    df = load_pomo_for_report(cutoff, args.project)
+    df = load_pomo_for_report(cutoff, args.project, all_projects=args.all_projects)
     if df is not None:
         if args.view == "table":
             report_view_table(df)
@@ -122,6 +122,12 @@ def build_parser():
         help="Start date (overrides --days)",
     )
     p_report.add_argument("--project", default=None, metavar="NAME")
+    p_report.add_argument(
+        "--all-projects",
+        dest="all_projects",
+        action="store_true",
+        help="Include all projects, bypassing EXPORT_PROJECTS filter",
+    )
     p_report.set_defaults(func=cmd_report)
 
     p_day_bars = sub.add_parser("day-bars", help="Generate day bars PNG")

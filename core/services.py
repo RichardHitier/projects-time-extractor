@@ -9,22 +9,24 @@ from core.data import read_pomo, load_all_pomo
 _config = load_config()
 
 
-def load_pomo_for_report(cutoff, project):
+def load_pomo_for_report(cutoff, project, all_projects=False):
     """Load and filter Pomofocus data for text reporting.
 
-    Restricts to the configured EXPORT_PROJECTS, keeps only records from
-    `cutoff` onwards, optionally filters by project name, then aggregates
-    (sum) by date / project / sub_project / task.
+    Restricts to the configured EXPORT_PROJECTS (unless all_projects is True),
+    keeps only records from `cutoff` onwards, optionally filters by project
+    name, then aggregates (sum) by date / project / sub_project / task.
 
     Args:
         cutoff: pd.Timestamp — first date to include.
         project: If set, restrict output to this project name.
+        all_projects: If True, bypass EXPORT_PROJECTS filter.
 
     Returns:
         Aggregated DataFrame sorted by date and project.
     """
     df = load_all_pomo()
-    df = df[df["project"].isin(_config["EXPORT_PROJECTS"])]
+    if not all_projects:
+        df = df[df["project"].isin(_config["EXPORT_PROJECTS"])]
     df = df.sort_values("date")
     df = df[df["date"] >= cutoff]
     df = df.sort_values(["date", "project"])
