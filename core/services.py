@@ -128,6 +128,14 @@ def merge_pomo_exports(pomo_file, home_dir, data_dir, bckp_dir):
     merged = pd.concat(frames, ignore_index=True)
     len_before = len(merged)
     merged = merged.drop_duplicates(subset=DEDUP_KEYS)
+    # A session exported mid-run and again after completion has the same startTime
+    # but different endTime/minutes; keep the most complete record (latest endTime).
+    merged = merged.sort_values(
+        ["date", "startTime", "endTime"], ascending=[True, True, False]
+    )
+    merged = merged.drop_duplicates(
+        subset=["date", "startTime", "project", "task"], keep="first"
+    )
     merged = merged.sort_values(["date", "startTime"])
     len_after = len(merged)
 

@@ -1,0 +1,826 @@
+date,project,task,minutes,startTime,endTime
+20240528,unknown,nan,25,12:09,12:34
+20240528,unknown,nan,92,15:20,17:19
+20240528,unknown,nan,8,18:09,18:17
+20240529,unknown,nan,50,09:13,10:31
+20240529,unknown,nan,25,11:31,11:56
+20240530,unknown,nan,100,08:35,11:07
+20240530,unknown,nan,25,11:42,12:07
+20240605,unknown,nan,75,09:52,12:09
+20240605,unknown,nan,50,14:17,15:10
+20240605,unknown,nan,75,16:05,18:04
+20240607,unknown,nan,25,08:33,08:58
+20240607,unknown,nan,25,09:37,10:30
+20240607,unknown,nan,25,13:51,14:16
+20240610,unknown,nan,50,08:52,10:01
+20240610,unknown,nan,25,11:42,12:07
+20240610,unknown,nan,102,14:47,17:21
+20240611,unknown,nan,25,09:42,10:07
+20240611,unknown,nan,0,11:33,11:33
+20240829,bht_dev,sat_occ & nb_durations -> check,25,09:40,10:05
+20240829,bht_dev,"confidence indice ""CONF"" -> check",50,10:11,11:11
+20240829,bht_dev,"confidence indice ""CONF"" -> check",25,16:31,16:56
+20240903,bht_dev,duration to previous mission,50,08:07,09:09
+20240903,bht_dev,duration to previous mission,50,10:25,11:34
+20240903,bht_dev,duration to previous mission,50,14:42,16:09
+20240903,bht_dev,"confidence indice ""CONF"" -> check",1,16:09,16:09
+20240903,bht_dev,fix add-to-db,48,16:09,17:14
+20240904,bht_dev,fix add-to-db,35,08:10,09:07
+20240904,bht_dev,fix add-to-db,1,09:38,09:38
+20240904,bht_dev,fix add-to-db,2,15:54,15:57
+20240904,bht_dev,fix add-to-db,10,16:39,16:49
+20240904,bht_dev,fix add-to-db,0,17:21,17:21
+20240905,bht_dev,conf idx to db,46,13:50,15:01
+20240905,bht_dev,conf idx to db,4,16:09,16:13
+20240905,bht_dev,conf idx to db,24,17:03,17:28
+20240906,bht_dev,conf idx to db,26,05:31,05:57
+20240909,bht_dev,conf idx to db,69,08:12,09:59
+20240909,bht_dev,conf idx to db,25,11:32,11:57
+20240909,bht_dev,conf idx to db,50,16:00,17:15
+20240909,bht_dev,conf idx to db,18,17:47,18:25
+20240910,bht_dev,conf idx to db,51,09:48,11:24
+20240910,bht_dev,conf idx to db,124,14:11,17:45
+20240911,bht_dev,conf idx to db,8,07:59,08:08
+20240911,bht_dev,sortable table,47,08:08,08:59
+20240911,pro_coaching,journal des expériences,6,09:16,09:23
+20240911,bht_dev,Solo _ intervalle association,100,09:23,11:59
+20240912,bht_dev,Solo _ intervalle association,50,08:09,09:16
+20240912,bht_dev,Solo _ intervalle association,75,10:03,11:28
+20240912,bht_dev,Solo _ intervalle association,26,14:13,15:10
+20240912,bht_dev,Paper2Event linking,2,15:10,15:13
+20240912,bht_dev,AUTOF: sqlalchemy,44,15:13,16:16
+20240912,bht_dev,Paper2Event linking,2,16:16,16:18
+20240913,perso_admin,VEN 13_09,50,08:17,09:15
+20240913,perso_admin,VEN 13_09,25,10:00,10:34
+20240913,perso_admin,VEN 13_09,25,11:30,11:55
+20240913,colibri_admin,Ven 13 Sept,100,12:56,15:04
+20240917,perso_admin,VEN 13_09,25,09:17,09:42
+20240917,colibri_admin,Compta Jours,25,10:32,10:57
+20240917,colibri_admin,Compta Jours,25,11:29,11:54
+20240917,calipso_admin,Chiffrage,25,15:23,15:48
+20240918,calipso_admin,Chiffrage,1,15:33,15:35
+20240919,calipso_admin,Chiffrage,21,08:49,09:32
+20240919,colibri_admin,Salaire et Budget,25,10:19,10:51
+20240919,colibri_admin,Salaire et Budget,25,13:17,13:42
+20240923,calipso_admin,Chiffrage,43,09:11,09:56
+20240923,calipso_admin,Chiffrage,5,11:20,11:25
+20240923,perso_action,Pgrm Velo,25,11:25,11:50
+20240923,colibri_admin,Tableau de Bord,24,13:59,14:28
+20240923,bht_dev,conf idx to db,0,14:28,14:28
+20240923,bht_dev,"confidence indice ""CONF"" -> check",0,14:28,14:28
+20240923,bht_dev,duration to previous mission,0,14:28,14:28
+20240923,bht_dev,fix add-to-db,0,14:28,14:28
+20240923,bht_dev,sortable table,0,14:28,14:28
+20240923,colibri_veille,sqlalchemy,0,14:28,14:28
+20240923,colibri_admin,Ven 13 Sept,0,14:28,14:28
+20240923,perso_admin,VEN 13_09,0,14:28,14:28
+20240923,calipso_admin,Chiffrage,0,14:29,14:29
+20240923,colibri_admin,Compta Jours,0,14:29,14:29
+20240923,pro_coaching,journal des expériences,0,14:29,14:29
+20240923,bht_dev,Paper2Event linking,0,14:29,14:29
+20240923,perso_action,Pgrm Velo,0,14:29,14:29
+20240923,colibri_admin,Salaire et Budget,0,14:29,14:29
+20240923,bht_dev,sat_occ & nb_durations -> check,0,14:29,14:29
+20240923,bht_dev,Solo _ intervalle association,0,14:29,14:29
+20240923,colibri_admin,Tableau de Bord,0,14:29,14:29
+20240923,colibri_admin,Ven 13 Sept,1,14:29,14:31
+20240923,perso_admin,VEN 13_09,0,14:29,14:29
+20240923,colibri_veille,sqlalchemy,0,14:31,14:31
+20240923,colibri_admin,Ven 13 Sept,0,14:31,14:31
+20240923,perso_admin,VEN 13_09,0,14:31,14:31
+20240923,bht_dev,conf idx to db,0,14:32,14:32
+20240923,bht_dev,"confidence indice ""CONF"" -> check",0,14:32,14:32
+20240923,bht_dev,duration to previous mission,0,14:32,14:32
+20240923,bht_dev,fix add-to-db,0,14:32,14:32
+20240923,bht_dev,sat_occ & nb_durations -> check,0,14:32,14:32
+20240923,bht_dev,sortable table,0,14:32,14:32
+20240923,calipso_admin,Chiffrage,0,14:33,14:33
+20240923,colibri_admin,Compta Jours,0,14:33,14:33
+20240923,pro_coaching,journal des expériences,0,14:33,14:33
+20240923,bht_dev,Paper2Event linking,0,14:33,14:33
+20240923,perso_action,Pgrm Velo,0,14:33,14:33
+20240923,colibri_admin,Salaire et Budget,0,14:33,14:33
+20240923,bht_dev,Solo _ intervalle association,0,14:33,14:33
+20240923,colibri_admin,Tableau de Bord,0,14:33,14:33
+20240923,colibri_admin,Tableau de Bord,11,14:37,15:15
+20240923,calipso_admin,Chiffrage,25,15:15,15:39
+20240923,calipso_admin,Chiffrage,35,17:45,18:44
+20240923,calipso_admin,Plannification Tâches,15,18:44,18:59
+20240924,calipso_admin,Plannification Tâches,25,08:26,08:51
+20240924,calipso_admin,Plannification Tâches,25,10:00,10:25
+20240924,bht_dev,Quick fixes,50,11:05,12:20
+20240924,bht_dev,Quick fixes,0,16:03,16:03
+20240924,bht_dev,Quick fixes,33,16:38,17:21
+20240925,bht_dev,Quick fixes,42,08:44,09:26
+20240925,bht_dev,Quick fixes,30,14:40,15:10
+20240926,calipso_admin,Plannification Tâches,24,10:59,11:24
+20240926,bht_dev,Quick fixes,37,11:24,12:08
+20240926,bht_admin,Plannification,8,12:08,12:17
+20240926,bht_admin,Plannification,11,13:34,13:45
+20240926,calipso_dev,Calipso1 Stability,14,13:45,13:59
+20240926,bht_admin,Plannification,10,14:28,15:05
+20240926,calipso_dev,Calipso1 Stability,32,15:05,15:49
+20240926,perso_dev,chevres,8,15:50,15:58
+20240926,bht_dev,Catalog Post Filtering,25,19:04,19:42
+20240926,bht_admin,Plannification,11,19:42,19:53
+20240926,bht_dev,Catalog Post Filtering,1,19:53,19:55
+20240927,bht_admin,CI_CD: Deliver,8,08:07,08:15
+20240927,bht_dev,Catalog Post Filtering,67,08:15,09:53
+20240927,bht_dev,Catalog Post Filtering,100,10:28,13:05
+20241001,bht_dev,Catalog Post Filtering,0,08:16,08:16
+20241001,bht_dev,Plot NConf,25,08:17,08:47
+20241001,bht_dev,Plot NConf,25,09:37,10:02
+20241001,colibri_admin,Salaire et Budget,33,10:20,11:02
+20241001,perso_admin,Coups de fil,0,11:02,11:02
+20241001,bht_dev,Plot NConf,21,11:06,11:27
+20241001,bht_dev,Plot NConf,21,14:48,15:24
+20241001,bht_dev,Catalog Post Filtering,78,15:24,17:18
+20241002,bht_dev,Catalog Post Filtering,50,08:23,09:31
+20241002,bht_dev,Catalog Post Filtering,70,10:07,11:56
+20241002,bht_dev,Catalog Post Filtering,30,14:49,15:19
+20241003,bht_dev,Catalog Post Filtering,18,09:17,09:35
+20241003,colibri_admin,Salaire et Budget,4,09:51,09:55
+20241003,bht_dev,Catalog Post Filtering,54,09:56,11:53
+20241003,calipso_dev,Flow Meter Studies,1,12:02,12:02
+20241003,calipso_dev,Flow Meter Studies,8,13:16,13:24
+20241003,calipso_admin,Calipso 1 : setting dev env,17,13:24,13:41
+20241003,bht_dev,Catalog Post Filtering,58,14:09,15:37
+20241003,calipso_admin,Calipso 1 : setting dev env,17,15:37,15:54
+20241004,bht_dev,Catalog Post Filtering,25,08:56,09:21
+20241004,bht_dev,Catalog Post Filtering,50,10:06,11:03
+20241004,bht_dev,Catalog Post Filtering,50,11:37,12:28
+20241004,bht_dev,Catalog Post Filtering,100,15:07,17:29
+20241007,bht_dev,Catalog Post Filtering,0,08:18,08:28
+20241007,perso_admin,Tâches du matin,25,08:36,09:01
+20241007,perso_admin,Tâches du matin,25,09:51,10:16
+20241007,bht_dev,Catalog Post Filtering,35,14:48,15:35
+20241008,bht_dev,Catalog Post Filtering,49,08:07,09:20
+20241008,bht_dev,Catalog Post Filtering,0,09:50,09:50
+20241008,bht_dev,Catalog Post Filtering,47,10:27,11:22
+20241008,bht_dev,Catalog Post Filtering,28,12:42,13:10
+20241008,bht_dev,Catalog Post Filtering,25,16:38,17:03
+20241009,bht_dev,Catalog Post Filtering,50,07:55,09:08
+20241009,bht_dev,Enhance Pipeline 2024_Oct,50,10:50,11:47
+20241014,bht_dev,Enhance Pipeline 2024_Oct,25,08:23,08:48
+20241014,bht_dev,Enhance Pipeline 2024_Oct,25,14:18,14:43
+20241014,bht_dev,Enhance Pipeline 2024_Oct,39,15:29,16:29
+20241014,perso_action,Tâches,11,21:08,21:18
+20241014,bht_dev,Enhance Pipeline 2024_Oct,25,21:20,21:45
+20241015,bht_dev,Enhance Pipeline 2024_Oct,49,08:23,09:23
+20241015,bht_dev,Enhance Pipeline 2024_Oct,36,09:55,11:02
+20241015,bht_dev,Enhance Pipeline 2024_Oct,23,12:36,12:59
+20241015,bht_dev,Enhance Pipeline 2024_Oct,8,15:08,15:15
+20241015,bht_dev,Enhance Pipeline 2024_Oct,2,15:55,15:57
+20241016,bht_dev,Enhance Pipeline 2024_Oct,4,08:20,08:24
+20241016,colibri_admin,Réunion,4,08:33,08:37
+20241016,perso_action,Tâches,8,11:39,11:47
+20241016,colibri_actionco,Réseaux Sociaux,25,14:28,14:53
+20241016,bht_dev,Enhance Pipeline 2024_Oct,25,14:54,15:19
+20241017,colibri_actionco,Réseaux Sociaux,25,09:39,10:04
+20241017,calipso_dev,Install Spare Calipso1,50,13:10,14:00
+20241017,calipso_dev,Install Spare Calipso1,25,15:10,15:35
+20241018,calipso_dev,Install Spare Calipso1,50,08:19,09:09
+20241018,calipso_dev,Install Spare Calipso1,50,10:28,11:18
+20241018,calipso_dev,Install Spare Calipso1,75,13:12,15:08
+20241021,calipso_dev,Install Spare Calipso1,25,10:09,10:34
+20241021,calipso_dev,Install Spare Calipso1,43,14:36,15:46
+20241022,calipso_dev,Install Spare Calipso1,34,08:16,08:58
+20241022,calipso_dev,Install Spare Calipso1,66,09:32,10:47
+20241022,calipso_dev,Install Spare Calipso1,50,16:07,16:58
+20241023,calipso_dev,Install Spare Calipso1,1,12:28,12:29
+20241024,calipso_dev,Install Spare Calipso1,25,09:43,10:08
+20241024,calipso_dev,Install Spare Calipso1,25,14:30,14:55
+20241024,calipso_dev,Install Spare Calipso1,25,15:47,16:12
+20241025,calipso_dev,Install Spare Calipso1,9,09:08,09:36
+20241025,calipso_dev,Install Spare Calipso1,16,10:09,10:25
+20241025,calipso_dev,Install Spare Calipso1,50,11:20,12:19
+20241025,calipso_dev,Install Spare Calipso1,50,15:27,16:34
+20241028,colibri_actionco,Orientation,49,18:18,19:08
+20241029,colibri_actionco,Orientation,4,11:16,11:20
+20241029,calipso_dev,IIRO input TM,21,11:20,11:42
+20241029,calipso_dev,IIRO input TM,50,14:23,15:35
+20241031,calipso_dev,IIRO input TM,50,09:23,11:07
+20241031,calipso_dev,IIRO input TM,150,14:44,17:51
+20241104,calipso_dev,IIRO input TM,6,09:53,09:59
+20241105,calipso_dev,IIRO input TM,25,09:06,09:31
+20241105,calipso_dev,IIRO input TM,50,10:49,11:54
+20241105,calipso_dev,IIRO input TM,83,15:40,17:09
+20241106,calipso_dev,IIRO input TM,42,08:31,09:13
+20241106,calipso_dev,IIRO input TM,25,10:05,10:30
+20241106,calipso_dev,IIRO input TM,16,11:18,11:34
+20241106,calipso_dev,IIRO input TM,25,14:43,15:08
+20241107,calipso_dev,IIRO input TM,25,10:09,10:57
+20241107,calipso_dev,IIRO input TM,29,11:37,12:07
+20241107,calipso_dev,IIRO input TM,46,13:42,14:52
+20241107,calipso_dev,IIRO input TM,25,15:24,15:51
+20241107,calipso_dev,IIRO input TM,75,16:40,18:00
+20241108,calipso_dev,IIRO input TM,26,09:55,10:27
+20241108,calipso_dev,Documentation,29,10:27,10:58
+20241108,calipso_dev,IIRO input TM,3,11:26,11:37
+20241108,calipso_dev,IIRO input TM,47,13:53,15:02
+20241108,calipso_dev,IIRO input TM,25,15:54,16:19
+20241112,calipso_dev,IIRO input TM,25,08:25,08:51
+20241112,calipso_dev,IIRO input TM,25,09:41,10:06
+20241112,calipso_dev,IIRO input TM,50,10:58,11:54
+20241112,calipso_dev,IIRO input TM,50,14:59,16:06
+20241112,calipso_dev,IIRO input TM,25,16:49,17:14
+20241113,calipso_dev,IIRO input TM,50,07:54,08:54
+20241113,calipso_dev,IIRO input TM,25,09:39,10:04
+20241113,colibri_admin,Salaire et Budget,7,10:07,10:14
+20241114,calipso_dev,IIRO input TM,88,09:58,11:38
+20241114,calipso_dev,Install IIRO_INPUTS on C1,75,13:57,15:12
+20241114,calipso_dev,Install IIRO_INPUTS on C1,25,16:00,16:25
+20241115,colibri_admin,Facture OCT 2024,4,08:33,08:37
+20241115,calipso_admin,Calipso days counting,46,08:37,09:24
+20241115,calipso_admin,Calipso days counting,17,10:31,10:49
+20241115,colibri_admin,Facture OCT 2024,22,10:49,11:20
+20241115,perso_admin,Résa Stages Apnée,36,11:20,11:56
+20241115,perso_admin,Divers paiements,25,12:04,12:29
+20241115,calipso_admin,Calipso days counting,1,16:33,16:35
+20241115,perso_actionS,Comptage Vélo_PPG,99,16:35,18:52
+20241118,perso_dev,Comptage Vélo_PPG,50,13:55,14:45
+20241118,colibri_dev,Project days counting,50,14:55,16:01
+20241118,colibri_dev,Project days counting,44,17:16,18:05
+20241119,colibri_dev,Project days counting,25,08:06,08:31
+20241119,colibri_dev,Project days counting,50,11:14,12:04
+20241119,colibri_dev,Project days counting,25,12:49,13:14
+20241119,colibri_dev,Project days counting,35,15:03,15:46
+20241119,colibri_dev,Project days counting,15,16:43,16:57
+20241120,colibri_dev,Project days counting,25,08:01,08:26
+20241120,colibri_dev,Project days counting,50,10:39,11:45
+20241120,colibri_dev,Project days counting,25,14:53,15:18
+20241120,colibri_dev,Project days counting,50,18:14,19:04
+20241121,calipso_admin,Calipso days counting,10,08:21,08:31
+20241121,perso_admin,Divers paiements,16,09:25,09:42
+20241121,colibri_admin,Divers paiements,38,09:42,10:24
+20241121,perso_admin,"caf, compta, etc",12,10:24,10:36
+20241121,perso_admin,"caf, compta, etc",50,11:09,12:16
+20241121,perso_admin,"caf, compta, etc",25,14:33,14:58
+20241121,perso_admin,"caf, compta, etc",50,15:51,16:41
+20241122,perso_admin,"caf, compta, etc",0,08:05,08:05
+20241122,perso_dev,Compter la compta,25,08:05,08:30
+20241122,perso_dev,Compter la compta,50,10:12,11:16
+20241122,perso_dev,Compter la compta,25,12:16,12:41
+20241122,perso_dev,Compter la compta,39,15:50,16:29
+20241122,perso_dev,Compter la compta,50,17:02,18:01
+20241125,perso_dev,Compter la compta,38,09:47,10:26
+20241125,perso_actionS,Divers,11,10:26,10:37
+20241125,bht_admin,compta jours,50,10:52,11:59
+20241126,bht_admin,compta jours,27,08:11,09:00
+20241126,colibri_dev,git analysis,73,09:50,11:29
+20241126,colibri_admin,Divers paiements,50,14:54,15:44
+20241126,colibri_admin,Divers paiements,0,16:49,16:49
+20241126,colibri_dev,git analysis,25,16:49,17:14
+20241127,bht_dev,redémarrage,30,08:17,08:53
+20241127,bht_dev,redémarrage,45,10:04,11:13
+20241128,bht_dev,redémarrage,50,10:23,11:32
+20241128,bht_dev,redémarrage,75,15:49,17:04
+20241129,bht_dev,redémarrage,67,08:06,09:23
+20241129,bht_dev,redémarrage,33,10:08,10:59
+20241202,bht_dev,redémarrage,5,08:27,08:32
+20241202,perso_dev,Echauffement du matin,20,08:32,08:52
+20241202,perso_dev,Echauffement du matin,62,10:07,11:29
+20241202,bht_dev,redémarrage,14,13:56,14:10
+20241202,bht_dev,sutime tries,35,14:10,14:50
+20241202,colibri_actionco,coaching,65,15:02,16:08
+20241202,colibri_actionco,coaching,25,19:46,20:11
+20241202,colibri_actionco,coaching,50,21:11,22:01
+20241203,colibri_actionco,coaching,125,15:22,18:01
+20241204,colibri_admin,Divers paiements,37,08:07,08:44
+20241204,bht_dev,sutime tries,0,08:45,08:45
+20241204,colibri_actionco,coaching,7,09:16,09:23
+20241204,bht_dev,sutime tries,6,09:23,09:29
+20241204,colibri_admin,Divers paiements,5,09:35,09:40
+20241204,bht_dev,sutime tries,45,09:40,10:25
+20241204,colibri_actionco,coaching,25,10:25,10:50
+20241204,bht_dev,sutime tries,25,10:53,11:18
+20241205,bht_dev,sutime tries,125,09:10,12:05
+20241205,bht_dev,sutime tries,50,13:21,14:13
+20241205,bht_dev,sutime tries,63,14:53,15:58
+20241205,calipso_dev,uv displacement,12,15:58,16:10
+20241205,bht_dev,sutime tries,25,16:13,16:38
+20241206,colibri_admin,Divers paiements,25,09:04,09:29
+20241206,bht_dev,sutime tries,67,09:29,10:36
+20241206,perso_actionS,planning velo,58,11:05,12:04
+20241206,bht_dev,sutime tries,50,14:42,15:34
+20241209,colibri_actionco,coaching,50,08:11,09:14
+20241209,colibri_actionco,coaching,25,10:07,10:32
+20241209,bht_dev,sutime tries,50,10:46,11:53
+20241209,bht_dev,sutime tries,0,13:53,13:53
+20241209,bht_dev,sutime tries,50,15:18,16:08
+20241210,bht_dev,sutime tries,75,07:57,09:36
+20241210,bht_dev,sutime tries,50,11:12,12:02
+20241210,bht_dev,sutime tries,125,15:05,17:21
+20241211,bht_dev,sutime tries,25,08:11,08:36
+20241211,bht_dev,sutime tries,55,09:06,10:31
+20241211,bht_dev,sutime tries,45,11:03,11:48
+20241211,bht_dev,sutime tries,50,14:24,15:22
+20241212,bht_dev,sutime tries,35,09:52,10:32
+20241212,bht_dev,sutime tries,15,11:20,11:35
+20241212,bht_dev,sutime tries,0,13:59,13:59
+20241212,calipso_dev,uv displacement,125,14:19,16:57
+20241216,calipso_dev,uv displacement,125,09:35,12:25
+20241216,calipso_dev,uv displacement,150,13:21,16:12
+20241217,bht_dev,sutime tries,100,08:58,11:14
+20241217,bht_dev,sutime tries,25,12:44,13:09
+20241217,calipso_dev,uv displacement,25,14:49,15:15
+20241217,bht_dev,sutime tries,50,15:15,16:13
+20241218,colibri_actionco,coaching,25,08:24,08:49
+20241218,colibri_actionco,coaching,50,09:28,10:43
+20241218,bht_dev,sutime tries,50,10:50,11:47
+20241219,bht_dev,sutime tries,175,09:29,12:29
+20241220,bht_dev,sutime tries,75,08:21,10:02
+20241220,bht_dev,sutime tries,25,10:57,11:22
+20241220,bht_dev,sutime tries,25,14:49,15:14
+20241220,bht_dev,sutime tries,37,17:13,18:09
+20241223,bht_dev,sutime tries,25,20:32,20:57
+20241230,bht_dev,sutime tries,67,08:28,10:05
+20241230,bht_dev,sutime tries,43,11:02,11:54
+20241230,perso_actionS,planning velo,32,15:47,16:31
+20241230,bht_dev,sutime tries,25,16:58,17:23
+20241231,perso_dev,Echauffement du matin,18,09:14,09:32
+20241231,bht_dev,sutime tries,7,09:32,09:39
+20241231,bht_dev,sutime tries,75,10:59,12:27
+20241231,bht_dev,sutime tries,175,14:01,17:08
+20250109,bht_dev,sutime tries,25,08:21,08:46
+20250109,bht_dev,sutime tries,50,10:36,11:26
+20250110,bht_dev,sutime tries,25,08:49,09:14
+20250110,bht_dev,sutime tries,25,10:01,10:26
+20250113,perso_admin,"caf, compta, etc",4,08:01,08:05
+20250113,bht_dev,sutime tries,46,08:05,08:51
+20250113,bht_dev,sutime tries,25,12:02,12:27
+20250114,bht_dev,sutime tries,19,08:12,08:30
+20250114,bht_dev,Traitement Massif,31,08:31,09:02
+20250114,bht_dev,Traitement Massif,150,09:37,12:27
+20250114,bht_dev,Traitement Massif,2,14:32,14:34
+20250114,bht_dev,Traitement Massif,123,15:17,17:31
+20250115,bht_dev,Traitement Massif,25,08:15,08:40
+20250115,bht_dev,Traitement Massif,25,11:00,11:25
+20250115,bht_dev,Traitement Massif,75,16:26,17:48
+20250116,bht_dev,Traitement Massif,125,09:30,12:27
+20250116,bht_dev,Traitement Massif,100,13:23,15:04
+20250116,bht_dev,Traitement Massif,100,16:26,18:07
+20250120,bht_dev,Traitement Massif,75,08:25,10:11
+20250120,bht_dev,Traitement Massif,50,10:44,11:35
+20250120,bht_dev,Traitement Massif,75,14:54,16:10
+20250120,bht_dev,Traitement Massif,25,17:31,17:56
+20250121,bht_dev,Traitement Massif,125,08:41,12:00
+20250121,bht_dev,Traitement Massif,25,14:52,15:17
+20250121,bht_dev,Traitement Massif,25,15:51,16:16
+20250122,bht_dev,Traitement Massif,25,08:18,08:43
+20250122,bht_dev,Traitement Massif,50,10:18,11:11
+20250122,bht_dev,Traitement Massif,25,17:24,17:49
+20250123,bht_dev,Traitement Massif,75,09:29,10:45
+20250123,bht_dev,Traitement Massif,50,11:31,12:21
+20250123,bht_dev,Traitement Massif,100,14:22,16:15
+20250124,bht_dev,Traitement Massif,50,08:10,09:02
+20250124,bht_dev,Traitement Massif,50,10:18,11:18
+20250124,bht_dev,Traitement Massif,25,15:11,15:36
+20250127,perso_actionS,planning velo,25,08:21,08:46
+20250127,perso_actionS,Plannifications,25,08:47,09:12
+20250127,colibri_admin,Divers paiements,25,09:36,10:01
+20250127,colibri_admin,Compta Jours,100,10:02,11:44
+20250127,bht_dev,Traitement Massif,75,15:38,17:04
+20250128,bht_dev,Traitement Massif,50,08:18,09:26
+20250128,bht_dev,Traitement Massif,0,11:47,11:47
+20250129,perso_admin,"caf, compta, etc",25,08:14,08:39
+20250129,bht_dev,Traitement Massif,0,08:14,08:14
+20250129,bht_dev,Traitement Massif,51,08:47,10:05
+20250129,perso_divers,Recherche Veste,7,10:05,10:12
+20250129,bht_dev,Traitement Massif,92,10:12,11:46
+20250129,unknown,nan,50,14:18,15:08
+20250130,unknown,nan,50,08:08,09:00
+20250130,unknown,nan,50,09:44,10:58
+20250131,colibri_admin,Divers paiements,7,08:31,08:38
+20250131,perso_admin,"caf, compta, etc",118,08:38,11:09
+20250131,perso_admin,"caf, compta, etc",25,13:23,13:48
+20250131,bht_dev,Traitement Massif,1,13:59,14:00
+20250131,bht_dev,Traitement Massif,24,15:41,16:06
+20250131,bht_dev,Traitement Massif,75,16:41,18:15
+20250203,perso_admin,"caf, compta, etc",50,08:03,08:53
+20250203,bht_dev,Traitement Massif,25,09:01,09:26
+20250203,colibri_actionco,Certif Python,10,09:38,09:48
+20250203,bht_dev,Traitement Massif,15,09:48,10:03
+20250203,bht_dev,Traitement Massif,25,10:39,11:04
+20250203,bht_dev,Traitement Massif,25,14:49,15:14
+20250204,perso_admin,"caf, compta, etc",25,08:02,08:27
+20250204,perso_admin,"caf, compta, etc",0,08:58,08:58
+20250204,bht_dev,Traitement Massif,10,08:58,09:08
+20250204,bht_dev,Traitement Massif,31,10:20,10:57
+20250204,bht_dev,Traitement Massif,9,11:28,11:37
+20250204,bht_dev,Traitement Massif,75,14:55,16:21
+20250205,perso_admin,"caf, compta, etc",25,08:39,09:08
+20250205,bht_dev,Traitement Massif,25,09:19,09:45
+20250205,bht_dev,Traitement Massif,25,10:55,11:20
+20250205,bht_dev,Traitement Massif,50,14:39,15:31
+20250205,perso_admin,"caf, compta, etc",50,16:48,18:00
+20250206,perso_admin,"caf, compta, etc",25,09:14,09:45
+20250206,bht_dev,Traitement Massif,49,09:45,10:50
+20250206,calipso_dev,Operating Systems,27,10:50,11:33
+20250206,bht_dev,Traitement Massif,50,11:38,12:28
+20250206,bht_dev,Traitement Massif,125,14:07,16:54
+20250207,perso_admin,"caf, compta, etc",25,08:03,08:28
+20250207,bht_dev,Traitement Massif,75,08:35,10:20
+20250207,bht_dev,Traitement Massif,75,11:20,12:46
+20250207,bht_dev,Traitement Massif,75,14:28,15:56
+20250208,perso_admin,"caf, compta, etc",25,08:49,09:24
+20250208,bht_dev,Traitement Massif,100,09:24,11:04
+20250208,bht_dev,Traitement Massif,50,19:06,19:57
+20250208,bht_dev,Traitement Massif,50,20:37,21:28
+20260219,speasy_hapi,#181 hapi csv : understanding hapi specs,75,18:16,19:40
+20260219,speasy_hapi,#181 hapi csv : understanding hapi specs,0,18:16,18:16
+20260220,speasy_hapi,#181 hapi csv : understanding ndim + timevaryingaxis,15,09:08,09:23
+20260220,speasy_hapi,#181 hapi csv : understanding ndim + timevaryingaxis,1,09:28,09:29
+20260220,speasy_hapi,#181 hapi csv : understanding ndim + timevaryingaxis,10,10:38,10:53
+20260220,speasy_hapi,#181 hapi csv : var_axis to spz_var,25,11:20,11:45
+20260220,speasy_hapi,#181 hapi csv : var_axis to spz_var,25,12:22,12:47
+20260220,speasy_hapi,#181 hapi csv : var_axis to spz_var,18,13:31,13:49
+20260225,speasy_hapi,#181 hapi csv : var_axis to spz_var,18,12:10,12:28
+20260226,speasy_hapi,#181 hapi csv : var_axis to spz_var,20,11:23,11:43
+20260226,colibri_admin,Upgrade Project Tracking,0,11:43,11:43
+20260226,colibri_admin,Upgrade Tracking,0,11:43,11:43
+20260226,speasy_hapi,#181 hapi csv : var_axis to spz_var,32,14:07,14:54
+20260226,speasy_hapi,#181 hapi csv : var_axis to spz_var,18,15:24,16:06
+20260226,speasy_hapi,#181 hapi csv : var_axis to spz_var,25,17:02,17:27
+20260227,speasy_hapi,#181 hapi csv : var_axis to spz_var,1,09:31,09:31
+20260227,colibri_dev,python tries,11,09:31,09:42
+20260227,speasy_hapi,#181 hapi csv : var_axis to spz_var,18,09:42,10:01
+20260227,colibri_dev,python tries,21,16:42,17:02
+20260302,speasy_hapi,#181 hapi csv : var_axis to spz_var,25,10:09,11:11
+20260302,speasy_hapi,#181 hapi csv : var_axis to spz_var,74,16:39,18:59
+20260303,speasy_hapi,#181 hapi csv : var_axis to spz_var,0,09:58,09:58
+20260303,colibri_divers,démarrage matin,33,09:58,10:31
+20260303,colibri_admin,démarrage matin,33,09:58,10:31
+20260303,colibri_dev,suivis projets,33,10:27,11:00
+20260303,colibri_admin,suivis projets,33,10:31,11:05
+20260303,speasy_hapi,#181 hapi csv : var_axis to spz_var,42,11:22,12:05
+20260303,speasy_hapi,#181 hapi csv : var_axis to spz_var,16,12:42,12:58
+20260303,speasy_hapi,#181 hapi csv : var_axis to spz_var,1,15:28,15:29
+20260303,colibri_dev,python tries,1,15:29,15:30
+20260303,speasy_hapi,#181 hapi csv : var_axis to spz_var,73,15:30,17:11
+20260303,speasy_hapi,#181 hapi csv : spzvar to csv,25,17:27,17:52
+20260304,speasy_hapi,#181 hapi csv : spzvar to csv,60,11:00,12:00
+20260304,speasy_hapi,#181 hapi csv : spzvar to csv,30,15:00,15:30
+20260304,speasy_hapi,#181 hapi csv : spzvar to csv,40,16:00,16:50
+20260304,speasy_hapi,#181 hapi csv : spzvar to csv,60,17:30,18:30
+20260305,speasy_hapi,#181 hapi csv : spzvar multiaxis to csv,125,09:49,12:08
+20260305,speasy_hapi,#181 hapi csv : spzvar multiaxis to csv,46,15:36,16:54
+20260305,speasy_hapi,#181 hapi csv : spzvar multiaxis to csv,0,17:30,17:30
+20260305,colibri_admin,suivis projets,10,17:30,17:40
+20260305,speasy_hapi,#181 hapi csv : spzvar multiaxis to csv,22,17:40,18:03
+20260306,speasy_hapi,#181 hapi csv : spzvar multiaxis to csv,70,10:21,11:38
+20260306,colibri_admin,suivis projets,5,11:38,11:44
+20260306,speasy_hapi,#181 hapi csv : spzvar multiaxis to csv,1,11:46,11:50
+20260306,speasy_hapi,#181 hapi csv : spzvar multiaxis to csv,57,15:07,16:09
+20260306,speasy_hapi,#181 hapi csv : spzvar multiaxis to csv,18,16:43,17:01
+20260306,speasy_hapi,#181 hapi csv : spzvar multiaxis to csv,21,17:38,17:59
+20260307,colibri_admin,suivis projets,125,11:11,13:17
+20260309,colibri_admin,Administratif,4,08:24,08:29
+20260309,colibri_admin,suivis projets,46,08:29,09:33
+20260309,colibri_admin,suivis projets,25,11:12,11:37
+20260309,speasy_hapi,#182 hapi binary : skeleton,50,15:19,16:09
+20260309,perso,Methodo,25,17:47,18:12
+20260310,colibri_divers,démarrage matin,25,11:57,12:22
+20260310,speasy_hapi,#182 hapi binary : skeleton,1,12:22,12:23
+20260310,speasy_hapi,#182 hapi binary : skeleton,86,14:16,16:09
+20260310,speasy_hapi,#182 hapi binary : read-write,12,17:20,17:33
+20260311,perso,admin,5,08:33,08:38
+20260311,perso,admin,5,08:33,08:40
+20260311,colibri_admin,suivis projets,20,08:40,09:00
+20260311,perso,admin,9,09:04,09:13
+20260311,colibri_admin,suivis projets,9,09:13,09:22
+20260311,speasy_hapi,#182 hapi binary : skeleton,0,09:22,09:22
+20260311,colibri_admin,suivis projets,82,09:22,10:44
+20260311,colibri_admin,Administratif,7,10:50,10:57
+20260311,speasy_hapi,#182 hapi binary : skeleton,2,10:57,10:59
+20260311,speasy_hapi,#182 hapi binary : skeleton,51,11:34,12:25
+20260311,colibri_admin,suivis projets,15,14:52,15:06
+20260311,speasy_hapi,#182 hapi binary : skeleton,25,15:10,15:35
+20260311,speasy_hapi,#182 hapi binary : skeleton,35,16:39,17:21
+20260312,perso,Tâches Matinales,20,10:37,10:57
+20260312,carangues,Compta,6,10:57,11:04
+20260312,perso,Tâches Matinales,12,11:04,11:16
+20260312,speasy_hapi,#181 hapi csv : copilot review,38,11:16,12:12
+20260312,perso,Divers,18,14:18,14:36
+20260312,colibri_admin,suivis projets,10,14:36,14:47
+20260312,speasy_hapi,#181 hapi csv : copilot review,56,14:47,15:55
+20260312,perso,Divers,6,16:33,16:39
+20260312,speasy_hapi,#182 hapi binary : skeleton,34,16:39,17:20
+20260313,perso,Divers,7,08:08,08:20
+20260313,colibri_admin,suivis projets,18,08:20,08:38
+20260313,colibri_admin,suivis projets,39,08:20,09:01
+20260313,speasy_hapi,#181 hapi csv : copilot review,21,09:20,09:48
+20260313,perso,divers,31,10:15,10:46
+20260313,speasy_hapi,#181 hapi csv : copilot review,12,11:07,11:19
+20260313,speasy_hapi,#182 hapi binary : skeleton,0,11:07,11:07
+20260313,speasy_hapi,#182 hapi binary : skeleton,15,11:19,11:34
+20260313,speasy_hapi,#181 hapi csv : copilot review,0,11:35,11:46
+20260313,speasy_hapi,#181 hapi csv : copilot review,56,14:13,15:23
+20260313,speasy_hapi,#181 hapi csv : copilot review,22,15:59,16:20
+20260313,colibri_dev,projects tracking,3,16:21,16:24
+20260313,colibri_dev,projects tracking,7,17:13,17:20
+20260313,colibri_dev,projects tracking,15,17:55,18:10
+20260314,colibri_dev,projects tracking,38,15:46,16:23
+20260316,colibri_dev,projects tracking,50,08:17,09:23
+20260316,colibri_dev,projects tracking,75,08:17,09:48
+20260316,speasy_hapi,#182 hapi binary : skeleton,18,09:52,10:10
+20260316,speasy_hapi,#182 hapi binary : skeleton,32,11:34,12:06
+20260316,speasy_hapi,#182 hapi binary : skeleton,25,12:12,12:37
+20260316,speasy_hapi,#182 hapi binary : skeleton,115,14:44,16:44
+20260316,speasy_hapi,#182 hapi binary : skeleton,62,17:15,18:18
+20260316,colibri_dev,projects tracking,4,18:21,18:25
+20260316,speasy_hapi,#181 hapi csv : copilot review,5,18:27,18:31
+20260316,colibri_dev,projects tracking,38,20:39,21:17
+20260316,perso_loisir,marrakech,21,21:17,21:38
+20260317,speasy_hapi,#182 hapi binary : read-write,16,08:15,08:31
+20260317,colibri_dev,projects tracking,29,08:32,09:01
+20260317,speasy_hapi,#182 hapi binary : read-write,121,09:21,11:48
+20260317,speasy_hapi,#182 hapi binary : read-write,17,14:07,14:24
+20260317,perso_care,Méthodes anxiété,16,14:24,14:40
+20260317,speasy_hapi,#182 hapi binary : read-write,117,14:40,16:52
+20260317,colibri_dev,projects tracking,1,17:08,17:09
+20260318,colibri_dev,projects tracking,2,08:04,08:06
+20260318,colibri_divers,démarrage matin,8,08:07,08:14
+20260318,colibri_dev,projects tracking,25,08:14,08:40
+20260318,speasy_hapi,#182 hapi binary : read-write,5,08:40,08:44
+20260318,colibri_dev,projects tracking,7,08:44,08:52
+20260318,perso,Tâches Matinales,3,08:52,08:55
+20260318,carangues,Compta,19,08:55,09:24
+20260318,speasy_hapi,#182 hapi binary : read-write,64,09:24,11:14
+20260318,colibri_dev,projects tracking,17,16:43,16:59
+20260319,colibri_dev,projects tracking,25,08:12,08:37
+20260319,speasy_hapi,#182 hapi binary : read-write,164,08:37,12:01
+20260319,speasy_hapi,#182 hapi binary : read-write,136,14:14,17:24
+20260320,speasy_hapi,#182 hapi binary : read-write,132,08:03,10:41
+20260320,speasy_hapi,#183 hapi provider,1,10:41,10:42
+20260320,speasy_hapi,#183 hapi provider : understanding requestdipatch,31,10:42,11:22
+20260320,colibri_dev,projects tracking,12,11:22,11:33
+20260320,colibri_dev,projects tracking,2,13:04,13:07
+20260320,colibri_admin,Administratif,6,13:07,13:13
+20260320,colibri_admin,Compta temps et Facturation,39,13:13,13:52
+20260320,perso,admin,9,13:52,14:02
+20260320,colibri_admin,Administratif,43,14:02,14:45
+20260320,speasy_meeting,Visio 20260320,62,15:08,16:10
+20260320,speasy_hapi,#183 hapi provider : understanding impex,3,15:58,16:01
+20260320,speasy_hapi,#182 hapi binary : read-write,78,16:10,17:42
+20260323,colibri_dev,projects tracking,17,09:35,09:52
+20260323,speasy_hapi,#181 hapi csv : copilot review,100,09:52,11:40
+20260323,colibri_admin,Administratif,4,11:41,11:44
+20260323,speasy_hapi,#181 hapi csv : copilot review,2,11:45,11:46
+20260323,speasy_hapi,#181 hapi csv : copilot review,24,14:29,14:53
+20260323,speasy_hapi,#183 hapi provider : understanding impex,37,14:53,15:31
+20260323,perso_care,Méthodes anxiété,18,15:31,15:49
+20260323,speasy_hapi,#183 hapi provider : understanding impex,9,15:49,16:00
+20260323,speasy_hapi,#183 hapi provider : skeleton,60,17:26,18:27
+20260324,colibri_divers,démarrage matin,12,08:08,08:20
+20260324,perso,Divers,5,08:21,08:25
+20260324,colibri_divers,démarrage matin,23,08:25,08:49
+20260324,speasy_hapi,#183 hapi provider : skeleton,110,09:09,11:45
+20260324,speasy_hapi,#183 hapi provider : skeleton,262,14:29,19:44
+20260324,colibri_admin,Compta temps et Facturation,8,20:02,20:10
+20260325,colibri_admin,Compta temps et Facturation,0,08:04,08:05
+20260325,perso,Tâches Matinales,10,08:05,08:15
+20260325,speasy_hapi,#183 hapi provider : skeleton,95,08:15,10:33
+20260325,speasy_hapi,#181 hapi csv : copilot review,75,10:33,12:44
+20260325,speasy_hapi,#181 hapi csv : copilot review,90,16:10,17:40
+20260326,perso,Tâches Matinales,21,08:18,08:38
+20260326,colibri_divers,démarrage matin,12,08:38,08:50
+20260326,speasy_hapi,#183 hapi provider : skeleton,123,09:10,11:42
+20260326,speasy_hapi,#183 hapi provider : finalise,32,11:42,12:14
+20260326,speasy_hapi,#183 hapi provider : finalise,130,12:47,14:57
+20260327,speasy_hapi,#181 hapi csv : refactor,90,11:37,13:07
+20260327,speasy_hapi,#181 hapi csv : refactor,140,13:59,16:44
+20260327,colibri_dev,projects tracking,40,16:44,17:24
+20260330,perso,Tâches Matinales,12,08:39,08:51
+20260330,colibri_dev,projects tracking,54,09:06,10:00
+20260330,speasy_hapi,#184 hapi capabilities,40,10:00,10:40
+20260330,speasy_hapi,#184 hapi capabilities,16,10:44,11:01
+20260330,speasy_hapi,#185 hapi inventory,28,11:01,11:29
+20260330,speasy_hapi,#185 hapi inventory : studies,79,14:14,15:33
+20260330,colibri_studies,Veille: IA for code,15,15:34,15:48
+20260330,speasy_hapi,#185 hapi inventory : studies,13,15:49,16:01
+20260330,colibri_studies,Veille: IA for code,7,18:59,19:06
+20260331,perso,Tâches Matinales,10,08:29,08:38
+20260331,colibri_admin,Administratif,8,08:38,08:46
+20260331,bht_dev,Création LOGIN,12,08:46,08:59
+20260331,colibri_admin,Compta temps et Facturation,1,09:04,09:05
+20260331,speasy_admin,"Administratif, Facturation",26,09:05,09:31
+20260331,colibri_admin,Time Tracking,16,09:44,10:00
+20260331,colibri_dev,Projects Time Tracker,102,10:01,11:53
+20260331,speasy_meeting,visio 20260331,66,14:00,15:06
+20260331,speasy_meeting,visio 20260331,17,15:42,15:59
+20260331,speasy_hapi,#183 hapi provider : fix review,30,18:00,18:30
+20260401,perso,Tâches Matinales,15,09:01,09:16
+20260401,colibri_studies,Claude / VScode,19,09:16,09:36
+20260401,colibri_studies,Claude / VScode,51,10:39,11:32
+20260401,colibri_studies,Claude / VScode,21,12:12,12:32
+20260401,colibri_studies,Claude / VScode,44,14:26,15:10
+20260401,colibri_admin,"Administratif , impots, urssaf, etc ...",30,16:19,16:49
+20260401,colibri_admin,"Administratif , impots, urssaf, etc ...",60,16:19,17:19
+20260402,colibri_studies,Claude / VScode,90,09:35,11:51
+20260402,colibri_studies,Claude / VScode,10,12:25,12:35
+20260402,colibri_studies,Claude / VScode,20,15:32,15:52
+20260402,carangues_compta,Compta,150,15:52,18:35
+20260403,carangues_compta,Compta,31,08:19,08:50
+20260403,speasy_hapi,#183 hapi provider : fix review,13,08:50,09:07
+20260403,colibri_admin,facturation,46,09:07,10:07
+20260403,perso_admin,Permi Jo,12,10:33,10:45
+20260403,colibri_admin,Time Tracking,18,10:45,11:03
+20260403,colibri_admin,Time Tracking,34,10:45,11:19
+20260407,colibri_admin,time tracking,25,09:23,09:48
+20260407,speasy_hapi,#209 NetCDF Codec : planification,35,09:50,10:25
+20260407,calipso_iesa,helioswarm 2026 : planification,48,10:27,11:16
+20260407,colibri_admin,formalités : maison prof. lib.,33,11:29,12:02
+20260407,perso,tâches diverses,53,14:21,15:15
+20260407,carangues_compta,Factures Hubert,22,15:15,15:37
+20260407,colibri_admin,formalités : urssaf / accre,23,15:38,16:01
+20260407,colibri_admin,compta : saisie,90,16:01,17:43
+20260408,perso,tâches diverses,61,08:07,09:07
+20260408,perso_dev,cpor : add new chart,5,09:07,09:12
+20260408,perso,tâches diverses,48,09:12,10:00
+20260408,calipso_iesa,helioswarm 2026 : planification,64,10:00,11:04
+20260408,perso,tâches diverses,0,11:15,11:15
+20260408,colibri_admin,formalités : impots gouv,5,11:16,11:20
+20260408,colibri_dev,gnucash tools : init,23,11:21,11:44
+20260408,colibri_dev,gnucash tools : init,47,14:46,15:33
+20260408,colibri_dev,gnucash tools : init,25,16:10,16:40
+20260408,perso,vacances : maroc,39,16:41,17:22
+20260409,calipso_svom,étude,16,09:36,09:52
+20260409,calipso_svom,Réunion préparatoire,30,09:52,10:22
+20260409,calipso_svom,Réunion préparatoire,30,10:43,11:18
+20260409,calipso_svom,Réunion préparatoire,60,14:22,15:22
+20260410,perso,matin,30,08:15,08:45
+20260410,calipso_iesa,helioswarm 2026 : planification,30,09:24,09:55
+20260410,perso,vacances : maroc,37,09:57,10:37
+20260410,calipso_iesa,helioswarm 2026 : planification,14,10:39,10:53
+20260410,perso,vacances : maroc,14,10:54,11:07
+20260410,speasy_hapi,#209 NetCDF Codec : planification,23,11:11,11:34
+20260410,speasy_hapi,#209 NetCDF Codec : planification,32,15:18,15:50
+20260410,speasy_hapi,#209 NetCDF codec : pyistp netcdf driver,88,15:51,17:35
+20260413,perso,matin,17,08:27,09:11
+20260413,colibri_dev,time_tracking : fix exports,43,09:34,10:17
+20260413,colibri_dev,time_tracking : fix exports,61,09:34,10:35
+20260413,speasy_hapi,#209 NetCDF codec : pyistp netcdf driver,0,10:35,10:35
+20260413,colibri_admin,time tracking,8,10:35,10:43
+20260413,speasy_netcdf,#209 NetCDF codec : pyistp netcdf driver,2,10:43,10:45
+20260413,speasy_netcdf,#209 NetCDF Codec : pyistp claude studies,31,10:45,11:16
+20260413,perso,tâches diverses,13,11:17,11:29
+20260413,colibri_admin,achats : clavier,2,13:45,13:47
+20260413,perso,tâches diverses,55,13:53,14:49
+20260413,speasy_netcdf,#209 NetCDF Codec : pyistp claude studies,73,14:49,16:02
+20260413,speasy_netcdf,#209 NetCDF Codec : pyistp claude studies,18,17:26,18:00
+20260414,perso,matin,12,09:30,09:42
+20260414,speasy_netcdf,#209 NetCDF Codec : pyistp claude dev,46,09:43,10:29
+20260414,colibri_admin,compta : prévisionnel,52,11:05,11:57
+20260414,speasy_hapi,#209 NetCDF Codec : planification,4,12:05,12:09
+20260414,perso,vacances : maroc,12,13:59,14:11
+20260414,speasy_netcdf,#209 NetCDF Codec : pyistp claude dev,54,14:35,15:29
+20260414,speasy_netcdf,#209 NetCDF codec : pyistp netcdf driver,15,15:30,16:03
+20260414,speasy_netcdf,#209 NetCDF codec : pyistp netcdf driver,44,16:43,17:33
+20260415,colibri_dev,gnucash tools : enhance,14,08:10,08:24
+20260415,colibri_admin,compta : saisie,4,08:24,08:28
+20260415,perso,matin,13,08:28,08:42
+20260415,colibri_admin,compta : saisie,90,08:42,10:35
+20260415,colibri_admin,compta : saisie,30,11:30,12:00
+20260415,colibri_admin,compta : saisie + tva,22,12:00,12:22
+20260415,perso,tâches diverses,38,15:07,15:45
+20260415,colibri_admin,compta : saisie + tva,60,15:45,16:45
+20260415,perso_dev,cpor : enhance,3,16:51,16:54
+20260415,speasy_netcdf,#209 NetCDF codec : pyistp netcdf driver,3,16:54,16:57
+20260416,colibri_admin,france travail : déclaration ARCE,9,09:35,09:44
+20260416,calipso_dev,admin sys : configuration nas,55,09:44,10:40
+20260416,speasy_netcdf,#209 NetCDF codec : pyistp netcdf driver,3,10:40,10:43
+20260416,calipso_dev,C1 : LeesEGenergyScanScript,91,10:43,12:14
+20260416,colibri_admin,formalités : urssaf / accre,26,13:11,13:37
+20260416,calipso_dev,C1 : LeesEGenergyScanScript,136,13:37,16:11
+20260417,calipso_dev,C1 : LeesEGenergyScanScript,0,09:22,09:23
+20260417,perso,vacances : maroc,2,09:23,09:25
+20260417,colibri_admin,france travail : déclaration ARCE,5,09:25,09:30
+20260417,colibri_admin,time tracking,18,09:34,09:52
+20260417,colibri_admin,formalités : impots gouv,19,09:56,10:15
+20260417,perso,vacances : maroc,65,10:15,11:20
+20260429,perso,vélo: plannification 2026,180,09:42,13:34
+20260430,perso,vélo: data,8,11:38,11:46
+20260430,colibri_admin,formalités : impots gouv,14,11:47,12:01
+20260430,speasy_netcdf,PyISTP : claude studies,8,12:50,12:58
+20260430,perso,vélo: data,30,13:58,15:00
+20260430,perso,vélo: plannification 2026,10,15:01,15:10
+20260430,speasy_netcdf,#209 NetCDF Codec : planification,50,15:11,16:02
+20260430,colibri_studies,tutos : claude,30,17:16,17:46
+20260504,perso,matin,30,08:13,09:02
+20260504,speasy_netcdf,PyISTP : claude studies,41,09:03,09:43
+20260504,speasy_netcdf,#209 NetCDF Codec: pyistp claude studies,41,09:03,09:43
+20260504,perso,tâches diverses,19,09:47,10:06
+20260504,perso_dev,cpor : enhance,16,10:06,10:22
+20260504,speasy_netcdf,PyISTP : claude studies,74,10:23,12:01
+20260504,speasy_netcdf,#209 NetCDF Codec: pyistp claude studies,74,10:23,12:01
+20260504,speasy_netcdf,#209 NetCDF codec : pyistp netcdf driver,5,14:27,14:36
+20260504,colibri_admin,time tracking,15,14:36,14:51
+20260504,speasy_netcdf,#209 NetCDF codec : pyistp netcdf driver,28,14:51,15:38
+20260504,perso,mattheo mancuso: prepa voyage,11,15:38,15:50
+20260504,speasy_netcdf,#209 NetCDF codec : pyistp netcdf driver,60,16:19,17:19
+20260505,perso,matin,18,09:16,09:34
+20260505,speasy_netcdf,#209 NetCDF codec : pyistp netcdf driver,12,09:34,09:46
+20260505,colibri_system,clean disk,30,10:08,10:38
+20260505,speasy_netcdf,#209 NetCDF codec : pyistp netcdf driver,9,10:38,10:47
+20260505,speasy,local dev infra : precommit sonar hook,21,10:48,11:09
+20260505,colibri_system,clean disk,15,11:09,11:24
+20260505,speasy,local dev infra : precommit sonar hook,15,11:24,11:39
+20260505,perso,vélo: plannification 2026,30,11:48,12:18
+20260505,perso,vélo: plannification 2026,12,14:23,14:35
+20260505,speasy_netcdf,#209 NetCDF codec : pyistp netcdf driver,14,14:35,14:51
+20260505,perso,vélo: data,34,14:51,15:25
+20260505,perso,vélo: data,30,16:52,17:22
+20260505,perso,vélo: data,17,20:44,21:01
+20260511,perso,vélo: data,17,08:20,08:38
+20260511,speasy_netcdf,#209 NetCDF codec : pyistp netcdf driver,1,08:38,08:39
+20260511,perso_admin,compta,38,08:39,09:17
+20260511,speasy_netcdf,#209 NetCDF codec: pyistp review,7,09:17,09:24
+20260511,perso,tâches diverses,12,09:48,10:00
+20260511,speasy_netcdf,#209 NetCDF codec: pyistp meeting,75,10:00,11:35
+20260511,speasy_netcdf,#209 NetCDF codec: pyistp meeting,60,13:56,14:56
+20260511,perso_velo,plannification,52,15:10,16:02
+20260511,speasy_netcdf,#209 NetCDF codec: pyistp meeting,3,17:36,17:39
+20260512,speasy_netcdf,#209 NetCDF codec: pyistp meeting,33,09:12,09:45
+20260512,perso,tâches diverses,11,09:45,09:56
+20260512,colibri_admin,impots,22,09:56,10:22
+20260512,perso_velo,plannification,29,10:25,10:55
+20260512,speasy_netcdf,#209 NetCDF codec: pyistp fix review issues,35,10:55,11:38
+20260512,perso_velo,plannification,0,14:39,14:39
+20260512,perso_velo,data,25,14:39,15:07
+20260512,speasy_netcdf,#209 NetCDF codec: pyistp fix review issues,89,15:07,17:09
+20260512,perso_velo,plannification,9,17:09,17:19
+20260512,perso_velo,data,16,17:19,17:35
+20260513,perso_velo,plannification,22,08:25,08:47
+20260513,perso_admin,sync,38,09:26,10:04
+20260513,speasy_netcdf,#209 NetCDF codec: pyistp fix review issues,30,10:14,10:44
+20260513,speasy_netcdf,#209 NetCDF codec: pyistp fix review issues,22,11:14,11:35
+20260513,perso_admin,sync,39,14:23,15:02
+20260518,speasy_netcdf,#209 NetCDF codec: pyistp fix review issues,120,09:25,11:55
+20260518,perso,tâches diverses,23,14:09,14:32
+20260518,perso_dev,cpor : enhance,64,14:32,15:50
+20260518,speasy_netcdf,#209 NetCDF codec: pyistp fix review issues,47,15:50,16:54
+20260518,perso,tâches diverses,5,17:00,17:06
+20260518,speasy_netcdf,#209 NetCDF codec: pyistp fix review issues,21,17:06,17:27
+20260519,speasy_netcdf,#209 NetCDF codec: pyistp fix review issues,33,12:12,12:45
+20260519,perso_velo,data,28,14:04,14:31
+20260519,speasy_netcdf,#209 NetCDF codec: pyistp fix review issues,31,14:32,15:15
+20260519,perso,tâches diverses,13,15:19,15:32
+20260519,speasy_netcdf,#209 NetCDF codec: pyistp fix review issues,76,15:32,17:24
+20260520,perso,tâches diverses,29,08:20,08:52
+20260520,colibri_admin,Tâches diverses,4,09:07,09:20
+20260520,colibri_admin,time tracking,29,09:20,09:50
+20260520,speasy_netcdf,#209 NetCDF codec : pyistp fix review issues,0,09:55,09:55
+20260520,colibri_admin,time tracking,0,09:55,09:55
+20260520,speasy_netcdf,#209 NetCDF codec : pystp fix review issues,0,09:55,09:55
+20260520,colibri_admin,time tracking,67,09:55,11:46
+20260520,carangues_ie1,Construction Séance,17,14:51,15:08
+20260520,colibri_admin,time tracking,7,15:55,16:02
+20260520,perso_velo,data,7,16:02,16:09
+20260520,colibri_admin,time tracking,59,16:09,17:10
+20260520,perso_admin,compta,21,17:10,17:31
+20260521,calipso_iesa,C1 Calibration Scripts,19,09:13,09:31
+20260521,calipso_iesa,C1 Calibration Scripts,6,11:44,11:49
+20260521,speasy_netcdf,#209 NetCDF codec : fix review,6,11:50,11:55
+20260521,speasy_netcdf,#209 NetCDF codec : fix review,8,13:37,13:45
+20260521,calipso_lees,Intégration nouvel EGSE Lees,172,13:45,16:37
+20260522,perso_velo,data,38,10:45,11:31
+20260522,perso,vélo: plannification 2026,27,11:31,11:58
+20260522,nan,#209 NetCDF Codec : finalise review,10,12:08,12:18
+20260522,colibri_admin,Comptages,14,12:19,12:33
+20260522,colibri_admin,Comptages,60,13:16,14:22
+20260522,colibri_admin,Comptages,120,16:35,18:35
+20260526,perso_velo,data,8,11:43,11:52
+20260526,speasy_netcdf,#209 NetCDF codec : fix review,22,11:52,12:13
+20260526,perso,Vacances Été 2026,54,15:24,16:24
+20260526,perso,divers,6,18:03,18:09
+20260527,perso,divers,1,10:05,10:06
+20260527,perso_velo,data,19,10:06,10:25
+20260527,perso,divers,10,10:25,10:35
+20260527,perso,vélo: plannification 2026,22,10:35,10:57
+20260527,colibri_admin,Comptages,68,11:00,12:17
+20260527,colibri_admin,Comptages,60,17:16,18:16
+20260528,perso,divers,30,08:36,09:06
+20260528,colibri_admin,URSSAF,21,09:22,09:43
+20260528,colibri_admin,COMPTA,39,09:43,10:22
+20260528,colibri_admin,URSSAF,9,10:32,10:41
+20260528,speasy_netcdf,#209 NetCDF Codec : finalise review,14,10:41,10:55
+20260528,colibri_admin,Webinaire Cotisations Sociales,67,10:55,12:03
+20260528,perso,divers,20,15:46,16:07
+20260528,calipso_iesa,C1 Calibration Scripts,40,16:07,16:47
+20260530,perso,divers,30,09:31,10:02
+20260530,colibri_admin,stage VAEA,60,10:02,11:02
+20260601,calipso_iesa,C1 Calibration Scripts,90,10:59,12:56
+20260601,calipso_iesa,C1 Calibration Scripts,60,14:41,16:04
+20260601,calipso_iesa,C1 Calibration Scripts,85,20:13,22:03
+20260602,colibri_admin,Comptages,55,08:10,09:09
+20260602,carangues_compta,Paiements,65,09:18,10:38
+20260602,colibri_admin,Comptages,30,10:38,11:11
+20260602,perso_velo,data,5,11:16,11:20
+20260602,perso,divers,5,11:46,11:51
+20260602,calipso_iesa,C1 Calibration Scripts,51,11:51,12:43
+20260602,colibri_admin,Comptages,3,13:31,13:35
+20260602,calipso_iesa,C1 Calibration Scripts,148,13:35,16:06
+20260602,speasy_archive,#180 Expose Speasy Archive,6,16:06,16:12
+20260602,colibri_admin,Comptages,10,16:15,16:24
+20260602,speasy_archive,#180 Speasy Archive : study,41,16:24,17:06
