@@ -1,0 +1,20 @@
+PPT_DATA_DIR: "DATA"
+PPT_DL_DIR: "Téléchargements"
+PPT_LOGLEVEL_CONSOLE: WARNING
+PPT_LOGLEVEL_LOGFILE: INFO
+
+POMOFOCUS_FILENAME: "pomofocus.csv"
+SUPERPROD_FILENAME: "super_productivity.json"
+WEBPROD_FILENAME: "web_productivity.json"
+PARQUET_FILENAME: "histories.parquet"
+
+EXPORT_PROJECTS:
+- "colibri"
+- "speasy"
+- "calipso"
+
+BILLABLE_PROJECTS:
+- "speasy"
+- "calipso"
+- "calipso_a"
+- "calipso_b"

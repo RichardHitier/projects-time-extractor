@@ -1,0 +1,47 @@
+speasy:
+  git_dirs:
+  - /home/richard/01DEV/speasy/.git
+  pom_project: SPEASY
+calipso:
+  git_dirs:
+  - /home/richard/01DEV/CalipsoProject/iesa-dispatcher-studio/.git
+  - /home/richard/01DEV/CalipsoProject/lees-dispatcher-studio/.git
+  - /home/richard/01DEV/CalipsoProject/calibration-dispatcher-clients/.git
+  - /home/richard/01DEV/CalipsoProject/calipso-dispatcher-clients/.git
+  - /home/richard/01DEV/CalipsoProject/calipso-dispatcher-studio-1/.git
+  - /home/richard/01DEV/CalipsoProject/calipso-net-module/.git
+  - /home/richard/01DEV/CalipsoProject/.git
+  pom_project: CALIPSO
+  superprod_projects:
+  - Calipso
+  - CalipsoDev
+bht:
+  git_dirs:
+  - /home/richard/01DEV/bht3/.git
+  # - /home/richard/01DEV/bht-bulk/.git
+  pom_project: BHT
+  superprod_projects:
+  - bht2
+  - git_irap
+pro:
+  git_dirs: []
+  pom_project:
+  - PRO
+  - COLIBRI
+  superprod_projects:
+  - pro
+  - Pro
+perso:
+  pom_project: PERSO
+  superprod_projects:
+  - perso
+  - Perso
+  git_dirs:
+  - /home/richard/01DEV/visu-velo/.git
+  - /home/richard/01DEV/cpor/.git
+  - /home/richard/01DEV/compta-perso/.git
+  - /home/richard/01DEV/velocirap/.git
+  - /home/richard/01DEV/co-libri-config/.git
+  - /home/richard/01DEV/chevres/.git
+  - /home/richard/01DEV/time-tracker/.git
+  - /home/richard/01DEV/www.co-libri.org/.git

@@ -205,4 +205,7 @@ if __name__ == "__main__":
                 year, month = map(int, month_arg.split('-'))
             else:
                 month = int(month_arg)
-        print(billing_export_days(suivi_df, year=year, month=month).to_csv(index=False, sep=';', decimal=',', na_rep=''))
+        result = billing_export_days(suivi_df, year=year, month=month)
+        print(result.to_csv(index=False, sep=';', decimal=',', na_rep=''), end='')
+        total = f"{result['H'].sum():.2f}".replace('.', ',')
+        print(f";;TOTAL;{total};")

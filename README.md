@@ -41,14 +41,34 @@ myproject:
 
 ## Usage
 
-### Pomofocus workflow
+### Quick help
 
-1. Export the report from [pomofocus.io](https://pomofocus.io) → save `report.csv` into the `DATA/` folder
-2. Merge into the main history:
+`timer report` — rapport texte
+- `--days N` — nombre de jours (défaut: 7)
+- `--since YYYYMMDD` — date de début (remplace `--days`)
+- `--project NAME` — filtrer par projet
+- `--view` — format : `table` | `project` | `export` | `project-logs`
 
-```bash
-timer pomo-merge
-```
+`timer day-bars` — barres journalières
+- `--from YYYYMMDD` / `--to YYYYMMDD` — plage de dates
+- `-p PROJECT` — filtrer par projet
+- `-v` — format : `txt` | `plot`
+- `-o OUTPUT` — fichier de sortie
+
+`timer plot` — vue annuelle par projet
+- `--year YEAR` — année (défaut: en cours)
+- `--output OUTPUT` — fichier de sortie
+
+`timer pomo-merge` — fusionne les exports Pomofocus CSV (pas d'options)
+
+### Pipeline complet
+
+1. Saisie des sessions sur [pomofocus.io](https://pomofocus.io)
+2. Export → `report.csv` (téléchargé dans `~/Téléchargements/`)
+3. `timer pomo-merge` → fusionne dans `DATA/pomofocus.csv` (les noms de projets restent tels quels, ex. `calipso`)
+4. `timer report --view export` → CSV de facturation (filtre sur `EXPORT_PROJECTS` dans `config.yml`)
+5. Édition manuelle dans `suivi_chantiers.ods` : copier-coller du CSV, renommer `calipso` en `calipso_a` / `calipso_b` / ... selon la commande en cours
+6. `python suivi_chantier.py heightyhours` → export facturation (filtre sur `BILLABLE_PROJECTS` dans `config.yml`)
 
 ### Report views (`timer report`)
 
