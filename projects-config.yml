@@ -2,6 +2,7 @@ speasy:
   git_dirs:
   - /home/richard/01DEV/speasy/.git
   pom_project: SPEASY
+  color: "#FFD43B"
 calipso:
   git_dirs:
   - /home/richard/01DEV/CalipsoProject/iesa-dispatcher-studio/.git
@@ -12,6 +13,7 @@ calipso:
   - /home/richard/01DEV/CalipsoProject/calipso-net-module/.git
   - /home/richard/01DEV/CalipsoProject/.git
   pom_project: CALIPSO
+  color: "#4169E1"
   superprod_projects:
   - Calipso
   - CalipsoDev
@@ -25,6 +27,7 @@ bht:
   - git_irap
 pro:
   git_dirs: []
+  color: "#FF8080"
   pom_project:
   - PRO
   - COLIBRI
@@ -33,6 +36,7 @@ pro:
   - Pro
 perso:
   pom_project: PERSO
+  color: "#5A9931"
   superprod_projects:
   - perso
   - Perso

@@ -1,9 +1,12 @@
+import hashlib
 import locale
 import re
 
+import matplotlib.cm as cm
 import pandas as pd
 from matplotlib import pyplot as plt
 
+from config import load_projects
 from core.services import parse_task
 
 locale.setlocale(locale.LC_NUMERIC, "fr_FR.UTF-8")
@@ -131,6 +134,37 @@ def report_view_export(df):
         )
 
 
+def _project_color_map(project_names):
+    """Return a stable {project_name: color} dict.
+
+    Uses the 'color' field from projects-config.yml when defined (keyed by
+    pom_project name), otherwise derives a color by hashing the project name
+    into a 40-slot palette (tab20 + tab20b).
+    """
+    projects_cfg = load_projects()
+    palette = [cm.tab20(i / 20) for i in range(20)] + [cm.tab20b(i / 20) for i in range(20)]
+
+    cfg_colors = {}
+    for proj_data in (projects_cfg or {}).values():
+        if not isinstance(proj_data, dict):
+            continue
+        color = proj_data.get("color")
+        if not color:
+            continue
+        pom = proj_data.get("pom_project")
+        for name in ([pom] if isinstance(pom, str) else (pom or [])):
+            cfg_colors[name] = color
+
+    result = {}
+    for name in project_names:
+        if name in cfg_colors:
+            result[name] = cfg_colors[name]
+        else:
+            idx = int(hashlib.md5(name.encode()).hexdigest(), 16) % len(palette)
+            result[name] = palette[idx]
+    return result
+
+
 def plot_day_bars(df_plot):
     """Display a stacked bar chart of daily hours per project.
 
@@ -141,12 +175,14 @@ def plot_day_bars(df_plot):
                  values are hours worked.  Typically produced by pivoting
                  load_pomo_for_day_bars() output.
     """
+    color_map = _project_color_map(df_plot.columns)
+    colors = [color_map[col] for col in df_plot.columns]
     fig, ax = plt.subplots(figsize=(10, 6))
     df_plot.plot(
         ax=ax,
         kind="bar",
         stacked=True,
-        colormap="tab20",
+        color=colors,
         width=0.8,
         align="edge",
     )
