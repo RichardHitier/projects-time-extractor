@@ -153,12 +153,12 @@ def _project_color_map(project_names):
             continue
         pom = proj_data.get("pom_project")
         for name in ([pom] if isinstance(pom, str) else (pom or [])):
-            cfg_colors[name] = color
+            cfg_colors[name.lower()] = color
 
     result = {}
     for name in project_names:
-        if name in cfg_colors:
-            result[name] = cfg_colors[name]
+        if name.lower() in cfg_colors:
+            result[name] = cfg_colors[name.lower()]
         else:
             idx = int(hashlib.md5(name.encode()).hexdigest(), 16) % len(palette)
             result[name] = palette[idx]
