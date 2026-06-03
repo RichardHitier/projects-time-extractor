@@ -1,14 +1,18 @@
 import hashlib
 import locale
 import re
+from datetime import timedelta
 
 import matplotlib.cm as cm
+import matplotlib.patches as mpatches
+import matplotlib.ticker as ticker
 import pandas as pd
 from matplotlib import pyplot as plt
 
 from config import load_projects
 from core.services import parse_task
 
+plt.style.use("ggplot")
 locale.setlocale(locale.LC_NUMERIC, "fr_FR.UTF-8")
 
 
@@ -206,6 +210,85 @@ def plot_day_bars(df_plot, output="day_bars.png", show=False):
     plt.grid(axis="y", linestyle="--", alpha=0.4)
     plt.legend(title="Project", bbox_to_anchor=(1.02, 1), loc="upper left")
     plt.tight_layout()
+    if show:
+        plt.show()
+    else:
+        plt.savefig(output, dpi=150, bbox_inches="tight")
+        print(f"Saved: {output}")
+
+
+def plot_swimlane(df, output="swimlane.png", show=False):
+    """Render a Gantt-style swimlane of daily activity periods by project.
+
+    X-axis: hour of day. Y-axis: calendar days (top = most recent).
+    Bars are colored by project using the same color map as plot_day_bars.
+
+    Args:
+        df: DataFrame from load_pomo_for_swimlane().
+        output: File path for the PNG (ignored when show=True).
+        show: If True, call plt.show() instead of saving to file.
+    """
+    first = df["date_only"].min()
+    last = df["date_only"].max()
+    all_dates = []
+    d = first
+    while d <= last:
+        all_dates.append(d)
+        d += timedelta(days=1)
+
+    projects = sorted(df["project"].unique())
+    color_map = _project_color_map(projects)
+    n_days = len(all_dates)
+    X_MIN, X_MAX = 8, 20
+
+    fig, ax = plt.subplots(figsize=(14, max(6, n_days * 0.55 + 2)))
+
+    BAR_H = 0.65
+    bg_normal = "white"
+    bg_weekend = "#f0f0f0"
+    for yi, day in enumerate(all_dates):
+        is_we = day.weekday() >= 5
+        ax.barh(yi, X_MAX - X_MIN, left=X_MIN, height=0.92,
+                color=bg_weekend if is_we else bg_normal,
+                zorder=1, linewidth=0)
+        ax.axhline(yi + 0.5, color="#cccccc", linewidth=0.5, zorder=2)
+
+        for _, row in df[df["date_only"] == day].iterrows():
+            x0 = max(row["start"].hour + row["start"].minute / 60, X_MIN)
+            x1 = min(row["end"].hour + row["end"].minute / 60, X_MAX)
+            if x1 <= x0:
+                continue
+            ax.barh(yi, x1 - x0, left=x0, height=BAR_H,
+                    color=color_map[row["project"]],
+                    alpha=0.9, zorder=3, linewidth=0)
+            if (x1 - x0) > 0.33:
+                ax.text((x0 + x1) / 2, yi, f"{row['duration_m']}m",
+                        ha="center", va="center",
+                        fontsize=7, color="white", fontweight="bold",
+                        zorder=4)
+
+    ax.set_yticks(range(n_days))
+    ax.set_yticklabels(
+        [d.strftime("%a %d/%m") for d in all_dates],
+        fontsize=9, fontfamily="monospace"
+    )
+    for tick, day in zip(ax.get_yticklabels(), all_dates):
+        tick.set_alpha(0.4 if day.weekday() >= 5 else 1.0)
+    ax.set_ylim(n_days - 0.5, -0.5)
+    ax.tick_params(axis="y", length=0, pad=8)
+
+    ax.set_xlim(X_MIN, X_MAX)
+    ax.xaxis.set_major_locator(ticker.MultipleLocator(1))
+    ax.xaxis.set_major_formatter(
+        ticker.FuncFormatter(lambda x, _: f"{int(x):02d}h")
+    )
+    ax.xaxis.tick_top()
+    ax.tick_params(axis="x", labelsize=8, length=0)
+
+    patches = [mpatches.Patch(color=color_map[p], label=p) for p in projects]
+    ax.legend(handles=patches, loc="lower right", fontsize=9, borderpad=0.8)
+    ax.set_title("Activité par projet · swimlane", fontsize=13, fontweight="bold")
+    fig.tight_layout()
     if show:
         plt.show()
     else:

@@ -65,6 +65,36 @@ def load_pomo_for_day_bars(date_from, date_to, project):
     return daily
 
 
+def load_pomo_for_swimlane(date_from, date_to, project):
+    """Load Pomofocus data for the swimlane chart.
+
+    Returns:
+        DataFrame with columns: date_only, start, end, project,
+        sub_project, task, duration_m — one row per session.
+    """
+    df = load_all_pomo()
+    df["date"] = pd.to_datetime(df["date"])
+    if date_from:
+        df = df[df["date"] >= pd.to_datetime(date_from, format="%Y%m%d", errors="coerce")]
+    if date_to:
+        df = df[df["date"] <= pd.to_datetime(date_to, format="%Y%m%d", errors="coerce")]
+    if project:
+        df = df[df["project"] == project]
+    df = df[df["duration_m"] > 0].copy()
+    df["start"] = df.apply(
+        lambda r: pd.Timestamp.combine(r["date"].date(), r["startTime"]), axis=1
+    )
+    df["end"] = df.apply(
+        lambda r: pd.Timestamp.combine(r["date"].date(), r["endTime"]), axis=1
+    )
+    mask = df["end"] <= df["start"]
+    df.loc[mask, "end"] = df.loc[mask, "start"] + pd.to_timedelta(
+        df.loc[mask, "duration_m"], unit="m"
+    )
+    df["date_only"] = df["date"].dt.date
+    return df
+
+
 def parse_task(task_str):
     """Parse a task string in the format '#ISSUE_ID name : description'.
 

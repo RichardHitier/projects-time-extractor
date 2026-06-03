@@ -7,6 +7,7 @@ from config import load_config
 from core.services import (
     load_pomo_for_report,
     load_pomo_for_day_bars,
+    load_pomo_for_swimlane,
     merge_pomo_exports,
 )
 from core.plots import (
@@ -15,6 +16,7 @@ from core.plots import (
     report_view_export,
     report_view_projectlogs,
     plot_day_bars,
+    plot_swimlane,
 )
 
 _config = load_config()
@@ -83,6 +85,11 @@ def cmd_day_bars(args):
     plot_day_bars(df_plot, output=args.output, show=args.show)
 
 
+def cmd_swimlane(args):
+    df = load_pomo_for_swimlane(args.date_from, args.date_to, args.project)
+    plot_swimlane(df, output=args.output, show=args.show)
+
+
 def cmd_plot(args):
     raise NotImplementedError
 
@@ -144,6 +151,18 @@ def build_parser():
         help="Display chart on screen instead of saving to file",
     )
     p_day_bars.set_defaults(func=cmd_day_bars)
+
+    p_swimlane = sub.add_parser("swimlane", help="Gantt-style activity chart per day")
+    p_swimlane.add_argument("-o", "--output", default="swimlane.png")
+    p_swimlane.add_argument("--from", dest="date_from", metavar="YYYYMMDD")
+    p_swimlane.add_argument("--to", dest="date_to", metavar="YYYYMMDD")
+    p_swimlane.add_argument("-p", "--project", dest="project")
+    p_swimlane.add_argument(
+        "--show",
+        action="store_true",
+        help="Display chart on screen instead of saving to file",
+    )
+    p_swimlane.set_defaults(func=cmd_swimlane)
 
     p_plot = sub.add_parser("plot", help="Annual view by project")
     p_plot.add_argument("--year", type=int, help="Year (default: current)")

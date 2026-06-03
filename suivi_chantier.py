@@ -3,6 +3,7 @@ import re
 from datetime import date
 
 import matplotlib.pyplot as plt
+plt.style.use("ggplot")
 import matplotlib.dates as mdates
 import pandas as pd
 
