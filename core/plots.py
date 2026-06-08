@@ -115,19 +115,24 @@ def report_view_table(df):
         )
 
 
-def report_view_export(df):
+def report_view_export(df, quantize=False):
     """Print a semicolon-delimited export of Pomofocus records to stdout.
 
     Args:
         df: DataFrame with columns:
           date, project, sub_project, task, duration_d.
+        quantize: if True, round duration_d to nearest 1/16 (30 min).
     """
     header_line = (
         f"\n{'date'};{'project'};{'sub_project'};{'task'};{'duration_d'}"
     )
     print(header_line)
     for _, row in df.iterrows():
-        duration_d = locale.format_string("%3.2f", row["duration_d"])
+        if quantize:
+            value = round(row["duration_d"] / 0.0625) * 0.0625
+            duration_d = locale.format_string("%3.4f", value)
+        else:
+            duration_d = locale.format_string("%3.2f", row["duration_d"])
         date_str = row["date"].strftime("%Y-%m-%d")
         project_str = row["project"]
         task_str = row["task"]

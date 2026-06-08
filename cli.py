@@ -48,7 +48,7 @@ def cmd_report(args):
         elif args.view == "project":
             report_view_project(df)
         elif args.view == "export":
-            report_view_export(df)
+            report_view_export(df, quantize=args.quantize)
         elif args.view == "project-logs":
             report_view_projectlogs(df)
         else:
@@ -129,6 +129,12 @@ def build_parser():
         help="Start date (overrides --days)",
     )
     p_report.add_argument("--project", default=None, metavar="NAME")
+    p_report.add_argument(
+        "--quantize",
+        action="store_true",
+        default=False,
+        help="Round durations to nearest 1/16 day (30 min) in export view",
+    )
     p_report.add_argument(
         "--all-projects",
         dest="all_projects",
