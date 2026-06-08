@@ -8,6 +8,7 @@ calipso:
   - /home/richard/01DEV/CalipsoProject/calipso-net-module/.git
   - /home/richard/01DEV/CalipsoProject/.git
   pom_project: CALIPSO
+  export_name: calipso_b
   superprod_projects:
   - Calipso
   - CalipsoDev

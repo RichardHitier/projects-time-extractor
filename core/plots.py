@@ -123,6 +123,12 @@ def report_view_export(df, quantize=False):
           date, project, sub_project, task, duration_d.
         quantize: if True, round duration_d to nearest 1/16 (30 min).
     """
+    projects = load_projects()
+    export_name_map = {
+        name: cfg["export_name"]
+        for name, cfg in projects.items()
+        if isinstance(cfg, dict) and "export_name" in cfg
+    }
     header_line = (
         f"\n{'date'};{'project'};{'sub_project'};{'task'};{'duration_d'}"
     )
@@ -134,7 +140,7 @@ def report_view_export(df, quantize=False):
         else:
             duration_d = locale.format_string("%3.2f", row["duration_d"])
         date_str = row["date"].strftime("%Y-%m-%d")
-        project_str = row["project"]
+        project_str = export_name_map.get(row["project"], row["project"])
         task_str = row["task"]
         sub_project_str = row["sub_project"]
         print(
