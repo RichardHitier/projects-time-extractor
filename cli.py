@@ -1,5 +1,7 @@
 import argparse
 import os
+import shutil
+from datetime import datetime
 
 import pandas as pd
 from config import load_config
@@ -15,6 +17,8 @@ from core.plots import (
     report_view_project,
     report_view_export,
     report_view_projectlogs,
+    report_view_ods,
+    yyyymm_to_sheet_name,
     plot_day_bars,
     plot_swimlane,
 )
@@ -24,6 +28,7 @@ _config = load_config()
 POMO_FILE = _config["POMOFOCUS_FILEPATH"]
 DATA_DIR = _config["DATA_DIR"]
 BCKP_DIR = os.path.join(_config["DATA_DIR"], "bckp")
+ODS_FILE = _config["ODS_FILEPATH"]
 
 
 def cmd_pomo_merge(args):
@@ -51,6 +56,13 @@ def cmd_report(args):
             report_view_export(df, quantize=args.quantize)
         elif args.view == "project-logs":
             report_view_projectlogs(df)
+        elif args.view == "ods":
+            stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            bckp_path = os.path.join(BCKP_DIR, f"suivi_chantiers_{stamp}.ods")
+            shutil.copy2(ODS_FILE, bckp_path)
+            print(f"Backup: {bckp_path}")
+            months = [yyyymm_to_sheet_name(m) for m in args.month] if args.month else None
+            report_view_ods(df, ODS_FILE, only_months=months)
         else:
             print(f"Unknown view: {args.view}")
 
@@ -119,7 +131,7 @@ def build_parser():
     p_report.add_argument(
         "--view",
         default="table",
-        choices=["table", "project", "export", "project-logs"],
+        choices=["table", "project", "export", "project-logs", "ods"],
         help="Report format",
     )
     p_report.add_argument(
@@ -140,6 +152,12 @@ def build_parser():
         dest="all_projects",
         action="store_true",
         help="Include all projects, bypassing EXPORT_PROJECTS filter",
+    )
+    p_report.add_argument(
+        "--month",
+        action="append",
+        metavar="YYYYMM",
+        help="ODS month(s) to write (default: current month). Repeatable.",
     )
     p_report.set_defaults(func=cmd_report)
 

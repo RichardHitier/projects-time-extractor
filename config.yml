@@ -7,6 +7,7 @@ POMOFOCUS_FILENAME: "pomofocus.csv"
 SUPERPROD_FILENAME: "super_productivity.json"
 WEBPROD_FILENAME: "web_productivity.json"
 PARQUET_FILENAME: "histories.parquet"
+ODS_FILENAME: "suivi_chantiers.ods"
 
 EXPORT_PROJECTS:
 - "colibri"

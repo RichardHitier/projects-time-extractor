@@ -51,6 +51,9 @@ def load_config(config_path=config_filepath):
     config["PARQUET_FILEPATH"] = os.path.join(
         ppt_root_dir, config["PPT_DATA_DIR"], config["PARQUET_FILENAME"]
     )
+    config["ODS_FILEPATH"] = os.path.join(
+        ppt_root_dir, config["ODS_FILENAME"]
+    )
     return config
 
 

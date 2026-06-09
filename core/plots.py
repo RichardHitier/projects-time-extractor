@@ -1,5 +1,6 @@
 import hashlib
 import locale
+import math
 import re
 from datetime import timedelta
 
@@ -8,6 +9,9 @@ import matplotlib.patches as mpatches
 import matplotlib.ticker as ticker
 import pandas as pd
 from matplotlib import pyplot as plt
+from odf.opendocument import load as load_ods
+from odf.table import Table, TableCell, TableRow
+from odf.text import P
 
 from config import load_projects
 from core.services import parse_task
@@ -135,7 +139,7 @@ def report_view_export(df, quantize=False):
     print(header_line)
     for _, row in df.iterrows():
         if quantize:
-            value = round(row["duration_d"] / 0.0625) * 0.0625
+            value = math.ceil(row["duration_d"] / 0.0625) * 0.0625
             duration_d = locale.format_string("%3.4f", value)
         else:
             duration_d = locale.format_string("%3.2f", row["duration_d"])
@@ -147,6 +151,87 @@ def report_view_export(df, quantize=False):
             f"{date_str};{project_str};{sub_project_str};"
             f"{task_str};{duration_d}"
         )
+
+
+_FRENCH_MONTHS = {
+    1: "jan", 2: "fev", 3: "mar", 4: "avr", 5: "mai", 6: "juin",
+    7: "juil", 8: "aout", 9: "sep", 10: "oct", 11: "nov", 12: "dec",
+}
+
+
+def _month_sheet_name(date):
+    return f"{_FRENCH_MONTHS[date.month]}_{str(date.year)[2:]}"
+
+
+def _ods_data_row(date, project, sub_project, task, duration_d):
+    quantized = math.ceil(duration_d / 0.0625) * 0.0625
+    row = TableRow()
+    date_cell = TableCell(valuetype="date", datevalue=date.strftime("%Y-%m-%d"))
+    date_cell.addElement(P(text=date.strftime("%Y-%m-%d")))
+    row.addElement(date_cell)
+    for text in (project, sub_project, task):
+        cell = TableCell(valuetype="string")
+        cell.addElement(P(text=str(text)))
+        row.addElement(cell)
+    num_cell = TableCell(valuetype="float", value=str(quantized))
+    num_cell.addElement(P(text=str(quantized)))
+    row.addElement(num_cell)
+    return row
+
+
+def yyyymm_to_sheet_name(yyyymm):
+    """Convert '202606' → 'juin_26'."""
+    year, month = int(yyyymm[:4]), int(yyyymm[4:])
+    return f"{_FRENCH_MONTHS[month]}_{str(year)[2:]}"
+
+
+def report_view_ods(df, ods_path, only_months=None):
+    """Write export data to ODS month sheets.
+
+    Args:
+        only_months: list of sheet names to write (e.g. ['juin_26']).
+                     Defaults to current month only.
+    """
+    if only_months is None:
+        only_months = [_month_sheet_name(pd.Timestamp.today())]
+
+    projects = load_projects()
+    export_name_map = {
+        name: cfg["export_name"]
+        for name, cfg in projects.items()
+        if isinstance(cfg, dict) and "export_name" in cfg
+    }
+
+    df = df.copy()
+    df["project"] = df["project"].map(lambda p: export_name_map.get(p, p))
+    df["_sheet"] = df["date"].apply(_month_sheet_name)
+    df = df[df["_sheet"].isin(only_months)]
+
+    doc = load_ods(ods_path)
+    sheets = {
+        s.getAttribute("name"): s
+        for s in doc.spreadsheet.getElementsByType(Table)
+    }
+
+    written = {}
+    for sheet_name, group in df.groupby("_sheet"):
+        if sheet_name not in sheets:
+            print(f"Warning: sheet '{sheet_name}' not found, skipping")
+            continue
+        target = sheets[sheet_name]
+        rows = list(target.getElementsByType(TableRow))
+        for row in rows[2:]:
+            target.removeChild(row)
+        for _, r in group.iterrows():
+            target.addElement(
+                _ods_data_row(r["date"], r["project"], r["sub_project"],
+                              r["task"], r["duration_d"])
+            )
+        written[sheet_name] = len(group)
+
+    doc.save(ods_path)
+    for name, count in written.items():
+        print(f"  {name}: {count} lignes écrites")
 
 
 def _project_color_map(project_names):

@@ -771,8 +771,8 @@ date,project,task,minutes,startTime,endTime
 20260520,perso_velo,data,7,16:02,16:09
 20260520,colibri_admin,time tracking,59,16:09,17:10
 20260520,perso_admin,compta,21,17:10,17:31
-20260521,calipso_iesa,C1 Calibration Scripts,19,09:13,09:31
-20260521,calipso_iesa,C1 Calibration Scripts,6,11:44,11:49
+20260521,calipso_lees,C1 Calibration Scripts,19,09:13,09:31
+20260521,calipso_lees,C1 Calibration Scripts,6,11:44,11:49
 20260521,speasy_netcdf,#209 NetCDF codec : fix review,6,11:50,11:55
 20260521,speasy_netcdf,#209 NetCDF codec : fix review,8,13:37,13:45
 20260521,calipso_lees,Intégration nouvel EGSE Lees,172,13:45,16:37
@@ -825,3 +825,14 @@ date,project,task,minutes,startTime,endTime
 20260603,calipso_lees,C1 Calibration Scripts,6,13:56,14:02
 20260603,speasy_archive,#180 Speasy Archive : study,28,14:02,14:30
 20260603,calipso_lees,C1 Calibration Scripts,4,14:36,14:40
+20260603,colibri_admin,Comptages,34,14:40,15:14
+20260603,colibri_admin,Comptages,30,22:40,23:10
+20260604,calipso_lees,C1 Calibration Scripts,152,09:33,12:29
+20260604,calipso_lees,C1 Calibration Scripts,121,14:46,16:47
+20260604,colibri_admin,Comptages,10,16:47,17:26
+20260605,calipso_lees,C1 Calibration Scripts,94,10:30,12:42
+20260605,calipso_lees,C1 Calibration Scripts,56,14:19,15:15
+20260607,carangues_compta,point Colera,30,19:16,19:46
+20260608,perso,divers,8,09:25,09:33
+20260608,calipso_lees,C1 Calibration Scripts,173,09:39,13:08
+20260608,calipso_lees,C1 Calibration Scripts,198,14:43,18:32
