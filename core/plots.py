@@ -381,6 +381,9 @@ def plot_swimlane(df, output="swimlane.png", show=False):
     ax.xaxis.tick_top()
     ax.tick_params(axis="x", labelsize=8, length=0)
 
+    for h in range(X_MIN, X_MAX + 1):
+        ax.axvline(h, color="#aaaaaa", linewidth=0.6, linestyle="--", zorder=2)
+
     patches = [mpatches.Patch(color=color_map[p], label=p) for p in projects]
     ax.legend(handles=patches, loc="lower right", fontsize=9, borderpad=0.8)
     ax.set_title("Activité par projet · swimlane", fontsize=13, fontweight="bold")
