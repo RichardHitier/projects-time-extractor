@@ -42,7 +42,14 @@ def cmd_pomo_merge(args):
 
 
 def cmd_report(args):
-    if args.since:
+    if args.view == "ods":
+        if args.month:
+            first_month = min(args.month)
+            cutoff = pd.Timestamp(f"{first_month[:4]}-{first_month[4:]}-01")
+        else:
+            today = pd.Timestamp.today()
+            cutoff = pd.Timestamp(today.year, today.month, 1)
+    elif args.since:
         cutoff = pd.to_datetime(args.since, format="%Y%m%d")
     else:
         cutoff = pd.Timestamp.today().normalize() - pd.Timedelta(days=args.days - 1)
