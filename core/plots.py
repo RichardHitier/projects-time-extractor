@@ -139,7 +139,7 @@ def report_view_export(df, quantize=False):
     print(header_line)
     for _, row in df.iterrows():
         if quantize:
-            value = math.ceil(row["duration_d"] / 0.0625) * 0.0625
+            value = math.ceil(row["duration_d"] / 0.03125) * 0.03125
             duration_d = locale.format_string("%3.4f", value)
         else:
             duration_d = locale.format_string("%3.2f", row["duration_d"])
@@ -164,7 +164,7 @@ def _month_sheet_name(date):
 
 
 def _ods_data_row(date, project, sub_project, task, duration_d):
-    quantized = math.ceil(duration_d / 0.0625) * 0.0625
+    quantized = math.ceil(duration_d / 0.03125) * 0.03125
     row = TableRow()
     date_cell = TableCell(valuetype="date", datevalue=date.strftime("%Y-%m-%d"))
     date_cell.addElement(P(text=date.strftime("%Y-%m-%d")))

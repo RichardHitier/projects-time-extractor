@@ -180,7 +180,7 @@ def build_parser():
         "--quantize",
         action="store_true",
         default=False,
-        help="Round durations to nearest 1/16 day (30 min) in export view",
+        help="Round durations to nearest 1/32 day (15 min) in export view",
     )
     p_report.add_argument(
         "--all-projects",
