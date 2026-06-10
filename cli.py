@@ -31,14 +31,42 @@ BCKP_DIR = os.path.join(_config["DATA_DIR"], "bckp")
 ODS_FILE = _config["ODS_FILEPATH"]
 
 
+POMO_RECORDS_LOG = os.path.join(DATA_DIR, "pomo_records.csv")
+
+
+def _read_last_record_count():
+    if not os.path.exists(POMO_RECORDS_LOG):
+        return None, None
+    df = pd.read_csv(POMO_RECORDS_LOG, parse_dates=["date"])
+    if df.empty:
+        return None, None
+    last = df.iloc[-1]
+    return last["date"], int(last["num_records"])
+
+
+def _append_record_count(num_records):
+    today = datetime.now().strftime("%Y-%m-%d")
+    row = f"{today},{num_records}\n"
+    if not os.path.exists(POMO_RECORDS_LOG):
+        with open(POMO_RECORDS_LOG, "w") as f:
+            f.write("date,num_records\n")
+    with open(POMO_RECORDS_LOG, "a") as f:
+        f.write(row)
+
+
 def cmd_pomo_merge(args):
     print("Merging Pomofocus exports...")
+    last_date, last_count = _read_last_record_count()
     pomfiles, len_before, len_after = merge_pomo_exports(
         POMO_FILE, _config["HOME_DIR"], DATA_DIR, BCKP_DIR
     )
     print(f"Files processed: {pomfiles}")
     print(f"Records before deduplication: {len_before}")
     print(f"Records after deduplication: {len_after}")
+    if last_count is not None:
+        added = len_after - last_count
+        print(f"Records added since {last_date.date()}: {added:+d}")
+    _append_record_count(len_after)
 
 
 def cmd_report(args):
