@@ -845,3 +845,7 @@ date,project,task,minutes,startTime,endTime
 20260609,speasy_archive,#180 Speasy Archive : study,1,14:47,14:48
 20260609,speasy_archive,#180 Speasy Archive : dev,73,14:48,16:00
 20260609,speasy_archive,#180 Speasy Archive : dev,86,16:54,18:20
+20260610,speasy_netcdf,#209 NetCDF codec : fix review,90,09:06,10:53
+20260610,speasy_archive,#180 Speasy Archive : dev,0,09:06,09:06
+20260610,calipso_lees,C1 Calibration Scripts,210,14:08,17:56
+20260610,colibri_admin,Comptages,43,21:43,22:26
