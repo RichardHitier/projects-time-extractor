@@ -68,7 +68,7 @@ myproject:
 3. `timer pomo-merge` → fusionne dans `DATA/pomofocus.csv` (les noms de projets restent tels quels, ex. `calipso`)
 4. `timer report --view export` → CSV de facturation (filtre sur `EXPORT_PROJECTS` dans `config.yml`)
 5. Édition manuelle dans `suivi_chantiers.ods` : copier-coller du CSV, renommer `calipso` en `calipso_a` / `calipso_b` / ... selon la commande en cours
-6. `python suivi_chantier.py heightyhours` → export facturation (filtre sur `BILLABLE_PROJECTS` dans `config.yml`)
+6. `timer eighty-hours` → export facturation (filtre sur `BILLABLE_PROJECTS` dans `config.yml`)
 
 ### Report views (`timer report`)
 

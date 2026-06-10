@@ -138,7 +138,7 @@ def cmd_swimlane(args):
     plot_swimlane(df, output=args.output, show=args.show)
 
 
-def cmd_heighty_hours(args):
+def cmd_eighty_hours(args):
     _, suivi_df = suivi_report(ODS_FILE)
     year, month = None, None
     if args.month:
@@ -235,12 +235,12 @@ def build_parser():
     )
     p_swimlane.set_defaults(func=cmd_swimlane)
 
-    p_heighty = sub.add_parser("heighty-hours", help="Daily billable hours CSV for a month")
-    p_heighty.add_argument(
+    p_eighty = sub.add_parser("eighty-hours", help="Daily billable hours CSV for a month")
+    p_eighty.add_argument(
         "--month", metavar="YYYY-MM", default=None,
         help="Month to report (default: current month)",
     )
-    p_heighty.set_defaults(func=cmd_heighty_hours)
+    p_eighty.set_defaults(func=cmd_eighty_hours)
 
     p_plot = sub.add_parser("plot", help="Annual view by project")
     p_plot.add_argument("--year", type=int, help="Year (default: current)")
