@@ -6,7 +6,7 @@ from datetime import datetime
 import pandas as pd
 from config import load_config
 
-from suivi_chantier import report as suivi_report, billing_export_days
+from core.suivi_chantier import report as suivi_report, billing_export_days
 from core.services import (
     load_pomo_for_report,
     load_pomo_for_day_bars,

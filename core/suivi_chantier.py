@@ -1,5 +1,4 @@
 import calendar
-import re
 from datetime import date
 
 import matplotlib.pyplot as plt
@@ -165,48 +164,3 @@ def plot_by_projects(df, output="suivi_chantiers.png", show=False):
         plt.savefig(output, dpi=150, bbox_inches="tight")
         plt.close()
         print(f"File {output} created")
-
-
-if __name__ == "__main__":
-
-    actions = ['txt_report', 'plot_by_project', 'plot_all_projects', 'export', 'heightyhours']
-
-    import sys
-    def givarg(actions):
-        print(f"Giv arg in [{', '.join(actions)}]")
-        sys.exit()
-
-    if len(sys.argv) < 2 or sys.argv[1] not in actions:
-        givarg(actions)
-
-    my_report, suivi_df = report(load_config().get("ODS_FILEPATH", "./suivi_chantiers.ods"))
-    if sys.argv[1] == 'txt_report':
-        print(my_report)
-    elif sys.argv[1] == 'plot_by_project':
-        args = sys.argv[2:]
-        show = '--show' in args
-        output = next((a for a in args if not a.startswith('--')), "suivi_chantiers.png")
-        plot_by_projects(suivi_df, output=output, show=show)
-    elif sys.argv[1] == 'plot_all_projects':
-        args = sys.argv[2:]
-        show = '--show' in args
-        output = next((a for a in args if not a.startswith('--')), "suivi_chantiers_all.png")
-        plot_all_projects(suivi_df, output=output, show=show)
-    elif sys.argv[1] == 'export':
-        args = sys.argv[2:]
-        period = next((a for a in args if a in ('week', 'month')), 'month')
-        print(billing_export(suivi_df, period=period).to_string(index=False))
-    elif sys.argv[1] == 'heightyhours':
-        args = sys.argv[2:]
-        # accept "2026-05" or "05" as month argument
-        month_arg = next((a for a in args if re.match(r'^\d{4}-\d{2}$|^\d{2}$', a)), None)
-        year, month = None, None
-        if month_arg:
-            if '-' in month_arg:
-                year, month = map(int, month_arg.split('-'))
-            else:
-                month = int(month_arg)
-        result = billing_export_days(suivi_df, year=year, month=month)
-        print(result.to_csv(index=False, sep=';', decimal=',', na_rep=''), end='')
-        total = f"{result['H'].sum():.2f}".replace('.', ',')
-        print(f";;TOTAL;{total};")

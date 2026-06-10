@@ -21,7 +21,7 @@ dependencies = [
 include = ["core*", "web*"]
 
 [tool.setuptools]
-py-modules = ["cli", "config", "suivi_chantier"]
+py-modules = ["cli", "config"]
 
 [project.scripts]
 timer = "cli:main"
