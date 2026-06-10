@@ -6,6 +6,7 @@ from datetime import datetime
 import pandas as pd
 from config import load_config
 
+from suivi_chantier import report as suivi_report, billing_export_days
 from core.services import (
     load_pomo_for_report,
     load_pomo_for_day_bars,
@@ -137,6 +138,17 @@ def cmd_swimlane(args):
     plot_swimlane(df, output=args.output, show=args.show)
 
 
+def cmd_heighty_hours(args):
+    _, suivi_df = suivi_report(ODS_FILE)
+    year, month = None, None
+    if args.month:
+        year, month = map(int, args.month.split("-"))
+    result = billing_export_days(suivi_df, year=year, month=month)
+    print(result.to_csv(index=False, sep=";", decimal=",", na_rep=""), end="")
+    total = f"{result['H'].sum():.2f}".replace(".", ",")
+    print(f";;TOTAL;{total};")
+
+
 def cmd_plot(args):
     raise NotImplementedError
 
@@ -222,6 +234,13 @@ def build_parser():
         help="Display chart on screen instead of saving to file",
     )
     p_swimlane.set_defaults(func=cmd_swimlane)
+
+    p_heighty = sub.add_parser("heighty-hours", help="Daily billable hours CSV for a month")
+    p_heighty.add_argument(
+        "--month", metavar="YYYY-MM", default=None,
+        help="Month to report (default: current month)",
+    )
+    p_heighty.set_defaults(func=cmd_heighty_hours)
 
     p_plot = sub.add_parser("plot", help="Annual view by project")
     p_plot.add_argument("--year", type=int, help="Year (default: current)")

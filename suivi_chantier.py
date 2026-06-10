@@ -72,9 +72,9 @@ def billing_export_days(df, year=None, month=None):
     return result
 
 
-def report():
+def report(ods_path="./suivi_chantiers.ods"):
 
-    xls = pd.read_excel("./suivi_chantiers.ods", engine="odf", sheet_name=None)
+    xls = pd.read_excel(ods_path, engine="odf", sheet_name=None)
 
     # skip the first sheet (summary/cover)
     sheets = list(xls.keys())[1:]
@@ -179,7 +179,7 @@ if __name__ == "__main__":
     if len(sys.argv) < 2 or sys.argv[1] not in actions:
         givarg(actions)
 
-    my_report, suivi_df = report()
+    my_report, suivi_df = report(load_config().get("ODS_FILEPATH", "./suivi_chantiers.ods"))
     if sys.argv[1] == 'txt_report':
         print(my_report)
     elif sys.argv[1] == 'plot_by_project':
