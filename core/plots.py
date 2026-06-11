@@ -335,7 +335,7 @@ def plot_swimlane(df, output="swimlane.png", show=False):
     projects = sorted(df["project"].unique())
     color_map = _project_color_map(projects)
     n_days = len(all_dates)
-    X_MIN, X_MAX = 8, 20
+    X_MIN, X_MAX = 6, 24
 
     fig, ax = plt.subplots(figsize=(14, max(6, n_days * 0.55 + 2)))
 
@@ -378,8 +378,8 @@ def plot_swimlane(df, output="swimlane.png", show=False):
     ax.xaxis.set_major_formatter(
         ticker.FuncFormatter(lambda x, _: f"{int(x):02d}h")
     )
-    ax.xaxis.tick_top()
-    ax.tick_params(axis="x", labelsize=8, length=0)
+    ax.tick_params(axis="x", top=True, bottom=True, labeltop=True, labelbottom=True,
+                   labelsize=8, length=0)
 
     for h in range(X_MIN, X_MAX + 1):
         ax.axvline(h, color="#aaaaaa", linewidth=0.6, linestyle="--", zorder=2)

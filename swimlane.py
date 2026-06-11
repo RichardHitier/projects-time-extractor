@@ -5,7 +5,7 @@ Usage : python swimlane.py pomofocus_report.csv [output.png]
 
 - Une ligne par jour calendaire (du premier au dernier, sans trou)
 - Tous les projets sur la même ligne, barres colorées par projet
-- Axe X = heure de la journée (8h-20h)
+- Axe X = heure de la journée (6h-00h)
 """
 
 import sys
@@ -65,7 +65,7 @@ def plot(df, output="swimlane.png"):
 
     projects = sorted(df["project"].unique())
     n_days   = len(all_dates)
-    X_MIN, X_MAX = 8, 20
+    X_MIN, X_MAX = 6, 24
 
     fig, ax = plt.subplots(figsize=(14, max(6, n_days * 0.55 + 2)), facecolor="#0d1117")
     ax.set_facecolor("#0d1117")
@@ -110,8 +110,8 @@ def plot(df, output="swimlane.png"):
     ax.set_xlim(X_MIN, X_MAX)
     ax.xaxis.set_major_locator(ticker.MultipleLocator(1))
     ax.xaxis.set_major_formatter(ticker.FuncFormatter(lambda x, _: f"{int(x):02d}h"))
-    ax.xaxis.tick_top()
-    ax.tick_params(axis="x", colors="#4a5568", labelsize=8, length=0)
+    ax.tick_params(axis="x", top=True, bottom=True, labeltop=True, labelbottom=True,
+                   colors="#4a5568", labelsize=8, length=0)
 
     for h in range(X_MIN, X_MAX + 1):
         ax.axvline(h, color="#1e2535", linewidth=0.6, linestyle="--", zorder=0)
