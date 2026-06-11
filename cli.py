@@ -6,7 +6,7 @@ from datetime import datetime
 import pandas as pd
 from config import load_config
 
-from core.suivi_chantier import report as suivi_report, billing_export_days
+from core.suivi_chantier import report as suivi_report, billing_export_days, write_eighty_hours
 from core.services import (
     load_pomo_for_report,
     load_pomo_for_day_bars,
@@ -144,9 +144,16 @@ def cmd_eighty_hours(args):
     if args.month:
         year, month = map(int, args.month.split("-"))
     result = billing_export_days(suivi_df, year=year, month=month)
-    print(result.to_csv(index=False, sep=";", decimal=",", na_rep=""), end="")
-    total = f"{result['H'].sum():.2f}".replace(".", ",")
-    print(f";;TOTAL;{total};")
+    if args.write_ods:
+        if year is None:
+            from datetime import date as _date
+            year, month = _date.today().year, _date.today().month
+        write_eighty_hours(ODS_FILE, result, year, month)
+        print(f"Written to {ODS_FILE} (eighty-hours, month {year}-{month:02d})")
+    else:
+        print(result.to_csv(index=False, sep=";", decimal=",", na_rep=""), end="")
+        total = f"{result['H'].sum():.2f}".replace(".", ",")
+        print(f";;TOTAL;{total};")
 
 
 def cmd_plot(args):
@@ -239,6 +246,10 @@ def build_parser():
     p_eighty.add_argument(
         "--month", metavar="YYYY-MM", default=None,
         help="Month to report (default: current month)",
+    )
+    p_eighty.add_argument(
+        "--write-ods", action="store_true",
+        help="Write output into the eighty-hours sheet of the ODS file",
     )
     p_eighty.set_defaults(func=cmd_eighty_hours)
 

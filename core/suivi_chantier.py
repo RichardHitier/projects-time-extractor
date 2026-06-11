@@ -1,4 +1,5 @@
 import calendar
+import math
 from datetime import date
 
 import matplotlib.pyplot as plt
@@ -7,6 +8,7 @@ import matplotlib.dates as mdates
 import pandas as pd
 
 from config import load_config
+
 
 
 def billing_export(df, period='month'):
@@ -110,6 +112,130 @@ def plot_all_projects(df, output="suivi_chantiers_all.png", show=False):
         plt.savefig(output, dpi=150, bbox_inches="tight")
         plt.close()
         print(f"File {output} created")
+
+
+def _cell_text(cell):
+    from odf.text import P
+    ps = cell.getElementsByType(P)
+    return ps[0].firstChild.data if ps and ps[0].firstChild else ''
+
+
+def _set_cell_text(cell, text):
+    from odf.text import P
+    for p in list(cell.getElementsByType(P)):
+        cell.removeChild(p)
+    if text is not None and str(text).strip():
+        cell.addElement(P(text=str(text)))
+
+
+def _find_cell(row, target_col):
+    """Return (cell, col_start, repeat) for the cell covering target_col."""
+    from odf.table import TableCell
+    col = 0
+    for cell in row.getElementsByType(TableCell):
+        repeat = int(cell.getAttribute('numbercolumnsrepeated') or 1)
+        if col <= target_col < col + repeat:
+            return cell, col, repeat
+        col += repeat
+    return None, -1, 0
+
+
+def _write_cell(row, target_col, text):
+    from odf.table import TableCell
+    from odf.text import P
+
+    cell, col_start, repeat = _find_cell(row, target_col)
+    if cell is None:
+        return
+
+    if repeat == 1:
+        _set_cell_text(cell, text)
+        return
+
+    # Split the repeated cell at target_col
+    offset = target_col - col_start
+    after = repeat - offset - 1
+
+    parent = cell.parentNode
+    siblings = list(parent.childNodes)
+    idx = siblings.index(cell)
+    parent.removeChild(cell)
+
+    insert_pos = idx
+
+    def insert(new_cell):
+        nonlocal insert_pos
+        current = list(parent.childNodes)
+        if insert_pos < len(current):
+            parent.insertBefore(new_cell, current[insert_pos])
+        else:
+            parent.addElement(new_cell)
+        insert_pos += 1
+
+    if offset > 0:
+        before = TableCell(numbercolumnsrepeated=str(offset))
+        insert(before)
+
+    data_cell = TableCell()
+    if text is not None and str(text).strip():
+        data_cell.addElement(P(text=str(text)))
+    insert(data_cell)
+
+    if after > 0:
+        after_cell = TableCell(numbercolumnsrepeated=str(after))
+        insert(after_cell)
+
+
+def write_eighty_hours(ods_path, data, year, month):
+    """Write billing_export_days() output into the eighty-hours sheet."""
+    from odf.opendocument import load
+    from odf.table import Table, TableRow, TableCell
+    from odf.text import P
+
+    doc = load(ods_path)
+    sheets = doc.spreadsheet.getElementsByType(Table)
+    sheet = next((s for s in sheets if s.getAttribute('name') == 'eighty-hours'), None)
+    if sheet is None:
+        raise ValueError("Sheet 'eighty-hours' not found")
+
+    rows = sheet.getElementsByType(TableRow)
+
+    # Row 3 contains month numbers (5, 6, 7…) at the real block_start column
+    row3 = rows[2]
+    block_start = None
+    col = 0
+    for cell in row3.getElementsByType(TableCell):
+        repeat = int(cell.getAttribute('numbercolumnsrepeated') or 1)
+        if _cell_text(cell) == str(month):
+            block_start = col
+            break
+        col += repeat
+
+    if block_start is None:
+        raise ValueError(f"Month {month} not found in eighty-hours sheet (row 3)")
+
+    # Write data rows (sheet rows 5–35, index 4–34)
+    for i, (_, row_data) in enumerate(data.iterrows()):
+        if i >= 31:
+            break
+        row = rows[4 + i]
+        _write_cell(row, block_start,     str(row_data['J']))
+        _write_cell(row, block_start + 1, str(int(row_data['D'])))
+        _write_cell(row, block_start + 2, str(int(row_data['S'])))
+        h_val = row_data['H']
+        h_str = f"{h_val:.2f}".replace('.', ',') if h_val else '0'
+        _write_cell(row, block_start + 3, h_str)
+        t_val = row_data['T']
+        if t_val is not None and not (isinstance(t_val, float) and math.isnan(t_val)):
+            _write_cell(row, block_start + 4, f"{t_val:.2f}".replace('.', ','))
+        else:
+            _write_cell(row, block_start + 4, '')
+
+    # Update TOTAL row (sheet row 36, index 35)
+    total_h = data['H'].sum()
+    _write_cell(rows[35], block_start + 4, f"{total_h:.2f}".replace('.', ','))
+
+    doc.save(ods_path)
 
 
 def plot_by_projects(df, output="suivi_chantiers.png", show=False):
