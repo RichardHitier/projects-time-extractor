@@ -30,32 +30,21 @@ Objectif : séparer `core/plots.py` en trois modules aux responsabilités distin
 
 ## Eightyhours
 
-Objectif : intégrer `billing_export_days()` de `suivi_chantier.py` dans le CLI
-comme `timer report --view eightyhours`.
+Commande `timer eighty-hours` — heures journalières facturables depuis le ODS.
 
-Sortie : CSV journalier `J;D;S;H;T` (lettres jour, nº jour, semaine ISO,
-heures facturables, total hebdo le dimanche) + ligne `;;TOTAL;x,xx;`.
+Implémenté :
+- ✅ Sortie CSV journalier `J;D;S;H;T` (stdout par défaut)
+- ✅ `--month YYYY-MM` pour cibler le mois
+- ✅ `--write-ods` pour écrire dans la feuille `eighty-hours` de `suivi_chantiers.ods`
 
-**Question de conception à trancher** : source des données
-- **Option A — lire depuis le ODS** (comme aujourd'hui) : cohérent avec le
-  fait que le ODS est la source de vérité facturable ; nécessite que le ODS
-  soit à jour (`--view ods` lancé avant)
-- **Option B — lire depuis pomofocus** (comme toutes les autres vues) :
-  pipeline unifié, pas de dépendance ODS ; mais contourne la validation
-  manuelle du ODS
+À faire :
+- [ ] **`--plot`** : bar chart des heures journalières (colonne H) sur le mois
+  - PNG sauvegardé ou affiché selon `--show`
+  - Style cohérent avec `day-bars`
 
-- [ ] **0. Trancher Option A ou B**
+## Suivi chantiers — plots
 
-- [ ] **1. Déplacer `billing_export_days()` dans `core/`**
-  (dans `core/ods.py` si Option A, dans `core/views.py` si Option B)
-  Corriger le nom : `heightyhours` → `eighty-hours` ✓
+Réintégrer dans le CLI les deux plots de `core/suivi_chantier.py` :
 
-- [ ] **2. Ajouter `--view eightyhours` dans `cli.py`**
-  Réutiliser `--month YYYYMM` pour cibler le mois (défaut : mois courant)
-
-- [ ] **3. Supprimer le code dupliqué dans `suivi_chantier.py`**
-  (ou supprimer le fichier entier si tout est migré)
-
-- [ ] **4. Vérifier manuellement la sortie vs l'ancienne commande**
-
-- [ ] **5. Commit**
+- [ ] **`plot_all_projects`** : bar chart du total JOURS par date, tous projets confondus
+- [ ] **`plot_by_project`** : un subplot par projet, même axe X partagé

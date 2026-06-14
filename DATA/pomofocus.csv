@@ -695,17 +695,15 @@ date,project,task,minutes,startTime,endTime
 20260429,perso,vélo: plannification 2026,180,09:42,13:34
 20260430,perso,vélo: data,8,11:38,11:46
 20260430,colibri_admin,formalités : impots gouv,14,11:47,12:01
-20260430,speasy_netcdf,PyISTP : claude studies,8,12:50,12:58
+20260430,speasy_netcdf,#209 NetCDF Codec : pyistp claude studies,8,12:50,12:58
 20260430,perso,vélo: data,30,13:58,15:00
 20260430,perso,vélo: plannification 2026,10,15:01,15:10
 20260430,speasy_netcdf,#209 NetCDF Codec : planification,50,15:11,16:02
 20260430,colibri_studies,tutos : claude,30,17:16,17:46
 20260504,perso,matin,30,08:13,09:02
-20260504,speasy_netcdf,PyISTP : claude studies,41,09:03,09:43
 20260504,speasy_netcdf,#209 NetCDF Codec: pyistp claude studies,41,09:03,09:43
 20260504,perso,tâches diverses,19,09:47,10:06
 20260504,perso_dev,cpor : enhance,16,10:06,10:22
-20260504,speasy_netcdf,PyISTP : claude studies,74,10:23,12:01
 20260504,speasy_netcdf,#209 NetCDF Codec: pyistp claude studies,74,10:23,12:01
 20260504,speasy_netcdf,#209 NetCDF codec : pyistp netcdf driver,5,14:27,14:36
 20260504,colibri_admin,time tracking,15,14:36,14:51
@@ -716,9 +714,9 @@ date,project,task,minutes,startTime,endTime
 20260505,speasy_netcdf,#209 NetCDF codec : pyistp netcdf driver,12,09:34,09:46
 20260505,colibri_system,clean disk,30,10:08,10:38
 20260505,speasy_netcdf,#209 NetCDF codec : pyistp netcdf driver,9,10:38,10:47
-20260505,speasy,local dev infra : precommit sonar hook,21,10:48,11:09
+20260505,speasy,#1 studies: local dev infra precommit sonar hook,21,10:48,11:09
 20260505,colibri_system,clean disk,15,11:09,11:24
-20260505,speasy,local dev infra : precommit sonar hook,15,11:24,11:39
+20260505,speasy,#1 studies: local dev infra precommit sonar hook,15,11:24,11:39
 20260505,perso,vélo: plannification 2026,30,11:48,12:18
 20260505,perso,vélo: plannification 2026,12,14:23,14:35
 20260505,speasy_netcdf,#209 NetCDF codec : pyistp netcdf driver,14,14:35,14:51
@@ -801,7 +799,7 @@ date,project,task,minutes,startTime,endTime
 20260528,perso,divers,20,15:46,16:07
 20260528,calipso_lees,C1 Calibration Scripts,40,16:07,16:47
 20260530,perso,divers,30,09:31,10:02
-20260530,colibri_admin,stage VAEA,60,10:02,11:02
+20260530,colibri_stage,stage VAEA,60,10:02,11:02
 20260601,calipso_lees,C1 Calibration Scripts,90,10:59,12:56
 20260601,calipso_lees,C1 Calibration Scripts,60,14:41,16:04
 20260601,calipso_lees,C1 Calibration Scripts,85,20:13,22:03
@@ -813,15 +811,15 @@ date,project,task,minutes,startTime,endTime
 20260602,calipso_lees,C1 Calibration Scripts,51,11:51,12:43
 20260602,colibri_admin,Comptages,3,13:31,13:35
 20260602,calipso_lees,C1 Calibration Scripts,148,13:35,16:06
-20260602,speasy_archive,#180 Expose Speasy Archive,6,16:06,16:12
+20260602,speasy_archive,#180 Speasy Archive: expose speasy archive,6,16:06,16:12
 20260602,colibri_admin,Comptages,10,16:15,16:24
 20260602,speasy_archive,#180 Speasy Archive : study,49,16:24,17:13
 20260603,calipso_lees,C1 Calibration Scripts,18,09:31,09:49
 20260603,speasy_archive,#180 Speasy Archive : study,36,09:49,10:34
-20260603,speasy_meeting,Direct Archive Meeting,11,10:34,10:46
+20260603,speasy_meeting,#2 meeting: direct archive meeting,11,10:34,10:46
 20260603,speasy_archive,#180 Speasy Archive : study,59,10:46,11:45
 20260603,calipso_lees,C1 Calibration Scripts,96,11:45,13:48
-20260603,speasy_meeting,Direct Archive Meeting,8,13:48,13:56
+20260603,speasy_meeting,#2 meeting: direct archive meeting,8,13:48,13:56
 20260603,calipso_lees,C1 Calibration Scripts,6,13:56,14:02
 20260603,speasy_archive,#180 Speasy Archive : study,28,14:02,14:30
 20260603,calipso_lees,C1 Calibration Scripts,4,14:36,14:40
@@ -853,3 +851,48 @@ date,project,task,minutes,startTime,endTime
 20260611,calipso_lees,C1 Calibration Scripts,163,10:01,12:52
 20260611,calipso_lees,C1 Calibration Scripts,25,17:48,18:12
 20260611,calipso_lees,C1 Calibration Scripts,6,18:49,18:55
+20260611,colibri_admin,Comptages,30,22:37,23:07
+20260612,carangues_compta,point Colera,12,10:07,10:19
+20260612,carangues_compta,point Colera,3,11:02,11:04
+20260612,calipso_lees,C1 Calibration Scripts,106,11:04,13:08
+20260614,colibri_admin,plannification,33,17:17,18:11
+20260615,calipso_lees,C1 Calibration Scripts,64,08:03,09:07
+20260615,colibri_stage,stage VAEA,30,09:25,09:55
+20260615,calipso_lees,C1 Calibration Scripts,22,09:55,10:17
+20260615,colibri_stage,stage VAEA,17,10:17,10:34
+20260615,calipso_lees,C1 Calibration Scripts,13,10:34,10:49
+20260615,calipso_lees,C1 Calibration Scripts,35,10:49,11:33
+20260615,colibri_stage,stage VAEA,1,10:49,10:49
+20260615,colibri_stage,stage VAEA,25,11:33,11:57
+20260615,calipso_lees,C1 Calibration Scripts,75,13:26,14:55
+20260615,colibri_stage,stage VAEA,27,16:02,16:29
+20260615,calipso_lees,C1 Calibration Scripts,19,16:29,16:48
+20260615,colibri_stage,stage VAEA,6,16:48,16:53
+20260615,calipso_lees,C1 Calibration Scripts,59,16:53,18:03
+20260615,perso_velo,data,30,20:14,20:44
+20260615,colibri_admin,facturation,30,21:36,22:06
+20260616,calipso_lees,C1 Calibration Scripts,0,09:14,09:14
+20260616,colibri_stage,stage VAEA,20,09:28,09:48
+20260616,calipso_lees,C1 Calibration Scripts,24,09:48,10:21
+20260616,calipso_iesa,Fix Calipso2 access,50,10:21,11:12
+20260616,colibri_stage,stage VAEA,14,11:12,11:26
+20260616,calipso_iesa,Fix Calipso2 access,35,11:26,12:02
+20260616,calipso_iesa,Fix Calipso2 access,155,13:13,16:12
+20260616,calipso_lees,C1 Calibration Scripts,1,16:12,16:13
+20260616,calipso_iesa,Fix Calipso2 access,56,16:14,17:09
+20260616,calipso_lees,C1 Calibration Scripts,34,17:09,17:43
+20260617,colibri_admin,plannification,18,07:50,08:08
+20260617,calipso_lees,C1 Calibration Scripts,37,08:13,08:58
+20260617,colibri_stage,stage VAEA,63,08:58,10:01
+20260617,calipso_lees,C1 Calibration Scripts,77,10:01,11:22
+20260617,perso_loisir,resa apnee caretta,13,11:25,11:38
+20260617,calipso_lees,C1 Calibration Scripts,5,11:38,11:44
+20260617,colibri_stage,stage VAEA,27,14:20,14:47
+20260617,calipso_lees,C1 Calibration Scripts,45,14:47,15:46
+20260617,colibri_stage,stage VAEA,6,15:46,15:52
+20260617,calipso_lees,C1 Calibration Scripts,3,15:52,15:54
+20260617,perso,divers,0,15:54,15:55
+20260617,colibri_admin,plannification,21,15:55,16:16
+20260617,calipso_lees,C1 Calibration Scripts,39,16:16,16:55
+20260617,colibri_stage,stage VAEA,3,16:55,16:57
+20260617,calipso_lees,C1 Calibration Scripts,22,16:57,17:19
