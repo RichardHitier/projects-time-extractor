@@ -75,12 +75,13 @@ def report_view_projectlogs(df):
     df_copy["month_str"] = df_copy["date"].dt.strftime("%B")
     result = (
         df_copy.groupby(
-            ["month_str", "issue_id", "issue_name", "task_description"],
+            ["month", "month_str", "issue_id", "issue_name", "task_description"],
             dropna=False,
         )["duration_d"]
         .sum()
         .reset_index()
     )
+    result = result.sort_values("month").drop(columns=["month"])
     result["duration_d"] = result["duration_d"].round(1)
     print(result.to_csv(sep=";", index=False, decimal=","))
 
