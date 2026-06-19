@@ -91,6 +91,20 @@ def report(ods_path="./suivi_chantiers.ods"):
     return rapport, df
 
 
+def load_suivi_for_report(cutoff, project=None):
+    _, df = report()
+    df = df[df['DATE'] >= cutoff]
+    if project:
+        df = df[df['PROJET'].str.lower() == project.lower()]
+    return df.rename(columns={
+        'DATE': 'date',
+        'PROJET': 'project',
+        'SS-PROJET': 'sub_project',
+        'DESCRIPTION': 'task',
+        'JOURS': 'duration_d',
+    })
+
+
 def plot_all_projects(df, output="suivi_chantiers_all.png", show=False):
     d = df.groupby('DATE')['JOURS'].sum().reset_index()
     d['DATE'] = pd.to_datetime(d['DATE'])

@@ -6,7 +6,7 @@ from datetime import datetime
 import pandas as pd
 from config import load_config
 
-from core.suivi_chantier import report as suivi_report, billing_export_days, write_eighty_hours
+from core.suivi_chantier import report as suivi_report, billing_export_days, write_eighty_hours, load_suivi_for_report
 from core.services import (
     load_pomo_for_report,
     load_pomo_for_day_bars,
@@ -82,6 +82,11 @@ def cmd_report(args):
         cutoff = pd.to_datetime(args.since, format="%Y%m%d")
     else:
         cutoff = pd.Timestamp.today().normalize() - pd.Timedelta(days=args.days - 1)
+    if args.view == "project-logs":
+        df = load_suivi_for_report(cutoff, args.project)
+        report_view_projectlogs(df)
+        return
+
     df = load_pomo_for_report(cutoff, args.project, all_projects=args.all_projects)
     if df is not None:
         if args.view == "table":
@@ -90,8 +95,6 @@ def cmd_report(args):
             report_view_project(df)
         elif args.view == "export":
             report_view_export(df, quantize=args.quantize)
-        elif args.view == "project-logs":
-            report_view_projectlogs(df)
         elif args.view == "ods":
             stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             bckp_path = os.path.join(BCKP_DIR, f"suivi_chantiers_{stamp}.ods")
