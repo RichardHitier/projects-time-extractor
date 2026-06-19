@@ -231,10 +231,6 @@ def write_eighty_hours(ods_path, data, year, month):
         else:
             _write_cell(row, block_start + 4, '')
 
-    # Update TOTAL row (sheet row 36, index 35)
-    total_h = data['H'].sum()
-    _write_cell(rows[35], block_start + 4, f"{total_h:.2f}".replace('.', ','))
-
     doc.save(ods_path)
 
 
