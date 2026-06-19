@@ -75,7 +75,7 @@ def report_view_projectlogs(df):
     df_copy["month_str"] = df_copy["date"].dt.strftime("%B")
     result = (
         df_copy.groupby(
-            ["month", "month_str", "issue_id", "issue_name", "task_description"],
+            ["month", "month_str", "project", "sub_project", "issue_id", "issue_name", "task_description"],
             dropna=False,
         )["duration_d"]
         .sum()
