@@ -151,9 +151,17 @@ def cmd_eighty_hours(args):
         write_eighty_hours(ODS_FILE, result, year, month)
         print(f"Written to {ODS_FILE} (eighty-hours, month {year}-{month:02d})")
     else:
-        print(result.to_csv(index=False, sep=";", decimal=",", na_rep=""), end="")
+        for _, row in result.iterrows():
+            week_prefix = f"{int(row['S']):2d}" if row['J'] == 'L' else "  "
+            h_str = f"{row['H']:.2f}".replace(".", ",")
+            t_str = ""
+            if row['T'] is not None and not (isinstance(row['T'], float) and __import__('math').isnan(row['T'])):
+                t_str = f"  {row['T']:.2f}".replace(".", ",")
+            print(f"{week_prefix} {row['J']} {int(row['D']):2d}  {h_str}{t_str}")
+            if row['J'] == 'D':
+                print()
         total = f"{result['H'].sum():.2f}".replace(".", ",")
-        print(f";;TOTAL;{total};")
+        print(f"TOTAL  {total}")
 
 
 def cmd_plot(args):
