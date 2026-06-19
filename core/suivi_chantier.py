@@ -120,10 +120,17 @@ def _cell_text(cell):
     return ps[0].firstChild.data if ps and ps[0].firstChild else ''
 
 
-def _set_cell_text(cell, text):
+def _set_cell_text(cell, text, num_value=None):
     from odf.text import P
+    from odf.namespaces import OFFICENS
     for p in list(cell.getElementsByType(P)):
         cell.removeChild(p)
+    if num_value is not None:
+        for attr in list(cell.attributes.keys()):
+            if attr[1] in ('value-type', 'value', 'string-value', 'date-value', 'time-value', 'boolean-value'):
+                del cell.attributes[attr]
+        cell.attributes[(OFFICENS, 'value-type')] = 'float'
+        cell.attributes[(OFFICENS, 'value')] = str(num_value)
     if text is not None and str(text).strip():
         cell.addElement(P(text=str(text)))
 
@@ -140,7 +147,7 @@ def _find_cell(row, target_col):
     return None, -1, 0
 
 
-def _write_cell(row, target_col, text):
+def _write_cell(row, target_col, text, num_value=None):
     from odf.table import TableCell
     from odf.text import P
 
@@ -149,7 +156,7 @@ def _write_cell(row, target_col, text):
         return
 
     if repeat == 1:
-        _set_cell_text(cell, text)
+        _set_cell_text(cell, text, num_value=num_value)
         return
 
     # Split the repeated cell at target_col
@@ -177,8 +184,7 @@ def _write_cell(row, target_col, text):
         insert(before)
 
     data_cell = TableCell()
-    if text is not None and str(text).strip():
-        data_cell.addElement(P(text=str(text)))
+    _set_cell_text(data_cell, text, num_value=num_value)
     insert(data_cell)
 
     if after > 0:
@@ -222,12 +228,12 @@ def write_eighty_hours(ods_path, data, year, month):
         _write_cell(row, block_start,     str(row_data['J']))
         _write_cell(row, block_start + 1, str(int(row_data['D'])))
         _write_cell(row, block_start + 2, str(int(row_data['S'])))
-        h_val = row_data['H']
-        h_str = f"{h_val:.2f}".replace('.', ',') if h_val else '0'
-        _write_cell(row, block_start + 3, h_str)
+        h_val = float(row_data['H'])
+        _write_cell(row, block_start + 3, f"{h_val:.2f}".replace('.', ','), num_value=round(h_val, 2))
         t_val = row_data['T']
         if t_val is not None and not (isinstance(t_val, float) and math.isnan(t_val)):
-            _write_cell(row, block_start + 4, f"{t_val:.2f}".replace('.', ','))
+            t_val = float(t_val)
+            _write_cell(row, block_start + 4, f"{t_val:.2f}".replace('.', ','), num_value=round(t_val, 2))
         else:
             _write_cell(row, block_start + 4, '')
 
