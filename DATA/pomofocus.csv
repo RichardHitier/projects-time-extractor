@@ -895,4 +895,14 @@ date,project,task,minutes,startTime,endTime
 20260617,colibri_admin,plannification,21,15:55,16:16
 20260617,calipso_lees,C1 Calibration Scripts,39,16:16,16:55
 20260617,colibri_stage,stage VAEA,3,16:55,16:57
-20260617,calipso_lees,C1 Calibration Scripts,22,16:57,17:19
+20260617,calipso_lees,C1 Calibration Scripts,51,16:57,17:49
+20260618,colibri_stage,stage VAEA,12,09:38,09:50
+20260618,colibri_admin,Comptages,5,09:50,09:55
+20260618,colibri_stage,stage VAEA,29,09:55,10:24
+20260618,calipso_lees,C1 Calibration Scripts,88,10:24,12:04
+20260618,calipso_lees,C1 Calibration Scripts,13,14:05,14:17
+20260618,colibri_stage,stage VAEA,12,14:18,14:29
+20260618,calipso_lees,C1 Calibration Scripts,49,14:29,15:18
+20260618,perso_velo,data,5,15:19,15:24
+20260618,speasy_archive,#180 Speasy Archive : dev,4,15:26,15:30
+20260618,carangues_compta,payer,24,15:48,16:12
