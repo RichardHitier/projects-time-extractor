@@ -914,3 +914,12 @@ date,project,task,minutes,startTime,endTime
 20260619,colibri_dev,time_tracking,64,14:26,15:30
 20260619,colibri_admin,facturation,110,15:30,17:40
 20260621,colibri_admin,facturation,0,15:47,15:47
+20260622,colibri_admin,comptage,20,10:59,11:20
+20260622,colibri_stage,accompagnement,22,12:03,12:25
+20260622,colibri_stage,accompagnement,63,13:59,15:09
+20260622,carangues_ie1,séance statique 20260623,104,15:10,16:54
+20260623,calipso_lees,"Livraison Calipso1, Calipso14, GbContr",39,09:39,10:17
+20260623,colibri_stage,accompagnement,20,10:17,10:37
+20260623,calipso_lees,"Livraison Calipso1, Calipso14, GbContr",191,10:38,14:37
+20260623,colibri_stage,accompagnement,21,14:37,14:58
+20260623,calipso_lees,"Livraison Calipso1, Calipso14, GbContr",138,14:58,17:24

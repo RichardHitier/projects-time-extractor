@@ -167,6 +167,20 @@ def cmd_eighty_hours(args):
         print(f"TOTAL  {total}")
 
 
+def cmd_sync(args):
+    print("=== pomo-merge ===")
+    cmd_pomo_merge(argparse.Namespace())
+
+    print("\n=== report --view ods ===")
+    cmd_report(argparse.Namespace(
+        view="ods", month=None, since=None, days=7,
+        project=None, all_projects=False, quantize=False,
+    ))
+
+    print("\n=== eighty-hours --write-ods ===")
+    cmd_eighty_hours(argparse.Namespace(write_ods=True, month=None))
+
+
 def cmd_plot(args):
     raise NotImplementedError
 
@@ -268,6 +282,9 @@ def build_parser():
     p_plot.add_argument("--year", type=int, help="Year (default: current)")
     p_plot.add_argument("--output", default="all_projects.png")
     p_plot.set_defaults(func=cmd_plot)
+
+    p_sync = sub.add_parser("sync", help="pomo-merge + report ods + eighty-hours ods")
+    p_sync.set_defaults(func=cmd_sync)
 
     return parser
 
