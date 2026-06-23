@@ -65,6 +65,26 @@ def load_pomo_for_day_bars(date_from, date_to, project):
     return daily
 
 
+def load_pomo_for_eighty_bars(date_from, date_to):
+    """Load billable hours per day for the eighty-bars chart.
+
+    Filters to BILLABLE_PROJECTS from config, sums hours per day.
+
+    Returns:
+        DataFrame with columns: date, hours.
+    """
+    billable = _config.get("BILLABLE_PROJECTS", [])
+    df = load_all_pomo()
+    df = df[df["project"].isin(billable)]
+    df["date"] = pd.to_datetime(df["date"], format="%Y%m%d")
+    if date_from:
+        df = df[df["date"] >= pd.to_datetime(date_from, format="%Y%m%d")]
+    if date_to:
+        df = df[df["date"] <= pd.to_datetime(date_to, format="%Y%m%d")]
+    daily = df.groupby("date", as_index=False).agg(hours=("duration_h", "sum"))
+    return daily
+
+
 def load_pomo_for_swimlane(date_from, date_to, project):
     """Load Pomofocus data for the swimlane chart.
 

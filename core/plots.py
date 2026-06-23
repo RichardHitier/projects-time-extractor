@@ -314,6 +314,42 @@ def plot_day_bars(df_plot, output="day_bars.png", show=False):
         print(f"Saved: {output}")
 
 
+def plot_eighty_bars_days(df, output="eighty_bars.png", show=False):
+    """Render daily billable hours as a single-color bar chart.
+
+    Vertical lines mark Mondays (week boundaries).
+
+    Args:
+        df: DataFrame with columns: date, hours.
+        output: File path for the PNG (ignored when show=True).
+        show: If True, call plt.show() instead of saving to file.
+    """
+    date_range = pd.date_range(df["date"].min(), df["date"].max(), freq="D")
+    series = df.set_index("date").reindex(date_range, fill_value=0)["hours"]
+
+    fig, ax = plt.subplots(figsize=(max(10, len(series) * 0.3), 5))
+    ax.bar(range(len(series)), series.values, color="#4C72B0", width=0.8, align="edge")
+
+    monday_idx = [i for i, d in enumerate(series.index) if d.weekday() == 0]
+    ax.set_xticks(monday_idx)
+    ax.set_xticklabels(
+        [series.index[i].strftime("%d/%m") for i in monday_idx],
+        rotation=45, ha="right",
+    )
+    for x in monday_idx:
+        ax.axvline(x=x, color="black", linewidth=0.8, alpha=0.5)
+
+    ax.set_ylabel("Heures facturables")
+    ax.set_title("Heures facturables par jour")
+    ax.yaxis.grid(True, linestyle="--", alpha=0.4)
+    plt.tight_layout()
+    if show:
+        plt.show()
+    else:
+        plt.savefig(output, dpi=150, bbox_inches="tight")
+        print(f"Saved: {output}")
+
+
 def plot_swimlane(df, output="swimlane.png", show=False):
     """Render a Gantt-style swimlane of daily activity periods by project.
 

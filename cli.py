@@ -11,6 +11,7 @@ from core.services import (
     load_pomo_for_report,
     load_pomo_for_day_bars,
     load_pomo_for_swimlane,
+    load_pomo_for_eighty_bars,
     merge_pomo_exports,
 )
 from core.plots import (
@@ -21,6 +22,7 @@ from core.plots import (
     report_view_ods,
     yyyymm_to_sheet_name,
     plot_day_bars,
+    plot_eighty_bars_days,
     plot_swimlane,
 )
 
@@ -167,6 +169,14 @@ def cmd_eighty_hours(args):
         print(f"TOTAL  {total}")
 
 
+def cmd_eighty_bars(args):
+    df = load_pomo_for_eighty_bars(args.date_from, args.date_to)
+    if args.view == "days":
+        plot_eighty_bars_days(df, output=args.output, show=args.show)
+    else:
+        print(f"View '{args.view}' not yet implemented")
+
+
 def cmd_sync(args):
     print("=== pomo-merge ===")
     cmd_pomo_merge(argparse.Namespace())
@@ -282,6 +292,14 @@ def build_parser():
     p_plot.add_argument("--year", type=int, help="Year (default: current)")
     p_plot.add_argument("--output", default="all_projects.png")
     p_plot.set_defaults(func=cmd_plot)
+
+    p_eighty_bars = sub.add_parser("eighty-bars", help="Billable hours chart (days/weeks/year)")
+    p_eighty_bars.add_argument("--view", default="days", choices=["days", "weeks", "year"])
+    p_eighty_bars.add_argument("--from", dest="date_from", metavar="YYYYMMDD")
+    p_eighty_bars.add_argument("--to", dest="date_to", metavar="YYYYMMDD")
+    p_eighty_bars.add_argument("-o", "--output", default="eighty_bars.png")
+    p_eighty_bars.add_argument("--show", action="store_true")
+    p_eighty_bars.set_defaults(func=cmd_eighty_bars)
 
     p_sync = sub.add_parser("sync", help="pomo-merge + report ods + eighty-hours ods")
     p_sync.set_defaults(func=cmd_sync)
