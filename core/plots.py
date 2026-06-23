@@ -350,6 +350,51 @@ def plot_eighty_bars_days(df, output="eighty_bars.png", show=False):
         print(f"Saved: {output}")
 
 
+def plot_eighty_bars_weeks(df, output="eighty_bars_weeks.png", show=False):
+    """Render weekly billable hours as a single-color bar chart.
+
+    Vertical lines mark month boundaries.
+
+    Args:
+        df: DataFrame with columns: date, hours.
+    """
+    df = df.copy()
+    df["week"] = df["date"].dt.to_period("W").apply(lambda p: p.start_time)
+    weekly = df.groupby("week")["hours"].sum()
+
+    fig, ax = plt.subplots(figsize=(max(10, len(weekly) * 0.6), 5))
+    bars = ax.bar(range(len(weekly)), weekly.values, color="#4C72B0", width=0.8, align="edge")
+    for bar, val in zip(bars, weekly.values):
+        ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.2,
+                f"{val:.0f}", ha="center", va="bottom", fontsize=8)
+
+    # vertical lines at month boundaries
+    month_idx = [
+        i for i in range(1, len(weekly))
+        if weekly.index[i].month != weekly.index[i - 1].month
+    ]
+    for x in month_idx:
+        ax.axvline(x=x, color="black", linewidth=0.8, alpha=0.5)
+
+    # label first week of each month
+    label_idx = [0] + month_idx
+    ax.set_xticks(label_idx)
+    ax.set_xticklabels(
+        [weekly.index[i].strftime("%b %Y") for i in label_idx],
+        rotation=45, ha="right",
+    )
+
+    ax.set_ylabel("Heures facturables")
+    ax.set_title("Heures facturables par semaine")
+    ax.yaxis.grid(True, linestyle="--", alpha=0.4)
+    plt.tight_layout()
+    if show:
+        plt.show()
+    else:
+        plt.savefig(output, dpi=150, bbox_inches="tight")
+        print(f"Saved: {output}")
+
+
 def plot_swimlane(df, output="swimlane.png", show=False):
     """Render a Gantt-style swimlane of daily activity periods by project.
 

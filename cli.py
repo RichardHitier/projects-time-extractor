@@ -23,6 +23,7 @@ from core.plots import (
     yyyymm_to_sheet_name,
     plot_day_bars,
     plot_eighty_bars_days,
+    plot_eighty_bars_weeks,
     plot_swimlane,
 )
 
@@ -173,6 +174,8 @@ def cmd_eighty_bars(args):
     df = load_pomo_for_eighty_bars(args.date_from, args.date_to)
     if args.view == "days":
         plot_eighty_bars_days(df, output=args.output, show=args.show)
+    elif args.view == "weeks":
+        plot_eighty_bars_weeks(df, output=args.output, show=args.show)
     else:
         print(f"View '{args.view}' not yet implemented")
 
