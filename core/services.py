@@ -68,20 +68,23 @@ def load_pomo_for_day_bars(date_from, date_to, project):
 def load_pomo_for_eighty_bars(date_from, date_to):
     """Load billable hours per day for the eighty-bars chart.
 
-    Filters to BILLABLE_PROJECTS from config, sums hours per day.
+    Reads from suivi_chantiers.ods, applies the same BILLABLE_PROJECTS filter
+    and JOURS×8 conversion as billing_export_days(), over a free date range.
 
     Returns:
         DataFrame with columns: date, hours.
     """
-    billable = _config.get("BILLABLE_PROJECTS", [])
-    df = load_all_pomo()
-    df = df[df["project"].isin(billable)]
-    df["date"] = pd.to_datetime(df["date"], format="%Y%m%d")
+    from core.suivi_chantier import report as suivi_report
+    _, df = suivi_report(_config["ODS_FILEPATH"])
+    billable = [p.lower() for p in _config.get("BILLABLE_PROJECTS", [])]
+    df = df[df["PROJET"].str.lower().isin(billable)].copy()
+    df["date"] = pd.to_datetime(df["DATE"])
     if date_from:
         df = df[df["date"] >= pd.to_datetime(date_from, format="%Y%m%d")]
     if date_to:
         df = df[df["date"] <= pd.to_datetime(date_to, format="%Y%m%d")]
-    daily = df.groupby("date", as_index=False).agg(hours=("duration_h", "sum"))
+    df["hours"] = df["JOURS"] * 8
+    daily = df.groupby("date", as_index=False).agg(hours=("hours", "sum"))
     return daily
 
 
