@@ -361,6 +361,8 @@ def plot_eighty_bars_weeks(df, output="eighty_bars_weeks.png", show=False):
     df = df.copy()
     df["week"] = df["date"].dt.to_period("W").apply(lambda p: p.start_time)
     weekly = df.groupby("week")["hours"].sum()
+    full_weeks = pd.date_range(weekly.index.min(), weekly.index.max(), freq="W-MON")
+    weekly = weekly.reindex(full_weeks, fill_value=0)
 
     fig, ax = plt.subplots(figsize=(max(10, len(weekly) * 0.6), 5))
     bars = ax.bar(range(len(weekly)), weekly.values, color="#4C72B0", width=0.8, align="edge")
