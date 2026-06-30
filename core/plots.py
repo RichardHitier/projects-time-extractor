@@ -159,6 +159,9 @@ _FRENCH_MONTHS = {
     7: "juil", 8: "aout", 9: "sep", 10: "oct", 11: "nov", 12: "dec",
 }
 
+# weekday() (0=Monday) → French day initial
+_WEEKDAY_LETTERS = ["L", "M", "M", "J", "V", "S", "D"]
+
 
 def _month_sheet_name(date):
     return f"{_FRENCH_MONTHS[date.month]}_{str(date.year)[2:]}"
@@ -304,7 +307,17 @@ def plot_day_bars(df_plot, output="day_bars.png", show=False):
     )
     for x in monday_idx:
         ax.axvline(x=x, color="black", linewidth=0.8, alpha=0.6)
-    plt.grid(axis="y", linestyle="--", alpha=0.4)
+
+    # weekday initial centered under each bar (minor ticks)
+    ax.set_xticks([i + 0.4 for i in range(len(dates))], minor=True)
+    ax.set_xticklabels(
+        [_WEEKDAY_LETTERS[d.weekday()] for d in dates],
+        minor=True,
+        fontsize=7,
+    )
+    ax.tick_params(axis="x", which="minor", length=0)
+    plt.grid(axis="y", linestyle="--", color="black", alpha=0.4)
+    ax.tick_params(axis="y", labelleft=True, labelright=True)
     plt.legend(title="Project", bbox_to_anchor=(1.02, 1), loc="upper left")
     plt.tight_layout()
     if show:
