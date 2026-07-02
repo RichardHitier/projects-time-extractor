@@ -20,7 +20,7 @@ import json
 import os
 from datetime import datetime, timezone
 
-from flask import Flask, request
+from flask import Flask, jsonify, request
 
 from config import load_config
 
@@ -158,6 +158,84 @@ def persist_event(event):
 @app.get("/health")
 def health():
     return "ok\n", 200
+
+
+VIEW_HTML = """<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Pomofocus webhook — live</title>
+<style>
+  body {{ font-family: system-ui, sans-serif; margin: 2rem; background: #111; color: #eee; }}
+  h1 {{ font-size: 1.1rem; font-weight: normal; color: #999; }}
+  table {{ border-collapse: collapse; width: 100%; }}
+  th, td {{ text-align: left; padding: .4rem .8rem; border-bottom: 1px solid #333; }}
+  th {{ color: #999; font-weight: normal; text-transform: uppercase; font-size: .75rem; }}
+  tr.new {{ animation: flash 2s ease-out; }}
+  @keyframes flash {{ from {{ background: #2a5; }} to {{ background: transparent; }} }}
+  #status {{ color: #666; font-size: .8rem; margin-top: 1rem; }}
+</style>
+</head>
+<body>
+<h1>pomofocus_webhook.csv — mis à jour toutes les 3s</h1>
+<table>
+  <thead><tr><th>Date</th><th>Projet</th><th>Tâche</th><th>Min</th><th>Début</th><th>Fin</th></tr></thead>
+  <tbody id="rows"></tbody>
+</table>
+<div id="status">chargement...</div>
+<script>
+const API_URL = "{api_url}";
+let known = new Set();
+
+async function poll() {{
+  let rows;
+  try {{
+    const res = await fetch(API_URL, {{cache: "no-store"}});
+    rows = await res.json();
+  }} catch (e) {{
+    document.getElementById("status").textContent = "erreur de connexion";
+    return;
+  }}
+  const tbody = document.getElementById("rows");
+  tbody.innerHTML = "";
+  for (const r of rows) {{
+    const key = r.date + r.startTime + r.project + r.task;
+    const tr = document.createElement("tr");
+    if (!known.has(key)) tr.className = "new";
+    tr.innerHTML = `<td>${{r.date}}</td><td>${{r.project}}</td><td>${{r.task}}</td>` +
+                   `<td>${{r.minutes}}</td><td>${{r.startTime}}</td><td>${{r.endTime}}</td>`;
+    tbody.appendChild(tr);
+    known.add(key);
+  }}
+  document.getElementById("status").textContent =
+    rows.length + " lignes — dernière vérification " + new Date().toLocaleTimeString();
+}}
+
+poll();
+setInterval(poll, 3000);
+</script>
+</body>
+</html>
+"""
+
+
+@app.get("/view", defaults={"secret_path": ""})
+@app.get("/<path:secret_path>/view")
+def view(secret_path):
+    if SECRET and secret_path.strip("/") != SECRET:
+        return "not found\n", 404
+    prefix = f"/{secret_path.strip('/')}" if secret_path.strip("/") else ""
+    return VIEW_HTML.format(api_url=f"{prefix}/api/rows")
+
+
+@app.get("/api/rows", defaults={"secret_path": ""})
+@app.get("/<path:secret_path>/api/rows")
+def api_rows(secret_path):
+    if SECRET and secret_path.strip("/") != SECRET:
+        return "not found\n", 404
+    rows = _read_csv_rows(CSV_PATH)
+    rows.sort(key=lambda r: (r["date"], r["startTime"]))
+    return jsonify(rows)
 
 
 @app.route("/", defaults={"secret_path": ""}, methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"])

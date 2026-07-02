@@ -2,10 +2,10 @@ services:
   webhook:
     build: .
     image: pomofocus-webhook
-    ports:
-      - "5000:5000"
+    expose:
+      - "5000"
     environment:
-      # Chemin secret non devinable (endpoint = http://<ip>:5000/<secret>).
+      # Chemin secret non devinable (endpoint = http://<ip>/<secret>, via nginx sur le port 80).
       # Défini via un fichier .env à côté de ce compose, ou l'environnement du shell.
       WEBHOOK_SECRET: "${WEBHOOK_SECRET:-}"
       # Heures du CSV en heure de Paris (cohérence avec pomofocus.csv), pas UTC.
@@ -20,3 +20,14 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      webhook:
+        condition: service_healthy
+    restart: unless-stopped
