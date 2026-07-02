@@ -1,0 +1,18 @@
+# Garder le contexte de build minimal (le Dockerfile ne copie que le code du récepteur).
+DATA/
+webhook-data/
+tests/
+.git/
+__pycache__/
+*.egg-info/
+*.png
+*.csv
+*.ods
+*.odt
+*.json
+*.parquet
+*.txt
+*.tree
+
+# Exception : requis par le Dockerfile malgré la règle *.txt ci-dessus.
+!requirements-webhook.txt

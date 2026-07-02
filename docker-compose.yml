@@ -1,0 +1,22 @@
+services:
+  webhook:
+    build: .
+    image: pomofocus-webhook
+    ports:
+      - "5000:5000"
+    environment:
+      # Chemin secret non devinable (endpoint = http://<ip>:5000/<secret>).
+      # Défini via un fichier .env à côté de ce compose, ou l'environnement du shell.
+      WEBHOOK_SECRET: "${WEBHOOK_SECRET:-}"
+      # Heures du CSV en heure de Paris (cohérence avec pomofocus.csv), pas UTC.
+      TZ: "Europe/Paris"
+    volumes:
+      # Persistance : webhook_log.jsonl + pomofocus_webhook.csv écrits par le
+      # récepteur dans /app/DATA, conservés côté hôte dans ./webhook-data.
+      - ./webhook-data:/app/DATA
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:5000/health').status==200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
