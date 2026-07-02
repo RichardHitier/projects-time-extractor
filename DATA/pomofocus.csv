@@ -923,3 +923,71 @@ date,project,task,minutes,startTime,endTime
 20260623,calipso_lees,"Livraison Calipso1, Calipso14, GbContr",191,10:38,14:37
 20260623,colibri_stage,accompagnement,21,14:37,14:58
 20260623,calipso_lees,"Livraison Calipso1, Calipso14, GbContr",138,14:58,17:24
+20260623,colibri_admin,comptage,17,17:24,17:42
+20260623,colibri_admin,comptage,20,17:42,18:02
+20260623,calipso_lees,"Livraison Calipso1, Calipso14, GbContr",1,17:42,17:42
+20260623,calipso_lees,"Livraison Calipso1, Calipso14, GbContr",7,18:02,18:10
+20260623,colibri_admin,comptage,7,18:10,18:17
+20260624,calipso_lees,Schneider SRV: Study,13,08:41,08:54
+20260624,calipso_iesa,calipso system,0,08:54,08:55
+20260624,colibri_stage,accompagnement,36,09:02,09:38
+20260624,speasy_directarchive,visio,52,10:13,11:34
+20260624,calipso_iesa,calipso system,42,11:37,12:19
+20260624,calipso_iesa,calipso system,54,14:16,15:10
+20260624,calipso_lees,Add_QL355p,12,15:10,15:43
+20260624,speasy_directarchive,visio,35,15:51,16:26
+20260624,colibri_stage,accompagnement,4,16:32,16:36
+20260624,speasy_directarchive,Fix items,16,16:44,17:01
+20260624,colibri_admin,comptage,18,20:08,20:25
+20260625,speasy_directarchive,Fix items,2,09:20,09:22
+20260625,colibri_stage,accompagnement,12,09:36,09:48
+20260625,perso_admin,divers,22,09:48,10:10
+20260625,speasy_directarchive,Fix items,57,10:11,11:08
+20260625,perso_admin,divers,8,11:08,11:16
+20260625,speasy_directarchive,Fix items,15,11:16,11:31
+20260625,colibri_stage,accompagnement,4,11:31,11:35
+20260625,speasy_directarchive,Fix items,44,11:35,12:43
+20260625,speasy_directarchive,Fix items,71,14:27,16:17
+20260625,colibri_stage,accompagnement,5,16:17,16:22
+20260625,speasy_directarchive,Fix items,28,16:22,16:51
+20260625,colibri_stage,accompagnement,20,16:51,17:16
+20260625,perso_admin,divers,3,17:16,17:19
+20260625,speasy_directarchive,Fix items,16,17:19,17:36
+20260626,colibri_stage,accompagnement,3,09:03,09:06
+20260626,perso_dev,time tracker,5,09:07,09:12
+20260626,colibri_stage,accompagnement,21,09:12,09:33
+20260626,speasy_directarchive,Fix items,95,09:49,11:29
+20260626,colibri_stage,accompagnement,3,11:40,11:43
+20260626,speasy_directarchive,Fix items,43,11:43,12:38
+20260626,speasy_directarchive,Fix items,39,14:00,14:40
+20260626,colibri_admin,plannification,20,14:42,15:02
+20260626,speasy_directarchive,Fix items,19,15:02,15:48
+20260626,perso_dev,time tracker,4,15:48,15:52
+20260626,speasy_directarchive,Fix items,34,15:52,16:26
+20260626,colibri_admin,plannification,5,16:26,16:31
+20260626,speasy_directarchive,Fix items,21,16:38,17:04
+20260626,perso_dev,time tracker,11,19:00,19:13
+20260627,calipso_iesa,Admin: devis,4,07:59,08:03
+20260627,colibri_admin,tva,12,08:03,08:15
+20260629,speasy_directarchive,Fix items,27,09:42,10:14
+20260629,speasy_supermag,studies: remind speasy providers,12,10:14,10:27
+20260629,carangues_compta,Check colera,29,16:09,16:38
+20260629,perso_admin,divers,17,16:38,16:55
+20260629,speasy_supermag,studies,8,17:09,17:17
+20260630,calipso_lees,Schneider SRV: Study,36,10:00,10:35
+20260630,carangues_compta,Check colera,3,10:36,10:39
+20260630,colibri_admin,plannification,11,10:39,10:49
+20260630,colibri_admin,comptage,9,10:49,10:58
+20260630,calipso_iesa,Admin: devis,7,10:59,11:06
+20260630,colibri_admin,tva,2,11:06,11:08
+20260630,calipso_lees,Schneider SRV: Study,11,11:08,11:20
+20260630,calipso_iesa,Admin: devis,24,11:20,11:44
+20260630,colibri_admin,comptage,4,11:44,11:48
+20260630,calipso_lees,Schneider SRV: Study,313,12:11,18:07
+20260701,calipso_iesa,June Tiny Fixes,78,08:39,09:57
+20260701,calipso_iesa,June Tiny Fixes,18,11:58,12:16
+20260701,calipso_iesa,June Tiny Fixes,3,12:16,12:19
+20260701,colibri_admin,comptage,0,12:16,12:16
+20260701,colibri_studies,webinar procrastination,24,12:20,12:44
+20260701,colibri_admin,comptage,3,12:51,12:54
+20260701,calipso_iesa,June Tiny Fixes,209,13:32,17:45

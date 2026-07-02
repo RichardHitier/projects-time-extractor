@@ -70,6 +70,58 @@ myproject:
 5. Édition manuelle dans `suivi_chantiers.ods` : copier-coller du CSV, renommer `calipso` en `calipso_a` / `calipso_b` / ... selon la commande en cours
 6. `timer eighty-hours` → export facturation (filtre sur `BILLABLE_PROJECTS` dans `config.yml`)
 
+### Capture webhook Pomofocus
+
+But : observer le protocole HTTP réellement envoyé par Pomofocus avant d'écrire
+le webhook d'ingestion définitif. Le receveur local journalise chaque requête
+dans `DATA/webhook_log.jsonl` avec méthode, URL, query string, headers,
+`Content-Type`, body brut, JSON parsé et données de formulaire si présentes.
+
+```bash
+python webhook_receiver.py
+cloudflared tunnel --url http://localhost:5000
+```
+
+Cloudflare affiche une URL publique du type :
+
+```text
+https://xxxxx.trycloudflare.com
+```
+
+Configurer cette URL dans Pomofocus. Par défaut le receveur accepte `/`, donc
+l'URL complète peut être `https://xxxxx.trycloudflare.com/`. Pour éviter une
+route trop facile à deviner pendant les essais :
+
+```bash
+WEBHOOK_SECRET=pomofocus-essai python webhook_receiver.py
+cloudflared tunnel --url http://localhost:5000
+```
+
+Dans ce cas, configurer Pomofocus avec :
+
+```text
+https://xxxxx.trycloudflare.com/pomofocus-essai
+```
+
+Pendant la capture, déclencher plusieurs événements Pomofocus : start, pause,
+resume, finish, changement de tâche/projet, pomodoro et pauses. Les requêtes
+sont affichées dans le terminal et appendées dans `DATA/webhook_log.jsonl`.
+
+Une fois le protocole observé, convertir les événements exploitables en CSV
+local :
+
+```bash
+python webhook_log_to_csv.py
+```
+
+Le script écrit `DATA/webhook.csv` au format `pomofocus.csv` : `date`,
+`project`, `task`, `minutes`, `startTime`, `endTime`. Il ne conserve que les
+segments de travail `round == "pomodoro"` et `type in {"finish", "pause"}`.
+
+Avant d'ouvrir le tunnel, il peut aussi être utile de vérifier Pomofocus avec
+les DevTools du navigateur : `F12` → `Network`, puis déclencher les mêmes
+événements pour voir si l'application appelle déjà une API HTTP exploitable.
+
 ### Report views (`timer report`)
 
 ```bash
