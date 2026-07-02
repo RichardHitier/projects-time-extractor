@@ -145,11 +145,21 @@ def cmd_swimlane(args):
 
 
 def cmd_eighty_hours(args):
+    if args.week and args.month:
+        raise SystemExit("--week and --month are mutually exclusive")
+    if args.week and args.write_ods:
+        raise SystemExit("--write-ods is not supported with --week (stdout only)")
+
     _, suivi_df = suivi_report(ODS_FILE)
-    year, month = None, None
+    year, month, week = None, None, None
     if args.month:
         year, month = map(int, args.month.split("-"))
-    result = billing_export_days(suivi_df, year=year, month=month)
+    if args.week:
+        if "-" in args.week:
+            year, week = map(int, args.week.split("-"))
+        else:
+            week = int(args.week)
+    result = billing_export_days(suivi_df, year=year, month=month, week=week)
     if args.write_ods:
         if year is None:
             from datetime import date as _date
@@ -284,6 +294,11 @@ def build_parser():
     p_eighty.add_argument(
         "--month", metavar="YYYY-MM", default=None,
         help="Month to report (default: current month)",
+    )
+    p_eighty.add_argument(
+        "--week", metavar="[YYYY-]NN", default=None,
+        help="ISO week to report (Mon-Sun), e.g. 27 or 2025-27 "
+             "(mutually exclusive with --month, stdout only)",
     )
     p_eighty.add_argument(
         "--write-ods", action="store_true",

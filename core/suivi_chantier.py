@@ -28,7 +28,7 @@ def billing_export(df, period='month'):
     return result
 
 
-def billing_export_days(df, year=None, month=None):
+def billing_export_days(df, year=None, month=None, week=None):
     """Daily billable hours as CSV: J, D, S, H.
 
     J = French day letter (L/M/M/J/V/S/D)
@@ -36,15 +36,31 @@ def billing_export_days(df, year=None, month=None):
     S = ISO week number
     H = billable hours that day
 
-    All days of the month are included, zero-filled.
-    Defaults to current month if year/month are not provided.
+    By default reports a whole month, zero-filled. If ``week`` (ISO week
+    number, 1-53) is given, reports Monday-Sunday of that ISO week instead,
+    so weeks straddling two months are shown in full.
+
+    Defaults to the current year/month if year/month are not provided.
     """
     DAY_LETTERS = ['L', 'M', 'M', 'J', 'V', 'S', 'D']  # Mon=0 .. Sun=6
 
     if year is None:
         year = date.today().year
-    if month is None:
-        month = date.today().month
+
+    if week is not None:
+        date_range = pd.date_range(
+            start=date.fromisocalendar(year, week, 1),  # Monday
+            end=date.fromisocalendar(year, week, 7),    # Sunday
+            freq='D'
+        )
+    else:
+        if month is None:
+            month = date.today().month
+        date_range = pd.date_range(
+            start=pd.Timestamp(year=year, month=month, day=1),
+            end=pd.Timestamp(year=year, month=month, day=calendar.monthrange(year, month)[1]),
+            freq='D'
+        )
 
     billable = [p.lower() for p in load_config().get("BILLABLE_PROJECTS", [])]
     df = df[df['PROJET'].str.lower().isin(billable)].copy()
@@ -52,11 +68,6 @@ def billing_export_days(df, year=None, month=None):
     df['hours'] = df['JOURS'] * 8
 
     daily = df.groupby('DATE')['hours'].sum()
-    date_range = pd.date_range(
-        start=pd.Timestamp(year=year, month=month, day=1),
-        end=pd.Timestamp(year=year, month=month, day=calendar.monthrange(year, month)[1]),
-        freq='D'
-    )
     daily = daily.reindex(date_range, fill_value=0.0)
 
     # weekly totals indexed by the Sunday ending each week
