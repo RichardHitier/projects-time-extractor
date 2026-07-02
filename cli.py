@@ -201,7 +201,7 @@ def cmd_sync(args):
     ))
 
     print("\n=== eighty-hours --write-ods ===")
-    cmd_eighty_hours(argparse.Namespace(write_ods=True, month=None))
+    cmd_eighty_hours(argparse.Namespace(write_ods=True, month=None, week=None))
 
 
 def cmd_plot(args):
