@@ -18,7 +18,7 @@ Set WEBHOOK_SECRET to use an unguessable path:
 import csv
 import json
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from flask import Flask, Response, jsonify, request
 
@@ -38,6 +38,8 @@ PORT = int(os.environ.get("WEBHOOK_PORT", "5000"))
 
 BILLABLE_PROJECTS = {p.lower() for p in _config.get("BILLABLE_PROJECTS", [])}
 BILLABLE_MAX_HOURS = 4
+
+_FR_WEEKDAYS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"]
 
 app = Flask(__name__)
 
@@ -232,6 +234,31 @@ def billable_hours(day=None):
     return billable_minutes(_read_csv_rows(CSV_PATH), day) / 60
 
 
+def current_week_bounds(today=None):
+    """Monday and Sunday (date objects) of the week containing `today`."""
+    if today is None:
+        today = datetime.now().date()
+    monday = today - timedelta(days=today.weekday())
+    sunday = monday + timedelta(days=6)
+    return monday, sunday
+
+
+def billable_hours_for_week(today=None):
+    """Billable hours per elapsed day of the current week (Monday..today),
+    most recent first, as (day_label, hours) pairs."""
+    if today is None:
+        today = datetime.now().date()
+    monday, _ = current_week_bounds(today)
+    rows = _read_csv_rows(CSV_PATH)
+    days = []
+    day = today
+    while day >= monday:
+        hours = billable_minutes(rows, day.strftime("%Y%m%d")) / 60
+        days.append((_FR_WEEKDAYS[day.weekday()], hours))
+        day -= timedelta(days=1)
+    return days
+
+
 def _format_hm(hours):
     total_minutes = round(hours * 60)
     h, m = divmod(total_minutes, 60)
@@ -245,7 +272,7 @@ def render_billable_svg(hours, max_hours=BILLABLE_MAX_HOURS):
     ratio = max(0, min(hours / max_hours, 1)) if max_hours else 0
     fill_w = (bar_w - 6) * ratio
     hours_label = _format_hm(hours)
-    max_hours_label = _format_hm(max_hours)
+    title = f"FACTURABLE AUJOURD'HUI: {hours_label} / {max_hours}h"
 
     ticks = []
     for h in range(1, max_hours):
@@ -263,14 +290,67 @@ def render_billable_svg(hours, max_hours=BILLABLE_MAX_HOURS):
         )
 
     return f"""<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">
-  <title>{hours_label} facturables aujourd'hui sur {max_hours_label}</title>
+  <title>{title}</title>
   <rect width="{width}" height="{height}" fill="#1a1a19"/>
-  <text x="{bar_x}" y="30" font-family="system-ui, sans-serif" font-size="20" fill="#ffffff">
-    {hours_label}<tspan fill="#c3c2b7" font-size="14"> facturables aujourd'hui / {max_hours_label}</tspan>
-  </text>
+  <text x="{bar_x}" y="30" font-family="system-ui, sans-serif" font-size="18" fill="#ffffff">{title}</text>
   <rect x="{bar_x}" y="{bar_y}" width="{bar_w}" height="{bar_h}" rx="{corner_radius}" fill="#184f95"/>
   {fill_rect}
   {"".join(ticks)}
+</svg>"""
+
+
+BILLABLE_WEEK_MAX_HOURS = 20
+
+
+def render_week_svg(day_hours, max_hours=BILLABLE_MAX_HOURS, week_max_hours=BILLABLE_WEEK_MAX_HOURS):
+    """Render a "SEMAINE : total / Nh" header, then one bar per
+    (day_label, hours) pair, most recent first.
+
+    Bars past `max_hours` overflow past a boundary marker (in a distinct
+    color) instead of being clamped, up to a capped overflow lane.
+    """
+    width = 640
+    row_h, row_gap, header_h = 22, 12, 30
+    top = header_h + row_gap
+    label_x, bar_x, bar_w, overflow_max = 20, 110, 380, 60
+    corner_radius = 5
+    inset = 3
+    height = top + len(day_hours) * (row_h + row_gap)
+    total_hours = sum(hours for _, hours in day_hours)
+    title = f"SEMAINE : {_format_hm(total_hours)} / {week_max_hours}h"
+
+    rows_svg = []
+    for i, (label, hours) in enumerate(day_hours):
+        y = top + i * (row_h + row_gap)
+        ratio = hours / max_hours if max_hours else 0
+        inner_h = row_h - 2 * inset
+        fill_w = (bar_w - 2 * inset) * min(ratio, 1)
+        fill_rect = ""
+        if fill_w > 0:
+            fill_rect = (
+                f'<rect x="{bar_x + inset}" y="{y + inset}" width="{fill_w:.1f}" '
+                f'height="{inner_h}" rx="{corner_radius}" fill="#3987e5"/>'
+            )
+        overflow_rect = ""
+        if ratio > 1:
+            overflow_w = overflow_max * min(ratio - 1, 1)
+            overflow_rect = (
+                f'<rect x="{bar_x + bar_w + inset}" y="{y + inset}" width="{overflow_w:.1f}" '
+                f'height="{inner_h}" rx="{corner_radius}" fill="#d03b3b"/>'
+            )
+        rows_svg.append(f'''
+  <text x="{label_x}" y="{y + row_h - 6}" font-family="system-ui, sans-serif" font-size="13" fill="#c3c2b7">{label}</text>
+  <rect x="{bar_x}" y="{y}" width="{bar_w}" height="{row_h}" rx="{corner_radius}" fill="#184f95"/>
+  {fill_rect}
+  <line x1="{bar_x + bar_w}" y1="{y - 2}" x2="{bar_x + bar_w}" y2="{y + row_h + 2}" stroke="#c3c2b7" stroke-width="2"/>
+  {overflow_rect}
+  <text x="{bar_x + bar_w + overflow_max + 12}" y="{y + row_h - 6}" font-family="system-ui, sans-serif" font-size="13" fill="#ffffff">{_format_hm(hours)}</text>''')
+
+    return f"""<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">
+  <title>{title}</title>
+  <rect width="{width}" height="{height}" fill="#1a1a19"/>
+  <text x="{label_x}" y="20" font-family="system-ui, sans-serif" font-size="18" fill="#ffffff">{title}</text>
+  {"".join(rows_svg)}
 </svg>"""
 
 
@@ -312,7 +392,7 @@ VIEW_HTML = """<!doctype html>
           animation: pulse 1.5s ease-in-out infinite; margin-right: .4rem; }}
   @keyframes pulse {{ 50% {{ opacity: .3; }} }}
   #status {{ color: #666; font-size: .8rem; margin-top: 1rem; }}
-  #billable {{ display: block; margin-bottom: 1.5rem; max-width: 100%; }}
+  #billable, #week {{ display: block; margin-bottom: 1.5rem; max-width: 100%; }}
 </style>
 </head>
 <body>
@@ -322,7 +402,10 @@ VIEW_HTML = """<!doctype html>
 <h2>Facturable aujourd'hui</h2>
 <img id="billable" src="{billable_url}" alt="heures facturables">
 
-<h1>pomofocus_webhook.csv — mis à jour toutes les 3s (plus récent en haut)</h1>
+<h2>Semaine</h2>
+<img id="week" src="{week_url}" alt="heures facturables par jour de la semaine">
+
+<h1>pomofocus_webhook.csv — semaine courante, mis à jour toutes les 3s (plus récent en haut)</h1>
 <table>
   <thead><tr><th>Date</th><th>Projet</th><th>Tâche</th><th>Min</th><th>Début</th><th>Fin</th></tr></thead>
   <tbody id="rows"></tbody>
@@ -331,6 +414,7 @@ VIEW_HTML = """<!doctype html>
 <script>
 const API_URL = "{api_url}";
 const BILLABLE_URL = "{billable_url}";
+const WEEK_URL = "{week_url}";
 let known = new Set();
 
 function rowHtml(r) {{
@@ -372,6 +456,7 @@ async function poll() {{
     data.rows.length + " lignes — dernière vérification " + new Date().toLocaleTimeString();
 
   document.getElementById("billable").src = BILLABLE_URL + "?t=" + Date.now();
+  document.getElementById("week").src = WEEK_URL + "?t=" + Date.now();
 }}
 
 poll();
@@ -388,7 +473,11 @@ def view(secret_path):
     if SECRET and secret_path.strip("/") != SECRET:
         return "not found\n", 404
     prefix = f"/{secret_path.strip('/')}" if secret_path.strip("/") else ""
-    return VIEW_HTML.format(api_url=f"{prefix}/api/rows", billable_url=f"{prefix}/billable.svg")
+    return VIEW_HTML.format(
+        api_url=f"{prefix}/api/rows",
+        billable_url=f"{prefix}/billable.svg",
+        week_url=f"{prefix}/billable-week.svg",
+    )
 
 
 @app.get("/billable.svg", defaults={"secret_path": ""})
@@ -400,12 +489,23 @@ def billable_svg(secret_path):
     return Response(svg, mimetype="image/svg+xml", headers={"Cache-Control": "no-store"})
 
 
+@app.get("/billable-week.svg", defaults={"secret_path": ""})
+@app.get("/<path:secret_path>/billable-week.svg")
+def billable_week_svg(secret_path):
+    if SECRET and secret_path.strip("/") != SECRET:
+        return "not found\n", 404
+    svg = render_week_svg(billable_hours_for_week())
+    return Response(svg, mimetype="image/svg+xml", headers={"Cache-Control": "no-store"})
+
+
 @app.get("/api/rows", defaults={"secret_path": ""})
 @app.get("/<path:secret_path>/api/rows")
 def api_rows(secret_path):
     if SECRET and secret_path.strip("/") != SECRET:
         return "not found\n", 404
-    rows = _read_csv_rows(CSV_PATH)
+    monday, sunday = current_week_bounds()
+    week_start, week_end = monday.strftime("%Y%m%d"), sunday.strftime("%Y%m%d")
+    rows = [r for r in _read_csv_rows(CSV_PATH) if week_start <= r["date"] <= week_end]
     rows.sort(key=lambda r: (r["date"], r["startTime"]), reverse=True)
     return jsonify({"rows": rows, "current": current_task_row()})
 

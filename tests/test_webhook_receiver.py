@@ -1,6 +1,7 @@
 import csv
 import json
 import sys
+from datetime import date, timedelta
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -155,8 +156,7 @@ def test_render_billable_svg_contains_value_and_is_valid_svg():
     svg = webhook_receiver.render_billable_svg(3.5, max_hours=4)
 
     assert svg.startswith("<svg")
-    assert "3:30" in svg
-    assert "4:00" in svg
+    assert "FACTURABLE AUJOURD'HUI: 3:30 / 4h" in svg
 
 
 def test_format_hm_rounds_to_nearest_minute():
@@ -174,6 +174,99 @@ def test_billable_svg_route_returns_svg(tmp_path):
     assert response.status_code == 200
     assert response.mimetype == "image/svg+xml"
     assert b"<svg" in response.data
+
+
+def test_current_week_bounds():
+    a_wednesday = date(2026, 7, 1)
+
+    monday, sunday = webhook_receiver.current_week_bounds(a_wednesday)
+
+    assert monday == date(2026, 6, 29)
+    assert sunday == date(2026, 7, 5)
+
+
+def test_billable_hours_for_week_returns_most_recent_first(tmp_path):
+    csv_path = tmp_path / "pomofocus_webhook.csv"
+    with open(csv_path, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=webhook_receiver.CSV_COLUMNS)
+        writer.writeheader()
+        writer.writerow({  # Monday of the week
+            "date": "20260629", "project": "calipso", "task": "t",
+            "minutes": "30", "startTime": "10:00", "endTime": "10:30",
+        })
+        writer.writerow({  # Wednesday ("today" for this test)
+            "date": "20260701", "project": "speasy", "task": "t",
+            "minutes": "60", "startTime": "10:00", "endTime": "11:00",
+        })
+        writer.writerow({  # previous Sunday, must be excluded
+            "date": "20260628", "project": "calipso", "task": "t",
+            "minutes": "999", "startTime": "10:00", "endTime": "10:01",
+        })
+
+    webhook_receiver.CSV_PATH = str(csv_path)
+
+    result = webhook_receiver.billable_hours_for_week(today=date(2026, 7, 1))
+
+    assert result == [
+        ("Mercredi", 1.0),
+        ("Mardi", 0.0),
+        ("Lundi", 0.5),
+    ]
+
+
+def test_render_week_svg_shows_labels_hours_and_overflow():
+    svg = webhook_receiver.render_week_svg([("Vendredi", 5.5), ("Jeudi", 2.0)], max_hours=4)
+
+    assert svg.startswith("<svg")
+    assert "Vendredi" in svg
+    assert "Jeudi" in svg
+    assert "5:30" in svg
+    assert "2:00" in svg
+    assert "#d03b3b" in svg  # overflow color, since 5.5h > max_hours=4
+
+
+def test_render_week_svg_shows_week_header():
+    svg = webhook_receiver.render_week_svg(
+        [("Vendredi", 5.5), ("Jeudi", 2.0)], max_hours=4, week_max_hours=20
+    )
+
+    assert "SEMAINE : 7:30 / 20h" in svg
+
+
+def test_billable_week_svg_route_returns_svg(tmp_path):
+    webhook_receiver.CSV_PATH = str(tmp_path / "pomofocus_webhook.csv")
+
+    client = webhook_receiver.app.test_client()
+    response = client.get("/billable-week.svg")
+
+    assert response.status_code == 200
+    assert response.mimetype == "image/svg+xml"
+    assert b"<svg" in response.data
+
+
+def test_api_rows_filters_to_current_week(tmp_path):
+    webhook_receiver.CSV_PATH = str(tmp_path / "pomofocus_webhook.csv")
+    monday, _ = webhook_receiver.current_week_bounds()
+    in_week = monday.strftime("%Y%m%d")
+    out_of_week = (monday - timedelta(days=1)).strftime("%Y%m%d")
+
+    with open(webhook_receiver.CSV_PATH, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=webhook_receiver.CSV_COLUMNS)
+        writer.writeheader()
+        writer.writerow({
+            "date": in_week, "project": "calipso", "task": "t",
+            "minutes": "10", "startTime": "10:00", "endTime": "10:10",
+        })
+        writer.writerow({
+            "date": out_of_week, "project": "calipso", "task": "t",
+            "minutes": "10", "startTime": "10:00", "endTime": "10:10",
+        })
+
+    client = webhook_receiver.app.test_client()
+    data = client.get("/api/rows").get_json()
+
+    assert len(data["rows"]) == 1
+    assert data["rows"][0]["date"] == in_week
 
 
 def test_hook_writes_jsonl_and_csv(tmp_path):
