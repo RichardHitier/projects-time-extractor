@@ -54,22 +54,27 @@ Réintégrer dans le CLI les deux plots de `core/suivi_chantier.py` :
 Suite de `/view` (`webhook_receiver.py`) : jauge d'heures facturables du jour
 (`hh:min`, échelle 4h). Pas de code pour l'instant, à traiter petit à petit.
 
-- [ ] **1. Merger `report.csv` dans le fichier webhook, renommé `report_webhook.csv`**
-  `pomofocus.csv` n'est pas un export brut : c'est le résultat cumulé de
-  merges successifs de `report.csv` (export pomofocus.io) via `pomo-merge` /
-  `merge_pomo_exports` (`core/services.py:144`). On ne mergera donc pas
-  `pomofocus.csv` dans le webhook, mais un **gros `report.csv`** (export complet
-  pomofocus.io) directement avec le fichier webhook — qui sera renommé
-  `pomofocus_webhook.csv` → `report_webhook.csv` (dans `webhook_receiver.py`
-  et le volume `webhook-data/` de `docker-compose.yml`).
-  Décision à prendre : stratégie de dédup — les deux fichiers se chevauchent
-  sur les jours récents avec un grain différent : `report.csv` fusionne déjà
-  les sessions **contiguës** de même clé `date, projet, tâche` en une seule
-  ligne (avant même `pomo-merge`), alors que `pomofocus_webhook.csv` garde
-  chaque session distincte telle que capturée, même contiguë et de même clé.
-  Un merge naïf sur la clé habituelle `(date, startTime, project, task)` ne
-  détecterait donc pas ces sessions contiguës comme des doublons et risque de
-  compter le même temps deux fois.
+- [x] **1. Donner l'historique complet à `pomofocus_webhook.csv`**
+  Fait en deux temps, sans renommage (le plan initial envisageait de fusionner
+  un gros `report.csv` dans un fichier renommé `report_webhook.csv` — écarté
+  au profit d'un backfill plus simple et plus sûr) :
+  - `merge_contiguous_sessions` (`webhook_receiver.py`) fusionne désormais les
+    sessions **contiguës** (même `date`/`project`/`task`, `endTime` ==
+    `startTime` suivant) dans `pomofocus_webhook.csv`, pour retrouver le même
+    grain que `pomofocus.csv`/`report.csv`. Appliqué à chaque écriture
+    (`upsert_csv_row`) et rejoué une fois sur l'historique existant.
+  - Backfill : les lignes de `DATA/pomofocus.csv` dont `date < 20260702`
+    (première date présente côté webhook) ont été ajoutées telles quelles à
+    `pomofocus_webhook.csv` (994 lignes). Les dates déjà couvertes par le
+    webhook (02-03 juillet) n'ont **pas** été touchées : une comparaison a
+    montré un écart réel entre les deux sources sur ces jours (ex. une session
+    `speasy_supermag/studies` à 82 min côté `pomofocus.csv` contre 74+6+1=81
+    min et un vrai trou de 5 min côté webhook) — `pomofocus.csv`/`report.csv`
+    semble regrouper certaines sessions au-delà de la simple contiguïté
+    (pause/reprise dans le timer), donc un merge naïf sur ces jours aurait pu
+    désynchroniser les chiffres plutôt que juste dupliquer. Sauvegarde prise
+    avant chaque modification du fichier réel (`webhook-data/*.bak-*`,
+    supprimées une fois vérifiées).
 
 - [x] **1-bis. Comprendre le flux `report.csv` → `pomofocus.csv` → `suivi_chantiers.ods`**
   `report.csv` (brut, pomofocus.io, `~/Téléchargements`) fusionne déjà, côté
