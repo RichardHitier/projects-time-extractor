@@ -38,6 +38,10 @@ PORT = int(os.environ.get("WEBHOOK_PORT", "5000"))
 
 app = Flask(__name__)
 
+# Tâche en cours (trame "start" pas encore suivie de "pause"/"finish").
+# Process gunicorn à un seul worker (-w 1) : pas de souci de cohérence entre workers.
+CURRENT_TASK = None
+
 
 def _from_epoch_ms(value):
     if value is None:
@@ -147,9 +151,48 @@ def _write_event(event):
         f.write(line + "\n")
 
 
+def _update_current_task(payload):
+    global CURRENT_TASK
+    if not isinstance(payload, dict) or payload.get("round") != "pomodoro":
+        return
+
+    event_type = payload.get("type")
+    if event_type == "start":
+        session_start = payload.get("session_start")
+        start_dt = _from_epoch_ms(session_start)
+        if start_dt is None:
+            return
+        CURRENT_TASK = {
+            "date": start_dt.strftime("%Y%m%d"),
+            "project": payload.get("project", ""),
+            "task": payload.get("task", ""),
+            "start_ms": session_start,
+        }
+    elif event_type in EXPORT_TYPES:
+        CURRENT_TASK = None
+
+
+def current_task_row():
+    if CURRENT_TASK is None:
+        return None
+    start_dt = _from_epoch_ms(CURRENT_TASK["start_ms"])
+    now = datetime.now()
+    minutes = max(0, round((now - start_dt).total_seconds() / 60))
+    return {
+        "date": CURRENT_TASK["date"],
+        "project": CURRENT_TASK["project"],
+        "task": CURRENT_TASK["task"],
+        "minutes": minutes,
+        "startTime": start_dt.strftime("%H:%M"),
+        "endTime": now.strftime("%H:%M"),
+    }
+
+
 def persist_event(event):
     _write_event(event)
-    row = payload_to_csv_row(event.get("json"))
+    payload = event.get("json")
+    _update_current_task(payload)
+    row = payload_to_csv_row(payload)
     if row:
         upsert_csv_row(row)
         print(f"CSV upsert: {CSV_PATH} {row}", flush=True)
@@ -168,16 +211,28 @@ VIEW_HTML = """<!doctype html>
 <style>
   body {{ font-family: system-ui, sans-serif; margin: 2rem; background: #111; color: #eee; }}
   h1 {{ font-size: 1.1rem; font-weight: normal; color: #999; }}
+  h2 {{ font-size: .8rem; font-weight: normal; text-transform: uppercase; color: #999; margin: 0 0 .5rem; }}
   table {{ border-collapse: collapse; width: 100%; }}
   th, td {{ text-align: left; padding: .4rem .8rem; border-bottom: 1px solid #333; }}
   th {{ color: #999; font-weight: normal; text-transform: uppercase; font-size: .75rem; }}
   tr.new {{ animation: flash 2s ease-out; }}
   @keyframes flash {{ from {{ background: #2a5; }} to {{ background: transparent; }} }}
+  #current-box {{
+    border: 1px solid #2a5; border-radius: 6px; padding: .8rem 1rem; margin-bottom: 1.5rem;
+  }}
+  #current-box.empty {{ border-color: #333; color: #666; font-style: italic; }}
+  #current-box table {{ margin-top: .3rem; }}
+  .dot {{ display: inline-block; width: .5rem; height: .5rem; border-radius: 50%; background: #2a5;
+          animation: pulse 1.5s ease-in-out infinite; margin-right: .4rem; }}
+  @keyframes pulse {{ 50% {{ opacity: .3; }} }}
   #status {{ color: #666; font-size: .8rem; margin-top: 1rem; }}
 </style>
 </head>
 <body>
-<h1>pomofocus_webhook.csv — mis à jour toutes les 3s</h1>
+<h2>En cours</h2>
+<div id="current-box" class="empty">aucune tâche en cours</div>
+
+<h1>pomofocus_webhook.csv — mis à jour toutes les 3s (plus récent en haut)</h1>
 <table>
   <thead><tr><th>Date</th><th>Projet</th><th>Tâche</th><th>Min</th><th>Début</th><th>Fin</th></tr></thead>
   <tbody id="rows"></tbody>
@@ -187,28 +242,43 @@ VIEW_HTML = """<!doctype html>
 const API_URL = "{api_url}";
 let known = new Set();
 
+function rowHtml(r) {{
+  return `<td>${{r.date}}</td><td>${{r.project}}</td><td>${{r.task}}</td>` +
+         `<td>${{r.minutes}}</td><td>${{r.startTime}}</td><td>${{r.endTime}}</td>`;
+}}
+
 async function poll() {{
-  let rows;
+  let data;
   try {{
     const res = await fetch(API_URL, {{cache: "no-store"}});
-    rows = await res.json();
+    data = await res.json();
   }} catch (e) {{
     document.getElementById("status").textContent = "erreur de connexion";
     return;
   }}
+
+  const box = document.getElementById("current-box");
+  if (data.current) {{
+    box.className = "";
+    box.innerHTML = `<span class="dot"></span>${{data.current.project}} — ${{data.current.task}}` +
+      `<table><tbody><tr>${{rowHtml(data.current)}}</tr></tbody></table>`;
+  }} else {{
+    box.className = "empty";
+    box.textContent = "aucune tâche en cours";
+  }}
+
   const tbody = document.getElementById("rows");
   tbody.innerHTML = "";
-  for (const r of rows) {{
+  for (const r of data.rows) {{
     const key = r.date + r.startTime + r.project + r.task;
     const tr = document.createElement("tr");
     if (!known.has(key)) tr.className = "new";
-    tr.innerHTML = `<td>${{r.date}}</td><td>${{r.project}}</td><td>${{r.task}}</td>` +
-                   `<td>${{r.minutes}}</td><td>${{r.startTime}}</td><td>${{r.endTime}}</td>`;
+    tr.innerHTML = rowHtml(r);
     tbody.appendChild(tr);
     known.add(key);
   }}
   document.getElementById("status").textContent =
-    rows.length + " lignes — dernière vérification " + new Date().toLocaleTimeString();
+    data.rows.length + " lignes — dernière vérification " + new Date().toLocaleTimeString();
 }}
 
 poll();
@@ -234,8 +304,8 @@ def api_rows(secret_path):
     if SECRET and secret_path.strip("/") != SECRET:
         return "not found\n", 404
     rows = _read_csv_rows(CSV_PATH)
-    rows.sort(key=lambda r: (r["date"], r["startTime"]))
-    return jsonify(rows)
+    rows.sort(key=lambda r: (r["date"], r["startTime"]), reverse=True)
+    return jsonify({"rows": rows, "current": current_task_row()})
 
 
 @app.route("/", defaults={"secret_path": ""}, methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"])
