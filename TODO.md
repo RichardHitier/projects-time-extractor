@@ -63,12 +63,20 @@ Suite de `/view` (`webhook_receiver.py`) : jauge d'heures facturables du jour
   `pomofocus_webhook.csv` → `report_webhook.csv` (dans `webhook_receiver.py`
   et le volume `webhook-data/` de `docker-compose.yml`).
   Décision à prendre : stratégie de dédup — les deux fichiers se chevauchent
-  sur les jours récents avec un grain différent (export officiel = sessions
-  groupées, webhook = chaque pomodoro), un merge naïf sur la clé habituelle
-  `(date, startTime, project, task)` risque de compter le même temps deux fois.
+  sur les jours récents avec un grain différent : `report.csv` fusionne déjà
+  les sessions **contiguës** de même clé `date, projet, tâche` en une seule
+  ligne (avant même `pomo-merge`), alors que `pomofocus_webhook.csv` garde
+  chaque session distincte telle que capturée, même contiguë et de même clé.
+  Un merge naïf sur la clé habituelle `(date, startTime, project, task)` ne
+  détecterait donc pas ces sessions contiguës comme des doublons et risque de
+  compter le même temps deux fois.
 
 - [x] **1-bis. Comprendre le flux `report.csv` → `pomofocus.csv` → `suivi_chantiers.ods`**
-  `report.csv` (brut, pomofocus.io, `~/Téléchargements`) → fusionné dans
+  `report.csv` (brut, pomofocus.io, `~/Téléchargements`) fusionne déjà, côté
+  pomofocus.io, les sessions **contiguës** de même clé `date, projet, tâche`
+  en une seule ligne — contrairement à `pomofocus_webhook.csv` qui garde le
+  détail de chaque session même contiguë (cf. point 1). Ce `report.csv` est
+  ensuite fusionné dans
   `DATA/pomofocus.csv` par `pomo-merge`/`merge_pomo_exports` (`core/services.py:144`,
   dédup `(date,startTime,endTime,project,task)` puis `(date,startTime,project,task)`
   en gardant le `endTime` le plus tardif ; ancien `pomofocus.csv` sauvegardé

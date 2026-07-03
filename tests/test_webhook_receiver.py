@@ -53,6 +53,73 @@ def test_upsert_csv_row_keeps_latest_end_time(tmp_path):
     assert read_rows(csv_path) == [{**latest, "minutes": "25"}]
 
 
+def test_merge_contiguous_sessions_collapses_a_chain():
+    rows = [
+        {"date": "20260701", "project": "calipso", "task": "t", "minutes": "19", "startTime": "15:19", "endTime": "15:39"},
+        {"date": "20260701", "project": "calipso", "task": "t", "minutes": "10", "startTime": "15:39", "endTime": "15:50"},
+        {"date": "20260701", "project": "calipso", "task": "t", "minutes": "8", "startTime": "15:50", "endTime": "15:58"},
+        {"date": "20260701", "project": "colibri", "task": "other", "minutes": "5", "startTime": "16:10", "endTime": "16:15"},
+    ]
+
+    merged = webhook_receiver.merge_contiguous_sessions(rows)
+
+    assert merged == [
+        {"date": "20260701", "project": "calipso", "task": "t", "minutes": 37, "startTime": "15:19", "endTime": "15:58"},
+        {"date": "20260701", "project": "colibri", "task": "other", "minutes": "5", "startTime": "16:10", "endTime": "16:15"},
+    ]
+
+
+def test_upsert_csv_row_merges_contiguous_sessions(tmp_path):
+    csv_path = tmp_path / "pomofocus_webhook.csv"
+
+    first = {
+        "date": "20260701",
+        "project": "calipso",
+        "task": "June Tiny Fixes",
+        "minutes": 19,
+        "startTime": "15:19",
+        "endTime": "15:39",
+    }
+    second = {
+        "date": "20260701",
+        "project": "calipso",
+        "task": "June Tiny Fixes",
+        "minutes": 10,
+        "startTime": "15:39",
+        "endTime": "15:50",
+    }
+
+    webhook_receiver.upsert_csv_row(first, csv_path)
+    webhook_receiver.upsert_csv_row(second, csv_path)
+
+    assert read_rows(csv_path) == [{
+        "date": "20260701", "project": "calipso", "task": "June Tiny Fixes",
+        "minutes": "29", "startTime": "15:19", "endTime": "15:50",
+    }]
+
+
+def test_upsert_csv_row_does_not_merge_non_contiguous_sessions(tmp_path):
+    csv_path = tmp_path / "pomofocus_webhook.csv"
+
+    first = {
+        "date": "20260701",
+        "project": "calipso",
+        "task": "June Tiny Fixes",
+        "minutes": 19,
+        "startTime": "15:19",
+        "endTime": "15:39",
+    }
+    later = {**first, "minutes": 10, "startTime": "16:30", "endTime": "16:40"}
+
+    webhook_receiver.upsert_csv_row(first, csv_path)
+    webhook_receiver.upsert_csv_row(later, csv_path)
+
+    assert read_rows(csv_path) == [
+        {**first, "minutes": "19"},
+        {**later, "minutes": "10"},
+    ]
+
+
 def test_billable_minutes_filters_by_day_and_project_without_rounding():
     rows = [
         {"date": "20260703", "project": "colibri_dev", "minutes": "50"},   # not billable

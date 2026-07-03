@@ -96,12 +96,33 @@ def _write_csv_rows(rows, csv_path):
         writer.writerows(rows)
 
 
+def merge_contiguous_sessions(rows):
+    """Collapse back-to-back sessions (same date/project/task, endTime ==
+    next startTime) into a single row each, like report.csv already does on
+    the pomofocus.io side."""
+    rows = sorted(rows, key=lambda row: (row["date"], row["startTime"]))
+    merged = []
+    for row in rows:
+        if merged:
+            prev = merged[-1]
+            if (
+                prev["date"] == row["date"]
+                and prev["project"] == row["project"]
+                and prev["task"] == row["task"]
+                and prev["endTime"] == row["startTime"]
+            ):
+                prev["minutes"] = int(prev["minutes"]) + int(row["minutes"])
+                prev["endTime"] = row["endTime"]
+                continue
+        merged.append(dict(row))
+    return merged
+
+
 def upsert_csv_row(row, csv_path=None):
     if csv_path is None:
         csv_path = CSV_PATH
     rows = _read_csv_rows(csv_path)
     key = (row["date"], row["startTime"], row["project"], row["task"])
-    replaced = False
 
     for index, existing in enumerate(rows):
         existing_key = (
@@ -113,13 +134,11 @@ def upsert_csv_row(row, csv_path=None):
         if existing_key == key:
             if row["endTime"] >= existing["endTime"]:
                 rows[index] = row
-            replaced = True
-            break
+            _write_csv_rows(merge_contiguous_sessions(rows), csv_path)
+            return
 
-    if not replaced:
-        rows.append(row)
-
-    _write_csv_rows(rows, csv_path)
+    rows.append(row)
+    _write_csv_rows(merge_contiguous_sessions(rows), csv_path)
 
 
 def _record(req):
