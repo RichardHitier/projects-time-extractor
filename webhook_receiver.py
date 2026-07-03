@@ -20,7 +20,7 @@ import json
 import os
 from datetime import datetime, timezone
 
-from flask import Flask, jsonify, request
+from flask import Flask, Response, jsonify, request
 
 from config import load_config
 
@@ -35,6 +35,9 @@ CSV_COLUMNS = ["date", "project", "task", "minutes", "startTime", "endTime"]
 EXPORT_TYPES = {"finish", "pause"}
 SECRET = os.environ.get("WEBHOOK_SECRET", "").strip("/")
 PORT = int(os.environ.get("WEBHOOK_PORT", "5000"))
+
+BILLABLE_PROJECTS = {p.lower() for p in _config.get("BILLABLE_PROJECTS", [])}
+BILLABLE_MAX_HOURS = 4
 
 app = Flask(__name__)
 
@@ -188,6 +191,62 @@ def current_task_row():
     }
 
 
+def _row_is_billable(row):
+    project = (row.get("project") or "").split("_", 1)[0].strip().lower()
+    return project in BILLABLE_PROJECTS
+
+
+def billable_minutes(rows, day):
+    total = 0
+    for row in rows:
+        if row.get("date") != day:
+            continue
+        if not _row_is_billable(row):
+            continue
+        total += int(row.get("minutes") or 0)
+    return total
+
+
+def billable_hours(day=None):
+    if day is None:
+        day = datetime.now().strftime("%Y%m%d")
+    return billable_minutes(_read_csv_rows(CSV_PATH), day) / 60
+
+
+def render_billable_svg(hours, max_hours=BILLABLE_MAX_HOURS):
+    width, height = 640, 110
+    bar_x, bar_y, bar_w, bar_h = 20, 56, 600, 32
+    corner_radius = 6
+    ratio = max(0, min(hours / max_hours, 1)) if max_hours else 0
+    fill_w = (bar_w - 6) * ratio
+
+    ticks = []
+    for h in range(1, max_hours):
+        tick_x = bar_x + bar_w * h / max_hours
+        ticks.append(
+            f'<line x1="{tick_x:.1f}" y1="{bar_y - 4}" x2="{tick_x:.1f}" '
+            f'y2="{bar_y + bar_h + 4}" stroke="#383835" stroke-width="1" opacity=".6"/>'
+        )
+
+    fill_rect = ""
+    if fill_w > 0:
+        fill_rect = (
+            f'<rect x="{bar_x + 3}" y="{bar_y + 3}" width="{fill_w:.1f}" '
+            f'height="{bar_h - 6}" rx="{corner_radius}" fill="#3987e5"/>'
+        )
+
+    return f"""<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">
+  <title>{hours:.2f} h facturables aujourd'hui sur {max_hours} h</title>
+  <rect width="{width}" height="{height}" fill="#1a1a19"/>
+  <text x="{bar_x}" y="30" font-family="system-ui, sans-serif" font-size="20" fill="#ffffff">
+    {hours:.2f} h<tspan fill="#c3c2b7" font-size="14"> facturables aujourd'hui / {max_hours} h</tspan>
+  </text>
+  <rect x="{bar_x}" y="{bar_y}" width="{bar_w}" height="{bar_h}" rx="{corner_radius}" fill="#184f95"/>
+  {fill_rect}
+  {"".join(ticks)}
+</svg>"""
+
+
 def persist_event(event):
     _write_event(event)
     payload = event.get("json")
@@ -226,11 +285,15 @@ VIEW_HTML = """<!doctype html>
           animation: pulse 1.5s ease-in-out infinite; margin-right: .4rem; }}
   @keyframes pulse {{ 50% {{ opacity: .3; }} }}
   #status {{ color: #666; font-size: .8rem; margin-top: 1rem; }}
+  #billable {{ display: block; margin-bottom: 1.5rem; max-width: 100%; }}
 </style>
 </head>
 <body>
 <h2>En cours</h2>
 <div id="current-box" class="empty">aucune tâche en cours</div>
+
+<h2>Facturable aujourd'hui</h2>
+<img id="billable" src="{billable_url}" alt="heures facturables">
 
 <h1>pomofocus_webhook.csv — mis à jour toutes les 3s (plus récent en haut)</h1>
 <table>
@@ -240,6 +303,7 @@ VIEW_HTML = """<!doctype html>
 <div id="status">chargement...</div>
 <script>
 const API_URL = "{api_url}";
+const BILLABLE_URL = "{billable_url}";
 let known = new Set();
 
 function rowHtml(r) {{
@@ -279,6 +343,8 @@ async function poll() {{
   }}
   document.getElementById("status").textContent =
     data.rows.length + " lignes — dernière vérification " + new Date().toLocaleTimeString();
+
+  document.getElementById("billable").src = BILLABLE_URL + "?t=" + Date.now();
 }}
 
 poll();
@@ -295,7 +361,16 @@ def view(secret_path):
     if SECRET and secret_path.strip("/") != SECRET:
         return "not found\n", 404
     prefix = f"/{secret_path.strip('/')}" if secret_path.strip("/") else ""
-    return VIEW_HTML.format(api_url=f"{prefix}/api/rows")
+    return VIEW_HTML.format(api_url=f"{prefix}/api/rows", billable_url=f"{prefix}/billable.svg")
+
+
+@app.get("/billable.svg", defaults={"secret_path": ""})
+@app.get("/<path:secret_path>/billable.svg")
+def billable_svg(secret_path):
+    if SECRET and secret_path.strip("/") != SECRET:
+        return "not found\n", 404
+    svg = render_billable_svg(billable_hours())
+    return Response(svg, mimetype="image/svg+xml", headers={"Cache-Control": "no-store"})
 
 
 @app.get("/api/rows", defaults={"secret_path": ""})
