@@ -88,8 +88,14 @@ def test_render_billable_svg_contains_value_and_is_valid_svg():
     svg = webhook_receiver.render_billable_svg(3.5, max_hours=4)
 
     assert svg.startswith("<svg")
-    assert "3.50 h" in svg
-    assert "4 h" in svg
+    assert "3:30" in svg
+    assert "4:00" in svg
+
+
+def test_format_hm_rounds_to_nearest_minute():
+    assert webhook_receiver._format_hm(1.9166) == "1:55"
+    assert webhook_receiver._format_hm(4) == "4:00"
+    assert webhook_receiver._format_hm(0) == "0:00"
 
 
 def test_billable_svg_route_returns_svg(tmp_path):

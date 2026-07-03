@@ -213,12 +213,20 @@ def billable_hours(day=None):
     return billable_minutes(_read_csv_rows(CSV_PATH), day) / 60
 
 
+def _format_hm(hours):
+    total_minutes = round(hours * 60)
+    h, m = divmod(total_minutes, 60)
+    return f"{h}:{m:02d}"
+
+
 def render_billable_svg(hours, max_hours=BILLABLE_MAX_HOURS):
     width, height = 640, 110
     bar_x, bar_y, bar_w, bar_h = 20, 56, 600, 32
     corner_radius = 6
     ratio = max(0, min(hours / max_hours, 1)) if max_hours else 0
     fill_w = (bar_w - 6) * ratio
+    hours_label = _format_hm(hours)
+    max_hours_label = _format_hm(max_hours)
 
     ticks = []
     for h in range(1, max_hours):
@@ -236,10 +244,10 @@ def render_billable_svg(hours, max_hours=BILLABLE_MAX_HOURS):
         )
 
     return f"""<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">
-  <title>{hours:.2f} h facturables aujourd'hui sur {max_hours} h</title>
+  <title>{hours_label} facturables aujourd'hui sur {max_hours_label}</title>
   <rect width="{width}" height="{height}" fill="#1a1a19"/>
   <text x="{bar_x}" y="30" font-family="system-ui, sans-serif" font-size="20" fill="#ffffff">
-    {hours:.2f} h<tspan fill="#c3c2b7" font-size="14"> facturables aujourd'hui / {max_hours} h</tspan>
+    {hours_label}<tspan fill="#c3c2b7" font-size="14"> facturables aujourd'hui / {max_hours_label}</tspan>
   </text>
   <rect x="{bar_x}" y="{bar_y}" width="{bar_w}" height="{bar_h}" rx="{corner_radius}" fill="#184f95"/>
   {fill_rect}
