@@ -79,3 +79,48 @@ web/
    and `superprod_projects`.
 2. Delete `DATA/histories.parquet` to invalidate the cache.
 3. Reload the app.
+
+## Webhook live view (`/view`) — local Docker dev
+
+This is a **separate app** from the dashboard above: `webhook_receiver.py`
+(the Pomofocus webhook receiver) also serves a live current-week page at
+`/view`, reading `webhook-data/pomofocus_webhook.csv`. It ships as a Docker
+image (`Dockerfile` + `docker-compose.yml`).
+
+The committed `docker-compose.yml` is the **prod** config: it only `expose`s
+port 5000 internally, behind nginx on `:80`, with a secret path
+(`WEBHOOK_SECRET`). For local dev we add a git-ignored
+`docker-compose.override.yml` (auto-merged by Compose) that publishes the port
+directly, mounts the code as volumes (no rebuild on edit), and runs gunicorn
+with `--reload`.
+
+### Launch
+
+```bash
+docker compose up -d webhook        # base + override merged automatically
+```
+
+Then open **http://localhost:5000/view** (no secret needed in dev —
+`WEBHOOK_SECRET` is empty, so `/view` answers at the root).
+
+Editing `webhook_receiver.py` on the host triggers gunicorn `--reload`; no
+rebuild needed. Only a change to `requirements-webhook.txt` requires
+`docker compose build webhook`.
+
+```bash
+docker compose logs -f webhook      # follow logs / reloads
+docker compose restart webhook      # force a restart
+docker compose down                 # stop everything
+```
+
+### Data
+
+`/view` reads `webhook-data/pomofocus_webhook.csv` (mounted at `/app/DATA` by
+the base compose, exactly like prod). The file is re-read on every request, so
+refreshing data needs no restart — just copy a recent version from the VPS:
+
+```bash
+scp ovh-vps:timer/webhook-data/pomofocus_webhook.csv webhook-data/pomofocus_webhook.csv
+```
+
+> `docker-compose.override.yml` is dev-only and git-ignored — do not deploy it.
