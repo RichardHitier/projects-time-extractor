@@ -16,13 +16,14 @@ Set WEBHOOK_SECRET to use an unguessable path:
     https://xxxxx.trycloudflare.com/my-secret
 """
 import csv
+import hashlib
 import json
 import os
 from datetime import datetime, timedelta, timezone
 
 from flask import Flask, Response, jsonify, request
 
-from config import load_config
+from config import load_config, load_projects
 
 _config = load_config()
 DATA_DIR = _config["DATA_DIR"]
@@ -325,14 +326,14 @@ def render_billable_svg(hours, max_hours=BILLABLE_MAX_HOURS):
     if fill_w > 0:
         fill_rect = (
             f'<rect x="{bar_x + 3}" y="{bar_y + 3}" width="{fill_w:.1f}" '
-            f'height="{bar_h - 6}" rx="{corner_radius}" fill="#3987e5"/>'
+            f'height="{bar_h - 6}" rx="{corner_radius}" fill="#9d9d93"/>'
         )
 
     return f"""<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">
   <title>{title}</title>
   <rect width="{width}" height="{height}" fill="#1a1a19"/>
   <text x="{bar_x}" y="30" font-family="system-ui, sans-serif" font-size="18" fill="#ffffff">{title}</text>
-  <rect x="{bar_x}" y="{bar_y}" width="{bar_w}" height="{bar_h}" rx="{corner_radius}" fill="#184f95"/>
+  <rect x="{bar_x}" y="{bar_y}" width="{bar_w}" height="{bar_h}" rx="{corner_radius}" fill="#2e2e2b"/>
   {fill_rect}
   {"".join(ticks)}
 </svg>"""
@@ -368,18 +369,18 @@ def render_week_svg(day_hours, max_hours=BILLABLE_MAX_HOURS, week_max_hours=BILL
         if fill_w > 0:
             fill_rect = (
                 f'<rect x="{bar_x + inset}" y="{y + inset}" width="{fill_w:.1f}" '
-                f'height="{inner_h}" rx="{corner_radius}" fill="#3987e5"/>'
+                f'height="{inner_h}" rx="{corner_radius}" fill="#9d9d93"/>'
             )
         overflow_rect = ""
         if ratio > 1:
             overflow_w = overflow_max * min(ratio - 1, 1)
             overflow_rect = (
                 f'<rect x="{bar_x + bar_w + inset}" y="{y + inset}" width="{overflow_w:.1f}" '
-                f'height="{inner_h}" rx="{corner_radius}" fill="#d03b3b"/>'
+                f'height="{inner_h}" rx="{corner_radius}" fill="#d9a441"/>'
             )
         rows_svg.append(f'''
   <text x="{label_x}" y="{y + row_h - 6}" font-family="system-ui, sans-serif" font-size="13" fill="#c3c2b7">{label}</text>
-  <rect x="{bar_x}" y="{y}" width="{bar_w}" height="{row_h}" rx="{corner_radius}" fill="#184f95"/>
+  <rect x="{bar_x}" y="{y}" width="{bar_w}" height="{row_h}" rx="{corner_radius}" fill="#2e2e2b"/>
   {fill_rect}
   <line x1="{bar_x + bar_w}" y1="{y - 2}" x2="{bar_x + bar_w}" y2="{y + row_h + 2}" stroke="#c3c2b7" stroke-width="2"/>
   {overflow_rect}
@@ -390,6 +391,174 @@ def render_week_svg(day_hours, max_hours=BILLABLE_MAX_HOURS, week_max_hours=BILL
   <rect width="{width}" height="{height}" fill="#1a1a19"/>
   <text x="{label_x}" y="20" font-family="system-ui, sans-serif" font-size="18" fill="#ffffff">{title}</text>
   {"".join(rows_svg)}
+</svg>"""
+
+
+# ── Activité par projet (couleurs identiques à `timer day-bars`) ──────────────
+ACTIVITY_MAX_HOURS = 8
+
+# tab20 + tab20b (40 couleurs), figées depuis matplotlib pour rester identiques à
+# core.plots._project_color_map sans embarquer matplotlib dans le conteneur.
+ACTIVITY_PALETTE = [
+    "#1f77b4", "#aec7e8", "#ff7f0e", "#ffbb78", "#2ca02c", "#98df8a", "#d62728",
+    "#ff9896", "#9467bd", "#c5b0d5", "#8c564b", "#c49c94", "#e377c2", "#f7b6d2",
+    "#7f7f7f", "#c7c7c7", "#bcbd22", "#dbdb8d", "#17becf", "#9edae5", "#393b79",
+    "#5254a3", "#6b6ecf", "#9c9ede", "#637939", "#8ca252", "#b5cf6b", "#cedb9c",
+    "#8c6d31", "#bd9e39", "#e7ba52", "#e7cb94", "#843c39", "#ad494a", "#d6616b",
+    "#e7969c", "#7b4173", "#a55194", "#ce6dbd", "#de9ed6",
+]
+
+
+def _project_config_colors():
+    """{lowercased pom_project name: color} from projects-config.yml, matching
+    core.plots._project_color_map (pro's [PRO, COLIBRI] → both get pro's red)."""
+    colors = {}
+    for data in (load_projects() or {}).values():
+        if not isinstance(data, dict) or not data.get("color"):
+            continue
+        pom = data.get("pom_project")
+        for name in ([pom] if isinstance(pom, str) else (pom or [])):
+            colors[name.lower()] = data["color"]
+    return colors
+
+
+_PROJECT_CONFIG_COLORS = _project_config_colors()
+
+
+def _project_prefix(project):
+    """Top-level project = part before the first '_', as _row_is_billable does."""
+    return (project or "").split("_", 1)[0].strip().lower()
+
+
+def project_color(prefix):
+    """Same rule as core.plots._project_color_map: config color when defined,
+    else a stable md5 hash into the tab20+tab20b palette."""
+    if prefix in _PROJECT_CONFIG_COLORS:
+        return _PROJECT_CONFIG_COLORS[prefix]
+    idx = int(hashlib.md5(prefix.encode()).hexdigest(), 16) % len(ACTIVITY_PALETTE)
+    return ACTIVITY_PALETTE[idx]
+
+
+def _ordered_projects(prefixes):
+    """Stable order: billable projects first (alpha), then the rest (alpha)."""
+    prefixes = set(prefixes)
+    billable = sorted(p for p in prefixes if p in BILLABLE_PROJECTS)
+    other = sorted(p for p in prefixes if p not in BILLABLE_PROJECTS)
+    return billable + other
+
+
+def activity_by_project(rows, day):
+    """{project_prefix: minutes} for `day`, all projects except nan/empty."""
+    totals = {}
+    for row in rows:
+        if row.get("date") != day:
+            continue
+        prefix = _project_prefix(row.get("project"))
+        if not prefix or prefix == "nan":
+            continue
+        totals[prefix] = totals.get(prefix, 0) + int(row.get("minutes") or 0)
+    return totals
+
+
+def _activity_segments(totals, x0, inner_w, inner_y, inner_h, max_hours):
+    """Colored <rect> segments for one stacked bar, stable order, clamped to
+    the bar width (a day past `max_hours` is cut rather than overflowing)."""
+    segs = []
+    x, x_max = x0, x0 + inner_w
+    for prefix in _ordered_projects(totals):
+        seg_w = min(inner_w * (totals[prefix] / 60 / max_hours), x_max - x)
+        if seg_w <= 0:
+            continue
+        segs.append(
+            f'<rect x="{x:.1f}" y="{inner_y}" width="{seg_w:.1f}" '
+            f'height="{inner_h}" fill="{project_color(prefix)}"/>'
+        )
+        x += seg_w
+    return "".join(segs)
+
+
+def render_activity_svg(totals, max_hours=ACTIVITY_MAX_HOURS):
+    """Single stacked horizontal bar of the day's activity by project, same
+    box/geometry as render_billable_svg, scaled to `max_hours`."""
+    width, height = 640, 110
+    bar_x, bar_y, bar_w, bar_h = 20, 56, 600, 32
+    corner_radius = 6
+    inner_x, inner_w, inner_y, inner_h = bar_x + 3, bar_w - 6, bar_y + 3, bar_h - 6
+    title = f"ACTIVITÉ AUJOURD'HUI : {_format_hm(sum(totals.values()) / 60)}"
+    ticks = "".join(
+        f'<line x1="{bar_x + bar_w * h / max_hours:.1f}" y1="{bar_y - 4}" '
+        f'x2="{bar_x + bar_w * h / max_hours:.1f}" y2="{bar_y + bar_h + 4}" '
+        f'stroke="#383835" stroke-width="1" opacity=".6"/>'
+        for h in range(1, max_hours)
+    )
+    segs = _activity_segments(totals, inner_x, inner_w, inner_y, inner_h, max_hours)
+    return f"""<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">
+  <title>{title}</title>
+  <defs><clipPath id="actbar"><rect x="{inner_x}" y="{inner_y}" width="{inner_w}" height="{inner_h}" rx="{corner_radius}"/></clipPath></defs>
+  <rect width="{width}" height="{height}" fill="#1a1a19"/>
+  <text x="{bar_x}" y="30" font-family="system-ui, sans-serif" font-size="18" fill="#ffffff">{title}</text>
+  <rect x="{bar_x}" y="{bar_y}" width="{bar_w}" height="{bar_h}" rx="{corner_radius}" fill="#2b2b28"/>
+  <g clip-path="url(#actbar)">{segs}</g>
+  {ticks}
+</svg>"""
+
+
+def render_activity_week_svg(days, max_hours=ACTIVITY_MAX_HOURS):
+    """One stacked activity bar per day (most recent first). Row geometry
+    matches render_week_svg so the two week charts line up side by side."""
+    width = 640
+    row_h, row_gap, header_h = 22, 12, 30
+    top = header_h + row_gap
+    label_x, bar_x, bar_w = 20, 110, 380
+    corner_radius, inset = 5, 3
+    height = top + len(days) * (row_h + row_gap)
+    week_total = sum(sum(t.values()) for _, t in days) / 60
+    title = f"ACTIVITÉ SEMAINE : {_format_hm(week_total)}"
+    rows_svg = []
+    for i, (label, totals) in enumerate(days):
+        y = top + i * (row_h + row_gap)
+        inner_x, inner_w = bar_x + inset, bar_w - 2 * inset
+        inner_y, inner_h = y + inset, row_h - 2 * inset
+        segs = _activity_segments(totals, inner_x, inner_w, inner_y, inner_h, max_hours)
+        rows_svg.append(f'''
+  <text x="{label_x}" y="{y + row_h - 6}" font-family="system-ui, sans-serif" font-size="13" fill="#c3c2b7">{label}</text>
+  <rect x="{bar_x}" y="{y}" width="{bar_w}" height="{row_h}" rx="{corner_radius}" fill="#2b2b28"/>
+  <defs><clipPath id="actwk{i}"><rect x="{inner_x}" y="{inner_y}" width="{inner_w}" height="{inner_h}" rx="{corner_radius}"/></clipPath></defs>
+  <g clip-path="url(#actwk{i})">{segs}</g>
+  <text x="{bar_x + bar_w + 12}" y="{y + row_h - 6}" font-family="system-ui, sans-serif" font-size="13" fill="#ffffff">{_format_hm(sum(totals.values()) / 60)}</text>''')
+    return f"""<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">
+  <title>{title}</title>
+  <rect width="{width}" height="{height}" fill="#1a1a19"/>
+  <text x="{label_x}" y="20" font-family="system-ui, sans-serif" font-size="18" fill="#ffffff">{title}</text>
+  {"".join(rows_svg)}
+</svg>"""
+
+
+def render_activity_legend_svg(prefixes):
+    """Horizontal legend (swatch + project name) in the given order, wrapping
+    past the two-chart width."""
+    if not prefixes:
+        return '<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"></svg>'
+    pad, sw, gap, item_gap, line_h, font_px = 20, 13, 8, 24, 26, 13
+    max_width = 1300
+    items, x, line, right = [], pad, 0, pad
+    for p in prefixes:
+        item_w = sw + gap + int(len(p) * font_px * 0.62) + item_gap
+        if x + item_w > max_width and x > pad:
+            line += 1
+            x = pad
+        yy = 6 + line * line_h
+        items.append(
+            f'<rect x="{x}" y="{yy}" width="{sw}" height="{sw}" rx="2" fill="{project_color(p)}"/>'
+            f'<text x="{x + sw + gap}" y="{yy + sw - 1}" font-family="system-ui, sans-serif" '
+            f'font-size="{font_px}" fill="#c3c2b7">{p}</text>'
+        )
+        x += item_w
+        right = max(right, x)
+    width = min(max_width, right)
+    height = (line + 1) * line_h + 6
+    return f"""<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">
+  {"".join(items)}
 </svg>"""
 
 
@@ -431,7 +600,9 @@ VIEW_HTML = """<!doctype html>
           animation: pulse 1.5s ease-in-out infinite; margin-right: .4rem; }}
   @keyframes pulse {{ 50% {{ opacity: .3; }} }}
   #status {{ color: #666; font-size: .8rem; margin-top: 1rem; }}
-  #billable, #week {{ display: block; margin-bottom: 1.5rem; max-width: 100%; }}
+  .charts-row {{ display: flex; flex-wrap: wrap; gap: 1rem; margin-bottom: 1rem; align-items: flex-start; }}
+  .charts-row img {{ max-width: 100%; }}
+  #legend {{ display: block; max-width: 100%; margin: .3rem 0 1.5rem; }}
   a {{ color: #3987e5; text-decoration: none; }}
   .nav {{ margin-bottom: 1.5rem; }}
 </style>
@@ -439,9 +610,17 @@ VIEW_HTML = """<!doctype html>
 <body>
 <div id="current-box" class="empty">aucune tâche en cours</div>
 
-<img id="billable" src="{billable_url}" alt="heures facturables">
+<div class="charts-row">
+  <img id="billable" src="{billable_url}" alt="heures facturables">
+  <img id="day-activity" src="{activity_url}" alt="activité du jour par projet">
+</div>
 
-<img id="week" src="{week_url}" alt="heures facturables par jour de la semaine">
+<div class="charts-row">
+  <img id="week" src="{week_url}" alt="heures facturables par jour de la semaine">
+  <img id="week-activity" src="{activity_week_url}" alt="activité de la semaine par projet">
+</div>
+
+<img id="legend" src="{legend_url}" alt="légende des projets">
 
 <p class="nav"><a href="{weeks_url}">→ semaines facturables</a></p>
 
@@ -455,6 +634,9 @@ VIEW_HTML = """<!doctype html>
 const API_URL = "{api_url}";
 const BILLABLE_URL = "{billable_url}";
 const WEEK_URL = "{week_url}";
+const ACTIVITY_URL = "{activity_url}";
+const ACTIVITY_WEEK_URL = "{activity_week_url}";
+const LEGEND_URL = "{legend_url}";
 let known = new Set();
 
 function rowHtml(r) {{
@@ -497,6 +679,9 @@ async function poll() {{
 
   document.getElementById("billable").src = BILLABLE_URL + "?t=" + Date.now();
   document.getElementById("week").src = WEEK_URL + "?t=" + Date.now();
+  document.getElementById("day-activity").src = ACTIVITY_URL + "?t=" + Date.now();
+  document.getElementById("week-activity").src = ACTIVITY_WEEK_URL + "?t=" + Date.now();
+  document.getElementById("legend").src = LEGEND_URL + "?t=" + Date.now();
 }}
 
 poll();
@@ -539,6 +724,9 @@ def view(secret_path):
         api_url=f"{prefix}/api/rows",
         billable_url=f"{prefix}/billable.svg",
         week_url=f"{prefix}/billable-week.svg",
+        activity_url=f"{prefix}/activity.svg",
+        activity_week_url=f"{prefix}/activity-week.svg",
+        legend_url=f"{prefix}/activity-legend.svg",
         weeks_url=f"{prefix}/weeks",
     )
 
@@ -578,6 +766,53 @@ def billable_week_svg(secret_path):
     if SECRET and secret_path.strip("/") != SECRET:
         return "not found\n", 404
     svg = render_week_svg(billable_hours_for_week())
+    return Response(svg, mimetype="image/svg+xml", headers={"Cache-Control": "no-store"})
+
+
+@app.get("/activity.svg", defaults={"secret_path": ""})
+@app.get("/<path:secret_path>/activity.svg")
+def activity_svg(secret_path):
+    if SECRET and secret_path.strip("/") != SECRET:
+        return "not found\n", 404
+    today = datetime.now().strftime("%Y%m%d")
+    totals = activity_by_project(_read_csv_rows(CSV_PATH), today)
+    svg = render_activity_svg(totals)
+    return Response(svg, mimetype="image/svg+xml", headers={"Cache-Control": "no-store"})
+
+
+@app.get("/activity-week.svg", defaults={"secret_path": ""})
+@app.get("/<path:secret_path>/activity-week.svg")
+def activity_week_svg(secret_path):
+    if SECRET and secret_path.strip("/") != SECRET:
+        return "not found\n", 404
+    rows = _read_csv_rows(CSV_PATH)
+    today = datetime.now().date()
+    monday, _ = current_week_bounds(today)
+    days, day = [], today
+    while day >= monday:
+        totals = activity_by_project(rows, day.strftime("%Y%m%d"))
+        days.append((_FR_WEEKDAYS[day.weekday()], totals))
+        day -= timedelta(days=1)
+    svg = render_activity_week_svg(days)
+    return Response(svg, mimetype="image/svg+xml", headers={"Cache-Control": "no-store"})
+
+
+@app.get("/activity-legend.svg", defaults={"secret_path": ""})
+@app.get("/<path:secret_path>/activity-legend.svg")
+def activity_legend_svg(secret_path):
+    if SECRET and secret_path.strip("/") != SECRET:
+        return "not found\n", 404
+    rows = _read_csv_rows(CSV_PATH)
+    today = datetime.now().date()
+    monday, _ = current_week_bounds(today)
+    week_start, week_end = monday.strftime("%Y%m%d"), today.strftime("%Y%m%d")
+    prefixes = set()
+    for r in rows:
+        if week_start <= r["date"] <= week_end:
+            prefix = _project_prefix(r.get("project"))
+            if prefix and prefix != "nan":
+                prefixes.add(prefix)
+    svg = render_activity_legend_svg(_ordered_projects(prefixes))
     return Response(svg, mimetype="image/svg+xml", headers={"Cache-Control": "no-store"})
 
 
