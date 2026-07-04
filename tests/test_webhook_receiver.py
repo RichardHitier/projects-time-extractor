@@ -312,3 +312,72 @@ def test_hook_writes_jsonl_and_csv(tmp_path):
         "startTime": "11:00",
         "endTime": "11:25",
     }]
+
+
+def test_week_anchor_past_week_ends_on_sunday():
+    today = date(2026, 7, 1)  # Wednesday; week Monday = 2026-06-29
+    assert webhook_receiver.week_anchor(0, today=today) == today
+    assert webhook_receiver.week_anchor(1, today=today) == date(2026, 6, 28)
+
+
+def test_recent_weeks_page_shifts_window_by_count_weeks(tmp_path):
+    webhook_receiver.CSV_PATH = str(tmp_path / "pomofocus_webhook.csv")
+    today = date(2026, 7, 1)  # Wednesday; week Monday = 2026-06-29
+
+    page0 = webhook_receiver.recent_weeks(today=today, count=12, page=0)
+    page1 = webhook_receiver.recent_weeks(today=today, count=12, page=1)
+
+    assert len(page0) == len(page1) == 12
+    # page 0 starts at the current (partial) week: Monday..Wednesday = 3 days
+    assert page0[0][0] == date(2026, 6, 29)
+    assert len(page0[0][2]) == 3
+    # page 1 is shifted 12 weeks back and spans complete Monday..Sunday weeks
+    assert page1[0][0] == date(2026, 6, 29) - timedelta(weeks=12)
+    assert page1[0][1] == page1[0][0] + timedelta(days=6)
+    assert len(page1[0][2]) == 7
+    # the windows are contiguous: page 1's newest week precedes page 0's oldest
+    assert page1[0][0] == page0[-1][0] - timedelta(weeks=1)
+
+
+def test_weeks_page_nav_links(tmp_path):
+    webhook_receiver.CSV_PATH = str(tmp_path / "pomofocus_webhook.csv")
+    client = webhook_receiver.app.test_client()
+
+    first = client.get("/weeks").get_data(as_text=True)
+    assert "plus récentes" not in first  # page 0: no newer window
+    assert "/weeks?p=1" in first         # can page older
+
+    p1 = client.get("/weeks?p=1").get_data(as_text=True)
+    assert "/weeks?p=0" in p1             # newer
+    assert "/weeks?p=2" in p1             # older
+
+
+def test_view_hides_today_charts_for_past_weeks(tmp_path):
+    webhook_receiver.CSV_PATH = str(tmp_path / "pomofocus_webhook.csv")
+    client = webhook_receiver.app.test_client()
+
+    current = client.get("/view").get_data(as_text=True)
+    assert '<div id="current-box"' in current
+    assert 'id="billable"' in current
+    assert "/billable-week.svg?w=0" in current
+    assert "semaine suivante" not in current  # w=0: no newer week
+
+    past = client.get("/view?w=1").get_data(as_text=True)
+    assert '<div id="current-box"' not in past  # live box hidden
+    assert 'id="billable"' not in past          # daily charts hidden
+    assert "/billable-week.svg?w=1" in past     # week charts follow the offset
+    assert "/activity-week.svg?w=1" in past
+    assert "semaine suivante" in past           # can page back to newer
+
+
+def test_api_rows_past_week_reports_no_current_task(tmp_path):
+    webhook_receiver.CSV_PATH = str(tmp_path / "pomofocus_webhook.csv")
+    webhook_receiver.CURRENT_TASK = {
+        "date": "20260701", "project": "calipso", "task": "t", "start_ms": 1,
+    }
+    client = webhook_receiver.app.test_client()
+    try:
+        assert client.get("/api/rows?w=0").get_json()["current"] is not None
+        assert client.get("/api/rows?w=1").get_json()["current"] is None
+    finally:
+        webhook_receiver.CURRENT_TASK = None

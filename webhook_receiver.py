@@ -45,6 +45,18 @@ _FR_WEEKDAYS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Di
 _FR_MONTHS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet",
               "août", "septembre", "octobre", "novembre", "décembre"]
 
+# Chevrons SVG pour la navigation prev/next (couleur héritée via currentColor).
+_CHEVRON_LEFT = (
+    '<svg viewBox="0 0 8 12" width="10" height="13" aria-hidden="true">'
+    '<path d="M6 1 1 6l5 5" fill="none" stroke="currentColor" stroke-width="1.7"'
+    ' stroke-linecap="round" stroke-linejoin="round"/></svg>'
+)
+_CHEVRON_RIGHT = (
+    '<svg viewBox="0 0 8 12" width="10" height="13" aria-hidden="true">'
+    '<path d="M2 1 7 6l-5 5" fill="none" stroke="currentColor" stroke-width="1.7"'
+    ' stroke-linecap="round" stroke-linejoin="round"/></svg>'
+)
+
 app = Flask(__name__)
 
 # Tâche en cours (trame "start" pas encore suivie de "pause"/"finish").
@@ -247,6 +259,18 @@ def current_week_bounds(today=None):
     return monday, sunday
 
 
+def week_anchor(weeks_back, today=None):
+    """Last day to display for a /view shifted `weeks_back` weeks into the past.
+    The current week (0) ends at `today`; a past week ends on its Sunday."""
+    if today is None:
+        today = datetime.now().date()
+    if weeks_back <= 0:
+        return today
+    monday, _ = current_week_bounds(today)
+    monday -= timedelta(weeks=weeks_back)
+    return monday + timedelta(days=6)
+
+
 def billable_hours_for_days(monday, last_day, rows):
     """Billable hours per day from `last_day` down to `monday` (most recent
     first), as (day_label, hours) pairs."""
@@ -268,16 +292,24 @@ def billable_hours_for_week(today=None):
     return billable_hours_for_days(monday, today, _read_csv_rows(CSV_PATH))
 
 
-def recent_weeks(today=None, count=BILLABLE_WEEKS_SHOWN):
+def recent_weeks(today=None, count=BILLABLE_WEEKS_SHOWN, page=0):
     """The `count` most recent weeks, most recent first, as
     (monday, sunday, billable_days, activity_days) tuples — billable hours and
     per-project activity per day, most recent first. The current week stops at
-    `today`; completed weeks span Monday..Sunday. Empty weeks are kept."""
+    `today`; completed weeks span Monday..Sunday. Empty weeks are kept.
+
+    `page` shifts the window `page * count` weeks into the past: page 0 is the
+    most recent window (current week ending at `today`); pages > 0 are older and
+    span complete Monday..Sunday weeks."""
     if today is None:
         today = datetime.now().date()
     rows = _read_csv_rows(CSV_PATH)
     monday, _ = current_week_bounds(today)
-    last_day = today
+    if page > 0:
+        monday -= timedelta(weeks=page * count)
+        last_day = monday + timedelta(days=6)
+    else:
+        last_day = today
     weeks = []
     for _ in range(count):
         sunday = monday + timedelta(days=6)
@@ -467,6 +499,18 @@ def activity_by_project(rows, day):
     return totals
 
 
+def activity_week_days(rows, last_day):
+    """(day_label, {project: minutes}) per day from `last_day` down to its
+    week's Monday, most recent first."""
+    monday, _ = current_week_bounds(last_day)
+    days, day = [], last_day
+    while day >= monday:
+        totals = activity_by_project(rows, day.strftime("%Y%m%d"))
+        days.append((_FR_WEEKDAYS[day.weekday()], totals))
+        day -= timedelta(days=1)
+    return days
+
+
 def _activity_segments(totals, x0, inner_w, inner_y, inner_h, max_hours):
     """Colored <rect> segments for one stacked bar, stable order, clamped to
     the bar width (a day past `max_hours` is cut rather than overflowing)."""
@@ -618,15 +662,19 @@ VIEW_HTML = """<!doctype html>
   @media (max-width: 1360px) {{ #legend {{ margin-left: 0; }} }}
   a {{ color: #3987e5; text-decoration: none; }}
   .nav {{ margin-bottom: 1.5rem; }}
+  .weeknav {{ display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.5rem; }}
+  .weeknav a {{ display: inline-flex; align-items: center; gap: .3em; background: #2e2e2b;
+    padding: .4rem .8rem; border-radius: 999px; transition: background .15s ease; }}
+  .weeknav a:hover {{ background: #3c3c37; }}
+  .weeknav svg {{ flex: none; }}
+  .weeknav .week-label {{ color: #999; text-transform: uppercase; font-size: .8rem; margin: 0 auto; }}
 </style>
 </head>
 <body>
-<div id="current-box" class="empty">aucune tâche en cours</div>
+{nav}
+{current_box}
 
-<div class="charts-row">
-  <img id="billable" src="{billable_url}" alt="heures facturables">
-  <img id="day-activity" src="{activity_url}" alt="activité du jour par projet">
-</div>
+{today_charts}
 
 <div class="charts-row">
   <img id="week" src="{week_url}" alt="heures facturables par jour de la semaine">
@@ -637,7 +685,7 @@ VIEW_HTML = """<!doctype html>
 
 <p class="nav"><a href="{weeks_url}">→ semaines facturables</a></p>
 
-<h1>pomofocus_webhook.csv — semaine courante, mis à jour toutes les 3s (plus récent en haut)</h1>
+<h1>pomofocus_webhook.csv — semaine affichée, mis à jour toutes les 3s (plus récent en haut)</h1>
 <table>
   <thead><tr><th>Date</th><th>Projet</th><th>Tâche</th><th>Min</th><th>Début</th><th>Fin</th></tr></thead>
   <tbody id="rows"></tbody>
@@ -657,6 +705,13 @@ function rowHtml(r) {{
          `<td>${{r.minutes}}</td><td>${{r.startTime}}</td><td>${{r.endTime}}</td>`;
 }}
 
+function bust(url) {{ return url + (url.includes("?") ? "&" : "?") + "t=" + Date.now(); }}
+
+function setSrc(id, url) {{
+  const el = document.getElementById(id);
+  if (el) el.src = bust(url);
+}}
+
 async function poll() {{
   let data;
   try {{
@@ -668,13 +723,15 @@ async function poll() {{
   }}
 
   const box = document.getElementById("current-box");
-  if (data.current) {{
-    box.className = "";
-    box.innerHTML = `<span class="dot"></span>${{data.current.project}} — ${{data.current.task}}` +
-      `<table><tbody><tr>${{rowHtml(data.current)}}</tr></tbody></table>`;
-  }} else {{
-    box.className = "empty";
-    box.textContent = "aucune tâche en cours";
+  if (box) {{
+    if (data.current) {{
+      box.className = "";
+      box.innerHTML = `<span class="dot"></span>${{data.current.project}} — ${{data.current.task}}` +
+        `<table><tbody><tr>${{rowHtml(data.current)}}</tr></tbody></table>`;
+    }} else {{
+      box.className = "empty";
+      box.textContent = "aucune tâche en cours";
+    }}
   }}
 
   const tbody = document.getElementById("rows");
@@ -690,11 +747,11 @@ async function poll() {{
   document.getElementById("status").textContent =
     data.rows.length + " lignes — dernière vérification " + new Date().toLocaleTimeString();
 
-  document.getElementById("billable").src = BILLABLE_URL + "?t=" + Date.now();
-  document.getElementById("week").src = WEEK_URL + "?t=" + Date.now();
-  document.getElementById("day-activity").src = ACTIVITY_URL + "?t=" + Date.now();
-  document.getElementById("week-activity").src = ACTIVITY_WEEK_URL + "?t=" + Date.now();
-  document.getElementById("legend").src = LEGEND_URL + "?t=" + Date.now();
+  setSrc("billable", BILLABLE_URL);
+  setSrc("week", WEEK_URL);
+  setSrc("day-activity", ACTIVITY_URL);
+  setSrc("week-activity", ACTIVITY_WEEK_URL);
+  setSrc("legend", LEGEND_URL);
 }}
 
 poll();
@@ -719,12 +776,19 @@ WEEKS_HTML = """<!doctype html>
   .week-label {{ font-size: .8rem; text-transform: uppercase; color: #999; margin: 0 0 .4rem; }}
   .week-charts {{ display: flex; flex-wrap: wrap; gap: 1rem; align-items: flex-start; }}
   .week-charts svg {{ max-width: 100%; }}
+  .weeknav {{ display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; margin: 0 0 1.2rem; }}
+  .weeknav a {{ display: inline-flex; align-items: center; gap: .3em; background: #2e2e2b;
+    padding: .4rem .8rem; border-radius: 999px; transition: background .15s ease; }}
+  .weeknav a:hover {{ background: #3c3c37; }}
+  .weeknav svg {{ flex: none; }}
 </style>
 </head>
 <body>
-<h1><a href="{view_url}">← live</a> — {count} semaines : facturable + activité</h1>
+<h1><a href="{view_url}">← live</a> — {count} semaines (page {page}) : facturable + activité</h1>
+{nav}
 <div id="legend">{legend}</div>
 {blocks}
+{nav}
 </body>
 </html>
 """
@@ -736,15 +800,52 @@ def view(secret_path):
     if SECRET and secret_path.strip("/") != SECRET:
         return "not found\n", 404
     prefix = f"/{secret_path.strip('/')}" if secret_path.strip("/") else ""
-    return VIEW_HTML.format(
-        api_url=f"{prefix}/api/rows",
-        billable_url=f"{prefix}/billable.svg",
-        week_url=f"{prefix}/billable-week.svg",
-        activity_url=f"{prefix}/activity.svg",
-        activity_week_url=f"{prefix}/activity-week.svg",
-        legend_url=f"{prefix}/activity-legend.svg",
-        weeks_url=f"{prefix}/weeks",
+    weeks_back = _int_arg("w")
+    monday, sunday = current_week_bounds(week_anchor(weeks_back))
+    show_today = weeks_back == 0
+    wq = f"?w={weeks_back}"
+
+    if show_today:
+        current_box = '<div id="current-box" class="empty">aucune tâche en cours</div>'
+        today_charts = (
+            '<div class="charts-row">'
+            f'<img id="billable" src="{prefix}/billable.svg" alt="heures facturables">'
+            f'<img id="day-activity" src="{prefix}/activity.svg" alt="activité du jour par projet">'
+            '</div>'
+        )
+    else:
+        current_box = today_charts = ""
+
+    newer = (
+        f'<a href="{prefix}/view?w={weeks_back - 1}">{_CHEVRON_LEFT}semaine suivante</a>'
+        if weeks_back > 0 else ""
     )
+    older = f'<a href="{prefix}/view?w={weeks_back + 1}">semaine précédente{_CHEVRON_RIGHT}</a>'
+    nav = (
+        f'<p class="weeknav">{newer}'
+        f'<span class="week-label">{_fr_week_range(monday, sunday)}</span>{older}</p>'
+    )
+
+    return VIEW_HTML.format(
+        api_url=f"{prefix}/api/rows{wq}",
+        billable_url=f"{prefix}/billable.svg",
+        week_url=f"{prefix}/billable-week.svg{wq}",
+        activity_url=f"{prefix}/activity.svg",
+        activity_week_url=f"{prefix}/activity-week.svg{wq}",
+        legend_url=f"{prefix}/activity-legend.svg{wq}",
+        weeks_url=f"{prefix}/weeks",
+        nav=nav,
+        current_box=current_box,
+        today_charts=today_charts,
+    )
+
+
+def _int_arg(name):
+    """Query param `name` as a non-negative int, 0 if missing or invalid."""
+    try:
+        return max(0, int(request.args.get(name, 0)))
+    except (TypeError, ValueError):
+        return 0
 
 
 @app.get("/weeks", defaults={"secret_path": ""})
@@ -753,8 +854,9 @@ def weeks(secret_path):
     if SECRET and secret_path.strip("/") != SECRET:
         return "not found\n", 404
     prefix = f"/{secret_path.strip('/')}" if secret_path.strip("/") else ""
+    page = _int_arg("p")
     blocks, prefixes = [], set()
-    for monday, sunday, billable_days, activity_days in recent_weeks():
+    for monday, sunday, billable_days, activity_days in recent_weeks(page=page):
         for _, totals in activity_days:
             prefixes.update(totals)
         charts = render_week_svg(billable_days) + render_activity_week_svg(
@@ -766,9 +868,17 @@ def weeks(secret_path):
             f'<div class="week-charts">{charts}</div></section>'
         )
     legend = render_activity_legend_svg(_ordered_projects(prefixes))
+    newer = (
+        f'<a href="{prefix}/weeks?p={page - 1}">{_CHEVRON_LEFT}{BILLABLE_WEEKS_SHOWN} plus récentes</a>'
+        if page > 0 else ""
+    )
+    older = f'<a href="{prefix}/weeks?p={page + 1}">{BILLABLE_WEEKS_SHOWN} plus anciennes{_CHEVRON_RIGHT}</a>'
+    nav = f'<p class="weeknav">{newer}{older}</p>'
     return WEEKS_HTML.format(
         view_url=f"{prefix}/view",
         count=BILLABLE_WEEKS_SHOWN,
+        page=page,
+        nav=nav,
         legend=legend,
         blocks="\n".join(blocks),
     )
@@ -788,7 +898,7 @@ def billable_svg(secret_path):
 def billable_week_svg(secret_path):
     if SECRET and secret_path.strip("/") != SECRET:
         return "not found\n", 404
-    svg = render_week_svg(billable_hours_for_week())
+    svg = render_week_svg(billable_hours_for_week(week_anchor(_int_arg("w"))))
     return Response(svg, mimetype="image/svg+xml", headers={"Cache-Control": "no-store"})
 
 
@@ -808,14 +918,7 @@ def activity_svg(secret_path):
 def activity_week_svg(secret_path):
     if SECRET and secret_path.strip("/") != SECRET:
         return "not found\n", 404
-    rows = _read_csv_rows(CSV_PATH)
-    today = datetime.now().date()
-    monday, _ = current_week_bounds(today)
-    days, day = [], today
-    while day >= monday:
-        totals = activity_by_project(rows, day.strftime("%Y%m%d"))
-        days.append((_FR_WEEKDAYS[day.weekday()], totals))
-        day -= timedelta(days=1)
+    days = activity_week_days(_read_csv_rows(CSV_PATH), week_anchor(_int_arg("w")))
     svg = render_activity_week_svg(days)
     return Response(svg, mimetype="image/svg+xml", headers={"Cache-Control": "no-store"})
 
@@ -826,9 +929,9 @@ def activity_legend_svg(secret_path):
     if SECRET and secret_path.strip("/") != SECRET:
         return "not found\n", 404
     rows = _read_csv_rows(CSV_PATH)
-    today = datetime.now().date()
-    monday, _ = current_week_bounds(today)
-    week_start, week_end = monday.strftime("%Y%m%d"), today.strftime("%Y%m%d")
+    anchor = week_anchor(_int_arg("w"))
+    monday, _ = current_week_bounds(anchor)
+    week_start, week_end = monday.strftime("%Y%m%d"), anchor.strftime("%Y%m%d")
     prefixes = set()
     for r in rows:
         if week_start <= r["date"] <= week_end:
@@ -844,11 +947,13 @@ def activity_legend_svg(secret_path):
 def api_rows(secret_path):
     if SECRET and secret_path.strip("/") != SECRET:
         return "not found\n", 404
-    monday, sunday = current_week_bounds()
+    weeks_back = _int_arg("w")
+    monday, sunday = current_week_bounds(week_anchor(weeks_back))
     week_start, week_end = monday.strftime("%Y%m%d"), sunday.strftime("%Y%m%d")
     rows = [r for r in _read_csv_rows(CSV_PATH) if week_start <= r["date"] <= week_end]
     rows.sort(key=lambda r: (r["date"], r["startTime"]), reverse=True)
-    return jsonify({"rows": rows, "current": current_task_row()})
+    current = current_task_row() if weeks_back == 0 else None
+    return jsonify({"rows": rows, "current": current})
 
 
 @app.route("/", defaults={"secret_path": ""}, methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"])
