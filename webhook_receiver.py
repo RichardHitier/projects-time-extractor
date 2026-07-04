@@ -602,7 +602,9 @@ VIEW_HTML = """<!doctype html>
   #status {{ color: #666; font-size: .8rem; margin-top: 1rem; }}
   .charts-row {{ display: flex; flex-wrap: wrap; gap: 1rem; margin-bottom: 1rem; align-items: flex-start; }}
   .charts-row img {{ max-width: 100%; }}
-  #legend {{ display: block; max-width: 100%; margin: .3rem 0 1.5rem; }}
+  /* légende alignée sous la colonne activité (largeur graphe 640 + gap 1rem) */
+  #legend {{ display: block; max-width: 100%; margin: .3rem 0 1.5rem calc(640px + 1rem); }}
+  @media (max-width: 1360px) {{ #legend {{ margin-left: 0; }} }}
   a {{ color: #3987e5; text-decoration: none; }}
   .nav {{ margin-bottom: 1.5rem; }}
 </style>
