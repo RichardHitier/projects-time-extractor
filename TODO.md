@@ -52,7 +52,12 @@ Réintégrer dans le CLI les deux plots de `core/suivi_chantier.py` :
 ## Webhook live view — backlog
 
 Suite de `/view` (`webhook_receiver.py`) : jauge d'heures facturables du jour
-(`hh:min`, échelle 4h). Pas de code pour l'instant, à traiter petit à petit.
+(`hh:min`, échelle 4h). Traité petit à petit.
+
+> Livré hors items numérotés : activité par projet (segments colorés + légende
+> partagée) sur `/view` **et** `/weeks` (chaque semaine porte le chart facturable
+> + le chart activité côte à côte). Contexte pour #5 (navigation) et #13 (barre
+> `nn/20h`), qui touchent la même page `/weeks`.
 
 - [x] **1. Donner l'historique complet à `pomofocus_webhook.csv`**
   Fait en deux temps, sans renommage (le plan initial envisageait de fusionner
@@ -186,6 +191,11 @@ Suite de `/view` (`webhook_receiver.py`) : jauge d'heures facturables du jour
 
 - [ ] **20. Légende cliquable / filtrage par projet**
   Activer/désactiver un projet dans les charts d'activité.
+
+- [ ] **21. Déploiement : push local → déploiement sur le VPS**
+  Formaliser le flux de mise en prod du webhook (`docker-compose` + volume de
+  persistance) : `git push` depuis le local puis pull/rebuild/redeploy côté
+  VPS. À trancher : script/commande dédié(e) ou étapes manuelles documentées.
 
 - [ ] **a. Factoriser la lib commune** entre `webhook_receiver.py`
   (webhook_flask), `analysis_web.py` (analysis_flask) et `cli.py`/`core/`

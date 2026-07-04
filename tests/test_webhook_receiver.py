@@ -1,5 +1,6 @@
 import csv
 import json
+import re
 import sys
 from datetime import date, timedelta
 from pathlib import Path
@@ -242,6 +243,19 @@ def test_billable_week_svg_route_returns_svg(tmp_path):
     assert response.status_code == 200
     assert response.mimetype == "image/svg+xml"
     assert b"<svg" in response.data
+
+
+def test_weeks_page_has_unique_clip_ids(tmp_path):
+    # Several activity SVGs are inlined in one HTML document; clipPath ids are
+    # document-global there, so they must be unique or every week would clip to
+    # the first week's bar (bars stop rounding at the wrong width).
+    webhook_receiver.CSV_PATH = str(tmp_path / "pomofocus_webhook.csv")
+
+    html = webhook_receiver.app.test_client().get("/weeks").get_data(as_text=True)
+
+    ids = re.findall(r'clipPath id="([^"]+)"', html)
+    assert ids, "no clipPath ids rendered"
+    assert len(ids) == len(set(ids)), "duplicate clipPath ids across weeks"
 
 
 def test_api_rows_filters_to_current_week(tmp_path):

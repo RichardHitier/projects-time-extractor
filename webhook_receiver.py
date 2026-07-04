@@ -268,10 +268,11 @@ def billable_hours_for_week(today=None):
     return billable_hours_for_days(monday, today, _read_csv_rows(CSV_PATH))
 
 
-def recent_billable_weeks(today=None, count=BILLABLE_WEEKS_SHOWN):
+def recent_weeks(today=None, count=BILLABLE_WEEKS_SHOWN):
     """The `count` most recent weeks, most recent first, as
-    (monday, sunday, day_hours) tuples. The current week stops at `today`;
-    completed weeks span Monday..Sunday. Empty weeks are kept."""
+    (monday, sunday, billable_days, activity_days) tuples — billable hours and
+    per-project activity per day, most recent first. The current week stops at
+    `today`; completed weeks span Monday..Sunday. Empty weeks are kept."""
     if today is None:
         today = datetime.now().date()
     rows = _read_csv_rows(CSV_PATH)
@@ -280,7 +281,13 @@ def recent_billable_weeks(today=None, count=BILLABLE_WEEKS_SHOWN):
     weeks = []
     for _ in range(count):
         sunday = monday + timedelta(days=6)
-        weeks.append((monday, sunday, billable_hours_for_days(monday, last_day, rows)))
+        billable, activity, day = [], [], last_day
+        while day >= monday:
+            key, label = day.strftime("%Y%m%d"), _FR_WEEKDAYS[day.weekday()]
+            billable.append((label, billable_minutes(rows, key) / 60))
+            activity.append((label, activity_by_project(rows, key)))
+            day -= timedelta(days=1)
+        weeks.append((monday, sunday, billable, activity))
         monday -= timedelta(days=7)
         last_day = monday + timedelta(days=6)  # semaine précédente : dimanche
     return weeks
@@ -474,7 +481,7 @@ def _activity_segments(totals, x0, inner_w, inner_y, inner_h, max_hours):
             f'height="{inner_h}" fill="{project_color(prefix)}"/>'
         )
         x += seg_w
-    return "".join(segs)
+    return "".join(segs), x - x0  # segments + largeur réellement remplie
 
 
 def render_activity_svg(totals, max_hours=ACTIVITY_MAX_HOURS):
@@ -491,10 +498,10 @@ def render_activity_svg(totals, max_hours=ACTIVITY_MAX_HOURS):
         f'stroke="#383835" stroke-width="1" opacity=".6"/>'
         for h in range(1, max_hours)
     )
-    segs = _activity_segments(totals, inner_x, inner_w, inner_y, inner_h, max_hours)
+    segs, fill_w = _activity_segments(totals, inner_x, inner_w, inner_y, inner_h, max_hours)
     return f"""<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">
   <title>{title}</title>
-  <defs><clipPath id="actbar"><rect x="{inner_x}" y="{inner_y}" width="{inner_w}" height="{inner_h}" rx="{corner_radius}"/></clipPath></defs>
+  <defs><clipPath id="actbar"><rect x="{inner_x}" y="{inner_y}" width="{fill_w:.1f}" height="{inner_h}" rx="{corner_radius}"/></clipPath></defs>
   <rect width="{width}" height="{height}" fill="#1a1a19"/>
   <text x="{bar_x}" y="30" font-family="system-ui, sans-serif" font-size="18" fill="#ffffff">{title}</text>
   <rect x="{bar_x}" y="{bar_y}" width="{bar_w}" height="{bar_h}" rx="{corner_radius}" fill="#2b2b28"/>
@@ -503,9 +510,13 @@ def render_activity_svg(totals, max_hours=ACTIVITY_MAX_HOURS):
 </svg>"""
 
 
-def render_activity_week_svg(days, max_hours=ACTIVITY_MAX_HOURS):
+def render_activity_week_svg(days, max_hours=ACTIVITY_MAX_HOURS, uid=""):
     """One stacked activity bar per day (most recent first). Row geometry
-    matches render_week_svg so the two week charts line up side by side."""
+    matches render_week_svg so the two week charts line up side by side.
+
+    `uid` disambiguates the clipPath ids: several of these SVGs are inlined in
+    one HTML document (the /weeks page), where clipPath ids are document-global,
+    so a shared `actwk{i}` would make every week clip to the first week's bar."""
     width = 640
     row_h, row_gap, header_h = 22, 12, 30
     top = header_h + row_gap
@@ -519,12 +530,12 @@ def render_activity_week_svg(days, max_hours=ACTIVITY_MAX_HOURS):
         y = top + i * (row_h + row_gap)
         inner_x, inner_w = bar_x + inset, bar_w - 2 * inset
         inner_y, inner_h = y + inset, row_h - 2 * inset
-        segs = _activity_segments(totals, inner_x, inner_w, inner_y, inner_h, max_hours)
+        segs, fill_w = _activity_segments(totals, inner_x, inner_w, inner_y, inner_h, max_hours)
         rows_svg.append(f'''
   <text x="{label_x}" y="{y + row_h - 6}" font-family="system-ui, sans-serif" font-size="13" fill="#c3c2b7">{label}</text>
   <rect x="{bar_x}" y="{y}" width="{bar_w}" height="{row_h}" rx="{corner_radius}" fill="#2b2b28"/>
-  <defs><clipPath id="actwk{i}"><rect x="{inner_x}" y="{inner_y}" width="{inner_w}" height="{inner_h}" rx="{corner_radius}"/></clipPath></defs>
-  <g clip-path="url(#actwk{i})">{segs}</g>
+  <defs><clipPath id="actwk{uid}{i}"><rect x="{inner_x}" y="{inner_y}" width="{fill_w:.1f}" height="{inner_h}" rx="{corner_radius}"/></clipPath></defs>
+  <g clip-path="url(#actwk{uid}{i})">{segs}</g>
   <text x="{bar_x + bar_w + 12}" y="{y + row_h - 6}" font-family="system-ui, sans-serif" font-size="13" fill="#ffffff">{_format_hm(sum(totals.values()) / 60)}</text>''')
     return f"""<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">
   <title>{title}</title>
@@ -703,13 +714,16 @@ WEEKS_HTML = """<!doctype html>
   body {{ font-family: system-ui, sans-serif; margin: 2rem; background: #111; color: #eee; }}
   h1 {{ font-size: 1.1rem; font-weight: normal; color: #999; }}
   a {{ color: #3987e5; text-decoration: none; }}
+  #legend svg {{ display: block; max-width: 100%; margin: .2rem 0 1.8rem; }}
   .week {{ margin-bottom: 1.8rem; }}
   .week-label {{ font-size: .8rem; text-transform: uppercase; color: #999; margin: 0 0 .4rem; }}
-  .week svg {{ display: block; max-width: 100%; }}
+  .week-charts {{ display: flex; flex-wrap: wrap; gap: 1rem; align-items: flex-start; }}
+  .week-charts svg {{ max-width: 100%; }}
 </style>
 </head>
 <body>
-<h1><a href="{view_url}">← live</a> — {count} semaines facturables les plus récentes</h1>
+<h1><a href="{view_url}">← live</a> — {count} semaines : facturable + activité</h1>
+<div id="legend">{legend}</div>
 {blocks}
 </body>
 </html>
@@ -739,16 +753,23 @@ def weeks(secret_path):
     if SECRET and secret_path.strip("/") != SECRET:
         return "not found\n", 404
     prefix = f"/{secret_path.strip('/')}" if secret_path.strip("/") else ""
-    blocks = []
-    for monday, sunday, day_hours in recent_billable_weeks():
-        svg = render_week_svg(day_hours)
+    blocks, prefixes = [], set()
+    for monday, sunday, billable_days, activity_days in recent_weeks():
+        for _, totals in activity_days:
+            prefixes.update(totals)
+        charts = render_week_svg(billable_days) + render_activity_week_svg(
+            activity_days, uid=monday.strftime("%Y%m%d")
+        )
         blocks.append(
             f'<section class="week"><p class="week-label">'
-            f'{_fr_week_range(monday, sunday)}</p>{svg}</section>'
+            f'{_fr_week_range(monday, sunday)}</p>'
+            f'<div class="week-charts">{charts}</div></section>'
         )
+    legend = render_activity_legend_svg(_ordered_projects(prefixes))
     return WEEKS_HTML.format(
         view_url=f"{prefix}/view",
         count=BILLABLE_WEEKS_SHOWN,
+        legend=legend,
         blocks="\n".join(blocks),
     )
 
