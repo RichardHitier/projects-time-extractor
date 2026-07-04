@@ -192,10 +192,23 @@ Suite de `/view` (`webhook_receiver.py`) : jauge d'heures facturables du jour
 - [ ] **20. Légende cliquable / filtrage par projet**
   Activer/désactiver un projet dans les charts d'activité.
 
-- [ ] **21. Déploiement : push local → déploiement sur le VPS**
-  Formaliser le flux de mise en prod du webhook (`docker-compose` + volume de
-  persistance) : `git push` depuis le local puis pull/rebuild/redeploy côté
-  VPS. À trancher : script/commande dédié(e) ou étapes manuelles documentées.
+- [x] **21. Déploiement : push local → déploiement sur le VPS** — EN PROD
+  Autodeploy sur `git push origin` (main). **GitHub Actions + SSH** (push-based),
+  écarté le webhook GitHub → endpoint (le conteneur ne peut pas se
+  reconstruire/redémarrer proprement lui-même). Validé le 2026-07-04 (run
+  `28711971475`, 43s : build image → recreate `timer-webhook-1`/`timer-nginx-1`).
+  - `deploy.sh` (racine) : `git reset --hard origin/main` + `docker compose
+    build webhook` + `up -d` + `image prune`. Lancé sur l'hôte VPS
+    (`/home/debian/timer`). `.env` / `webhook-data/` gitignorés → préservés.
+  - `.github/workflows/deploy.yml` : sur push main (+ `workflow_dispatch`),
+    SSH brut vers le VPS. **Amorçage** : le workflow fait `git fetch` +
+    `reset --hard origin/main` AVANT `./deploy.sh` (sinon le script n'est pas
+    encore présent au 1er run). `concurrency` = pas deux déploiements parallèles.
+  - Setup fait : clé `gh_deploy` (pub → `authorized_keys` VPS, priv → secret
+    GitHub `VPS_SSH_KEY`) + secrets `VPS_HOST`/`VPS_USER`/`VPS_PATH`.
+  - Note : le hook pre-commit `pytest-fail` bloque `git push` hors venv
+    (`pytest` introuvable) → pusher avec `--no-verify` ou `workon time_tracking`
+    avant. Voir [[feedback_virtualenv]].
 
 - [ ] **a. Factoriser la lib commune** entre `webhook_receiver.py`
   (webhook_flask), `analysis_web.py` (analysis_flask) et `cli.py`/`core/`
@@ -221,3 +234,13 @@ Suite de `/view` (`webhook_receiver.py`) : jauge d'heures facturables du jour
   avant export/ODS ; la jauge webhook (`/billable.svg`) n'arrondit plus du
   tout (somme brute des minutes, décision prise précédemment). À clarifier :
   laquelle est la référence, faut-il aligner les deux.
+
+## Divers
+
+- [ ] [2026-07-04] versionner
+- [ ] [2026-07-05] menu de navigation, avec liens live + semaines facturables (harmoniser en pastilles comme les flèches prev/next)
+- [ ] [2026-07-05] renommer la route /view → /live (ex « modifier le endpoint view en live »)
+- [ ] [2026-07-04] navigation view: conserver les barre total semaine (facturable/4h - activité / 8h)
+- [ ] [2026-07-05] view: conserver 'tache en cours' 'facturable aujourd'hui' et 'activité aujourd'hui' lorsque l'on navigue d'une semaine à l'autre. y reflechire et toun cas
+- [ ] [2026-07-05] verifier le merge de pomofocus.csv en webhook.csv: les données d'avant mars manquent (suivi_chantier.ods seule source ?)
+- [x] [2026-07-04] navigation semaines fwb/bckw : icones fleches
