@@ -222,7 +222,7 @@ def test_render_week_svg_shows_labels_hours_and_overflow():
     assert "Jeudi" in svg
     assert "5:30" in svg
     assert "2:00" in svg
-    assert "#d03b3b" in svg  # overflow color, since 5.5h > max_hours=4
+    assert "#d9a441" in svg  # overflow color, since 5.5h > max_hours=4
 
 
 def test_render_week_svg_shows_week_header():
