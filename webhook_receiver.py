@@ -396,13 +396,10 @@ VIEW_HTML = """<!doctype html>
 </style>
 </head>
 <body>
-<h2>En cours</h2>
 <div id="current-box" class="empty">aucune tâche en cours</div>
 
-<h2>Facturable aujourd'hui</h2>
 <img id="billable" src="{billable_url}" alt="heures facturables">
 
-<h2>Semaine</h2>
 <img id="week" src="{week_url}" alt="heures facturables par jour de la semaine">
 
 <h1>pomofocus_webhook.csv — semaine courante, mis à jour toutes les 3s (plus récent en haut)</h1>
