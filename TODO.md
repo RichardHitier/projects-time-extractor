@@ -95,7 +95,7 @@ Suite de `/view` (`webhook_receiver.py`) : jauge d'heures facturables du jour
   (`eighty-hours`, `eighty-bars`, `billing_export*` dans `core/suivi_chantier.py`).
   → deux consommateurs distincts de `pomofocus.csv`, aucun ne passe par le webhook.
 
-- [ ] **2. Vue semaine sur `/view`** : heures facturables/4h des autres jours
+- [x] **2. Vue semaine sur `/view`** : heures facturables/4h des autres jours
   de la semaine, aujourd'hui en haut, plus anciens en bas, nom du jour en
   préfixe de ligne. Dépend du point 1 (il faut l'historique dans le fichier
   webhook). Décidé : en cas de dépassement de 4h, la barre déborde
@@ -120,6 +120,72 @@ Suite de `/view` (`webhook_receiver.py`) : jauge d'heures facturables du jour
   (`webhook_receiver.py`) n'affiche que les `BILLABLE_WEEKS_SHOWN` (= 12)
   semaines les plus récentes. Ajouter une navigation vers les semaines plus
   anciennes (pagination, ou décalage `?before=YYYYMMDD`).
+
+- [ ] **6. Calcul des heures facturables : « 1/4h commencé est dû »**
+  La jauge webhook (`/billable.svg`) somme les minutes brutes ; il faut
+  facturer chaque tranche de 1/4h commencée (arrondi au quart d'heure
+  supérieur). Lié à l'étude point d (arrondi `math.ceil(duration_d / 0.03125)
+  * 0.03125` déjà utilisé côté `report_view_export` / `_ods_data_row`).
+
+- [ ] **7. Vue semaine : barre graphique `nn / 20h`**
+  Ajouter dans la vue semaine (`/billable-week.svg` ou le header) une barre
+  graphique du total facturable de la semaine par rapport à l'objectif de
+  20h (`nn / 20h`), sur le modèle de la jauge journalière `/4h`.
+
+- [ ] **8. Bascule visualisation comptage exact / arrondi 1/4h**
+  Réfléchir à comment présenter les deux modes de comptage (minutes brutes
+  vs arrondi au 1/4h supérieur, cf. items 6 et d) sur `/view` : graphes côte
+  à côte ? bouton de bascule ? À trancher avant implémentation.
+
+- [ ] **9. Jauge du jour : débordement au-delà de 4h**
+  `render_billable_svg` (`webhook_receiver.py:312`) clampe à `min(ratio, 1)` :
+  au-delà de 4h la barre du jour n'indique rien. Harmoniser avec
+  `render_week_svg`, qui gère déjà le débordement (marqueur + lane rouge).
+
+- [ ] **10. Tâche en cours reflétée en temps réel**
+  `CURRENT_TASK` / `current_task_row()` ne servent qu'au tableau ; les jauges
+  `billable.svg` / `activity.svg` ne comptent que les sessions terminées.
+  Ajouter un segment « en cours » (rayé/pulsant) pour un affichage live.
+
+- [ ] **11. Tooltips par segment projet**
+  Les `<rect>` de `_activity_segments` n'ont pas de valeur ; un `<title>` par
+  rect (projet + `hh:mm`) donnerait un survol natif, sans JS.
+
+- [ ] **12. Mise en relief du jour courant**
+  Dans les vues semaine (`render_week_svg` / `render_activity_week_svg`), la
+  1re ligne = aujourd'hui mais rien ne le signale (gras / cadre).
+
+- [ ] **13. Barre `nn / 20h` dans `/weeks`**
+  Réutiliser l'item 7 sur chaque semaine de la page `/weeks`, et colorer
+  distinctement les semaines ≥ 20h.
+
+- [ ] **14. Projection fin de semaine**
+  Au rythme des jours écoulés, est-ce que 20h seront atteintes ? Ligne de
+  « pace » cible.
+
+- [ ] **15. Cache mtime des lectures CSV**
+  À chaque refresh (toutes les 3s), le CSV est relu et re-parsé 6× (`billable`,
+  `week`, `activity`, `activity-week`, `legend`, `api`). Cache invalidé au
+  `mtime` pour l'éviter.
+
+- [ ] **16. Fixer le fuseau horaire**
+  `_from_epoch_ms` (`webhook_receiver.py:58`) et « today » utilisent l'heure
+  locale serveur (naïve) ; en conteneur la TZ peut différer → frontières de
+  jour décalées. Épingler `Europe/Paris`.
+
+- [ ] **17. Tests des rendus SVG**
+  Couvrir `render_week_svg` (débordement), `render_activity_svg`, et le mapping
+  `project_color` config vs hash, dans `test_webhook_receiver.py`.
+
+- [ ] **18. Indicateur de fraîcheur**
+  Afficher le dernier `mtime` du CSV / dernier webhook reçu, pour savoir que
+  les données sont vivantes.
+
+- [ ] **19. Vue mensuelle**
+  Objectif mensuel, au-delà des semaines.
+
+- [ ] **20. Légende cliquable / filtrage par projet**
+  Activer/désactiver un projet dans les charts d'activité.
 
 - [ ] **a. Factoriser la lib commune** entre `webhook_receiver.py`
   (webhook_flask), `analysis_web.py` (analysis_flask) et `cli.py`/`core/`
