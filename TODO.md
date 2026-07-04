@@ -116,6 +116,11 @@ Suite de `/view` (`webhook_receiver.py`) : jauge d'heures facturables du jour
   de `render_billable_svg`. Référence CLI existante (non réutilisable telle
   quelle) : `plot_swimlane` (`core/plots.py:413-492`), lit `pomofocus.csv`.
 
+- [ ] **5. Naviguer dans l'historique des semaines** : la vue `/weeks`
+  (`webhook_receiver.py`) n'affiche que les `BILLABLE_WEEKS_SHOWN` (= 12)
+  semaines les plus récentes. Ajouter une navigation vers les semaines plus
+  anciennes (pagination, ou décalage `?before=YYYYMMDD`).
+
 - [ ] **a. Factoriser la lib commune** entre `webhook_receiver.py`
   (webhook_flask), `analysis_web.py` (analysis_flask) et `cli.py`/`core/`
   (timer_cli) — actuellement 3 pipelines distincts (cf. CLAUDE.md) qui

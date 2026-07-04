@@ -38,8 +38,11 @@ PORT = int(os.environ.get("WEBHOOK_PORT", "5000"))
 
 BILLABLE_PROJECTS = {p.lower() for p in _config.get("BILLABLE_PROJECTS", [])}
 BILLABLE_MAX_HOURS = 4
+BILLABLE_WEEKS_SHOWN = 12  # /weeks : nombre de semaines les plus récentes affichées
 
 _FR_WEEKDAYS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"]
+_FR_MONTHS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet",
+              "août", "septembre", "octobre", "novembre", "décembre"]
 
 app = Flask(__name__)
 
@@ -243,20 +246,56 @@ def current_week_bounds(today=None):
     return monday, sunday
 
 
+def billable_hours_for_days(monday, last_day, rows):
+    """Billable hours per day from `last_day` down to `monday` (most recent
+    first), as (day_label, hours) pairs."""
+    days = []
+    day = last_day
+    while day >= monday:
+        hours = billable_minutes(rows, day.strftime("%Y%m%d")) / 60
+        days.append((_FR_WEEKDAYS[day.weekday()], hours))
+        day -= timedelta(days=1)
+    return days
+
+
 def billable_hours_for_week(today=None):
     """Billable hours per elapsed day of the current week (Monday..today),
     most recent first, as (day_label, hours) pairs."""
     if today is None:
         today = datetime.now().date()
     monday, _ = current_week_bounds(today)
+    return billable_hours_for_days(monday, today, _read_csv_rows(CSV_PATH))
+
+
+def recent_billable_weeks(today=None, count=BILLABLE_WEEKS_SHOWN):
+    """The `count` most recent weeks, most recent first, as
+    (monday, sunday, day_hours) tuples. The current week stops at `today`;
+    completed weeks span Monday..Sunday. Empty weeks are kept."""
+    if today is None:
+        today = datetime.now().date()
     rows = _read_csv_rows(CSV_PATH)
-    days = []
-    day = today
-    while day >= monday:
-        hours = billable_minutes(rows, day.strftime("%Y%m%d")) / 60
-        days.append((_FR_WEEKDAYS[day.weekday()], hours))
-        day -= timedelta(days=1)
-    return days
+    monday, _ = current_week_bounds(today)
+    last_day = today
+    weeks = []
+    for _ in range(count):
+        sunday = monday + timedelta(days=6)
+        weeks.append((monday, sunday, billable_hours_for_days(monday, last_day, rows)))
+        monday -= timedelta(days=7)
+        last_day = monday + timedelta(days=6)  # semaine précédente : dimanche
+    return weeks
+
+
+def _fr_week_range(monday, sunday):
+    """French label like 'Semaine du 23 au 29 juin 2026', collapsing the
+    start's month/year when identical to the end's."""
+    if monday.year != sunday.year:
+        start = f"{monday.day} {_FR_MONTHS[monday.month - 1]} {monday.year}"
+    elif monday.month != sunday.month:
+        start = f"{monday.day} {_FR_MONTHS[monday.month - 1]}"
+    else:
+        start = str(monday.day)
+    end = f"{sunday.day} {_FR_MONTHS[sunday.month - 1]} {sunday.year}"
+    return f"Semaine du {start} au {end}"
 
 
 def _format_hm(hours):
@@ -393,6 +432,8 @@ VIEW_HTML = """<!doctype html>
   @keyframes pulse {{ 50% {{ opacity: .3; }} }}
   #status {{ color: #666; font-size: .8rem; margin-top: 1rem; }}
   #billable, #week {{ display: block; margin-bottom: 1.5rem; max-width: 100%; }}
+  a {{ color: #3987e5; text-decoration: none; }}
+  .nav {{ margin-bottom: 1.5rem; }}
 </style>
 </head>
 <body>
@@ -401,6 +442,8 @@ VIEW_HTML = """<!doctype html>
 <img id="billable" src="{billable_url}" alt="heures facturables">
 
 <img id="week" src="{week_url}" alt="heures facturables par jour de la semaine">
+
+<p class="nav"><a href="{weeks_url}">→ semaines facturables</a></p>
 
 <h1>pomofocus_webhook.csv — semaine courante, mis à jour toutes les 3s (plus récent en haut)</h1>
 <table>
@@ -464,6 +507,28 @@ setInterval(poll, 3000);
 """
 
 
+WEEKS_HTML = """<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Semaines facturables</title>
+<style>
+  body {{ font-family: system-ui, sans-serif; margin: 2rem; background: #111; color: #eee; }}
+  h1 {{ font-size: 1.1rem; font-weight: normal; color: #999; }}
+  a {{ color: #3987e5; text-decoration: none; }}
+  .week {{ margin-bottom: 1.8rem; }}
+  .week-label {{ font-size: .8rem; text-transform: uppercase; color: #999; margin: 0 0 .4rem; }}
+  .week svg {{ display: block; max-width: 100%; }}
+</style>
+</head>
+<body>
+<h1><a href="{view_url}">← live</a> — {count} semaines facturables les plus récentes</h1>
+{blocks}
+</body>
+</html>
+"""
+
+
 @app.get("/view", defaults={"secret_path": ""})
 @app.get("/<path:secret_path>/view")
 def view(secret_path):
@@ -474,6 +539,27 @@ def view(secret_path):
         api_url=f"{prefix}/api/rows",
         billable_url=f"{prefix}/billable.svg",
         week_url=f"{prefix}/billable-week.svg",
+        weeks_url=f"{prefix}/weeks",
+    )
+
+
+@app.get("/weeks", defaults={"secret_path": ""})
+@app.get("/<path:secret_path>/weeks")
+def weeks(secret_path):
+    if SECRET and secret_path.strip("/") != SECRET:
+        return "not found\n", 404
+    prefix = f"/{secret_path.strip('/')}" if secret_path.strip("/") else ""
+    blocks = []
+    for monday, sunday, day_hours in recent_billable_weeks():
+        svg = render_week_svg(day_hours)
+        blocks.append(
+            f'<section class="week"><p class="week-label">'
+            f'{_fr_week_range(monday, sunday)}</p>{svg}</section>'
+        )
+    return WEEKS_HTML.format(
+        view_url=f"{prefix}/view",
+        count=BILLABLE_WEEKS_SHOWN,
+        blocks="\n".join(blocks),
     )
 
 
