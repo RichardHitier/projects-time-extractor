@@ -1,0 +1,33 @@
+name: Deploy to VPS
+
+# Autodeploy : un push sur main déclenche un SSH vers le VPS qui met le clone à
+# jour (git fetch + reset --hard origin/main) PUIS lance deploy.sh. Le fetch/reset
+# ici sert d'amorçage : au tout premier run deploy.sh n'existe pas encore sur le
+# VPS, il y arrive via ce reset. deploy.sh refait ensuite le même fetch/reset
+# (no-op) et enchaîne docker compose build/up — d'où sa lançabilité en standalone.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:        # bouton "Run workflow" pour déployer à la main
+
+concurrency:                # jamais deux déploiements en parallèle
+  group: deploy-vps
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy over SSH
+        env:
+          SSH_KEY:  ${{ secrets.VPS_SSH_KEY }}
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_PATH: ${{ secrets.VPS_PATH }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+          ssh -i ~/.ssh/id_deploy "$VPS_USER@$VPS_HOST" \
+            "cd '$VPS_PATH' && git fetch origin main && git reset --hard origin/main && ./deploy.sh"
