@@ -277,7 +277,7 @@ les numéros/lettres sont des **ID stables** (références croisées « point 1 
 
 ## Divers
 
-- [ ] [2026-07-04] versionner
+- [x] [2026-07-04] versionner — v0.1.0 affichée en footer (/view + /weeks)
 - [ ] [2026-07-05] menu de navigation, avec liens live + semaines facturables (harmoniser en pastilles comme les flèches prev/next)
 - [ ] [2026-07-05] renommer la route /view → /live (ex « modifier le endpoint view en live »)
 - [ ] [2026-07-05] présenter les graphes de l'accueil sur la lageur de la page

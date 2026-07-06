@@ -36,6 +36,7 @@ CSV_COLUMNS = ["date", "project", "task", "minutes", "startTime", "endTime"]
 EXPORT_TYPES = {"finish", "pause"}
 SECRET = os.environ.get("WEBHOOK_SECRET", "").strip("/")
 PORT = int(os.environ.get("WEBHOOK_PORT", "5000"))
+APP_VERSION = "0.1.0"  # affiché en pied de page (miroir de pyproject.toml)
 
 BILLABLE_PROJECTS = {p.lower() for p in _config.get("BILLABLE_PROJECTS", [])}
 BILLABLE_MAX_HOURS = 4
@@ -668,11 +669,11 @@ VIEW_HTML = """<!doctype html>
   .weeknav a:hover {{ background: #3c3c37; }}
   .weeknav svg {{ flex: none; }}
   .weeknav .week-label {{ color: #999; text-transform: uppercase; font-size: .8rem; margin: 0 auto; }}
+  .ver {{ color: #666; font-size: .7rem; margin-top: 2rem; }}
 </style>
 </head>
 <body>
 {nav}
-{current_box}
 
 {today_charts}
 
@@ -684,6 +685,8 @@ VIEW_HTML = """<!doctype html>
 <img id="legend" src="{legend_url}" alt="légende des projets">
 
 <p class="nav"><a href="{weeks_url}">→ semaines facturables</a></p>
+
+{current_box}
 
 <h1>pomofocus_webhook.csv — semaine affichée, mis à jour toutes les 3s (plus récent en haut)</h1>
 <table>
@@ -757,6 +760,7 @@ async function poll() {{
 poll();
 setInterval(poll, 3000);
 </script>
+<footer class="ver">v{version}</footer>
 </body>
 </html>
 """
@@ -781,6 +785,7 @@ WEEKS_HTML = """<!doctype html>
     padding: .4rem .8rem; border-radius: 999px; transition: background .15s ease; }}
   .weeknav a:hover {{ background: #3c3c37; }}
   .weeknav svg {{ flex: none; }}
+  .ver {{ color: #666; font-size: .7rem; margin-top: 2rem; }}
 </style>
 </head>
 <body>
@@ -789,6 +794,7 @@ WEEKS_HTML = """<!doctype html>
 <div id="legend">{legend}</div>
 {blocks}
 {nav}
+<footer class="ver">v{version}</footer>
 </body>
 </html>
 """
@@ -837,6 +843,7 @@ def view(secret_path):
         nav=nav,
         current_box=current_box,
         today_charts=today_charts,
+        version=APP_VERSION,
     )
 
 
@@ -881,6 +888,7 @@ def weeks(secret_path):
         nav=nav,
         legend=legend,
         blocks="\n".join(blocks),
+        version=APP_VERSION,
     )
 
 
