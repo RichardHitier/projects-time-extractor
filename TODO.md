@@ -188,6 +188,13 @@ les numéros/lettres sont des **ID stables** (références croisées « point 1 
   barre). Reste `/weeks` (pas de highlight ; semaine courante encore partielle,
   cf. test `recent_weeks`).
 
+- [ ] **12-bis. Highlight du jour sur `/weeks`**
+  Aligner `/weeks` sur `/view` : colorer le nom du jour courant + montrer la
+  semaine courante complète (Lun→Dim). Actuellement pas de highlight et semaine
+  courante volontairement partielle (rendu via `recent_weeks`, sans
+  `highlight_label` ; le test fixe la semaine courante à 3 jours). À traiter
+  séparément.
+
 
 - [ ] **13. Barre `nn / 20h` dans `/weeks`**
   Réutiliser l'item 7 sur chaque semaine de la page `/weeks`
