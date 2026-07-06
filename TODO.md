@@ -183,6 +183,10 @@ les numéros/lettres sont des **ID stables** (références croisées « point 1 
   La semaine courante (20h ou activités) doit maintenant
   montrer tous les jours mais **encadre le jour courant**
   (ex-Divers 07-06).
+  ✅ Fait pour `/view` : semaine complète Lun→Dim + **nom du jour courant en
+  jaune** (`highlight_label` ; décidé : colorer le label plutôt qu'encadrer la
+  barre). Reste `/weeks` (pas de highlight ; semaine courante encore partielle,
+  cf. test `recent_weeks`).
 
 
 - [ ] **13. Barre `nn / 20h` dans `/weeks`**

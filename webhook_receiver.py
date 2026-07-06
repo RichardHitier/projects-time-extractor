@@ -36,7 +36,7 @@ CSV_COLUMNS = ["date", "project", "task", "minutes", "startTime", "endTime"]
 EXPORT_TYPES = {"finish", "pause"}
 SECRET = os.environ.get("WEBHOOK_SECRET", "").strip("/")
 PORT = int(os.environ.get("WEBHOOK_PORT", "5000"))
-APP_VERSION = "0.1.0"  # affiché en pied de page (miroir de pyproject.toml)
+APP_VERSION = "0.2.0"  # affiché en pied de page (miroir de pyproject.toml)
 
 BILLABLE_PROJECTS = {p.lower() for p in _config.get("BILLABLE_PROJECTS", [])}
 BILLABLE_MAX_HOURS = 4
@@ -382,7 +382,7 @@ def render_billable_svg(hours, max_hours=BILLABLE_MAX_HOURS):
 BILLABLE_WEEK_MAX_HOURS = 20
 
 
-def render_week_svg(day_hours, max_hours=BILLABLE_MAX_HOURS, week_max_hours=BILLABLE_WEEK_MAX_HOURS):
+def render_week_svg(day_hours, max_hours=BILLABLE_MAX_HOURS, week_max_hours=BILLABLE_WEEK_MAX_HOURS, highlight_label=None):
     """Render a "SEMAINE : total / Nh" header, then one bar per
     (day_label, hours) pair, most recent first.
 
@@ -418,8 +418,9 @@ def render_week_svg(day_hours, max_hours=BILLABLE_MAX_HOURS, week_max_hours=BILL
                 f'<rect x="{bar_x + bar_w + inset}" y="{y + inset}" width="{overflow_w:.1f}" '
                 f'height="{inner_h}" rx="{corner_radius}" fill="#d9a441"/>'
             )
+        label_fill = "#ffd43b" if label == highlight_label else "#c3c2b7"
         rows_svg.append(f'''
-  <text x="{label_x}" y="{y + row_h - 6}" font-family="system-ui, sans-serif" font-size="13" fill="#c3c2b7">{label}</text>
+  <text x="{label_x}" y="{y + row_h - 6}" font-family="system-ui, sans-serif" font-size="13" fill="{label_fill}">{label}</text>
   <rect x="{bar_x}" y="{y}" width="{bar_w}" height="{row_h}" rx="{corner_radius}" fill="#2e2e2b"/>
   {fill_rect}
   <line x1="{bar_x + bar_w}" y1="{y - 2}" x2="{bar_x + bar_w}" y2="{y + row_h + 2}" stroke="#c3c2b7" stroke-width="2"/>
@@ -555,7 +556,7 @@ def render_activity_svg(totals, max_hours=ACTIVITY_MAX_HOURS):
 </svg>"""
 
 
-def render_activity_week_svg(days, max_hours=ACTIVITY_MAX_HOURS, uid=""):
+def render_activity_week_svg(days, max_hours=ACTIVITY_MAX_HOURS, uid="", highlight_label=None):
     """One stacked activity bar per day (most recent first). Row geometry
     matches render_week_svg so the two week charts line up side by side.
 
@@ -576,8 +577,9 @@ def render_activity_week_svg(days, max_hours=ACTIVITY_MAX_HOURS, uid=""):
         inner_x, inner_w = bar_x + inset, bar_w - 2 * inset
         inner_y, inner_h = y + inset, row_h - 2 * inset
         segs, fill_w = _activity_segments(totals, inner_x, inner_w, inner_y, inner_h, max_hours)
+        label_fill = "#ffd43b" if label == highlight_label else "#c3c2b7"
         rows_svg.append(f'''
-  <text x="{label_x}" y="{y + row_h - 6}" font-family="system-ui, sans-serif" font-size="13" fill="#c3c2b7">{label}</text>
+  <text x="{label_x}" y="{y + row_h - 6}" font-family="system-ui, sans-serif" font-size="13" fill="{label_fill}">{label}</text>
   <rect x="{bar_x}" y="{y}" width="{bar_w}" height="{row_h}" rx="{corner_radius}" fill="#2b2b28"/>
   <defs><clipPath id="actwk{uid}{i}"><rect x="{inner_x}" y="{inner_y}" width="{fill_w:.1f}" height="{inner_h}" rx="{corner_radius}"/></clipPath></defs>
   <g clip-path="url(#actwk{uid}{i})">{segs}</g>
@@ -675,12 +677,12 @@ VIEW_HTML = """<!doctype html>
 <body>
 {nav}
 
-{today_charts}
-
 <div class="charts-row">
   <img id="week" src="{week_url}" alt="heures facturables par jour de la semaine">
   <img id="week-activity" src="{activity_week_url}" alt="activité de la semaine par projet">
 </div>
+
+{today_charts}
 
 <img id="legend" src="{legend_url}" alt="légende des projets">
 
@@ -906,7 +908,11 @@ def billable_svg(secret_path):
 def billable_week_svg(secret_path):
     if SECRET and secret_path.strip("/") != SECRET:
         return "not found\n", 404
-    svg = render_week_svg(billable_hours_for_week(week_anchor(_int_arg("w"))))
+    w = _int_arg("w")
+    monday, sunday = current_week_bounds(week_anchor(w))
+    day_hours = billable_hours_for_days(monday, sunday, _read_csv_rows(CSV_PATH))
+    highlight = _FR_WEEKDAYS[datetime.now().date().weekday()] if w == 0 else None
+    svg = render_week_svg(day_hours, highlight_label=highlight)
     return Response(svg, mimetype="image/svg+xml", headers={"Cache-Control": "no-store"})
 
 
@@ -926,8 +932,11 @@ def activity_svg(secret_path):
 def activity_week_svg(secret_path):
     if SECRET and secret_path.strip("/") != SECRET:
         return "not found\n", 404
-    days = activity_week_days(_read_csv_rows(CSV_PATH), week_anchor(_int_arg("w")))
-    svg = render_activity_week_svg(days)
+    w = _int_arg("w")
+    _, sunday = current_week_bounds(week_anchor(w))
+    days = activity_week_days(_read_csv_rows(CSV_PATH), sunday)
+    highlight = _FR_WEEKDAYS[datetime.now().date().weekday()] if w == 0 else None
+    svg = render_activity_week_svg(days, highlight_label=highlight)
     return Response(svg, mimetype="image/svg+xml", headers={"Cache-Control": "no-store"})
 
 

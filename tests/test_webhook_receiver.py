@@ -234,6 +234,33 @@ def test_render_week_svg_shows_week_header():
     assert "SEMAINE : 7:30 / 20h" in svg
 
 
+def test_render_week_svg_colors_today():
+    svg = webhook_receiver.render_week_svg(
+        [("Dimanche", 0.0), ("Mercredi", 3.0), ("Lundi", 2.0)],
+        highlight_label="Mercredi",
+    )
+    assert 'fill="#ffd43b">Mercredi<' in svg  # nom du jour en jaune
+    assert 'fill="#c3c2b7">Lundi<' in svg     # autres jours inchangés
+    plain = webhook_receiver.render_week_svg([("Mercredi", 3.0)])
+    assert "#ffd43b" not in plain
+
+
+def test_render_activity_week_svg_colors_today():
+    svg = webhook_receiver.render_activity_week_svg(
+        [("Mercredi", {"speasy": 60})], highlight_label="Mercredi"
+    )
+    assert 'fill="#ffd43b">Mercredi<' in svg
+
+
+def test_billable_week_route_shows_full_week_and_colors_today(tmp_path):
+    webhook_receiver.CSV_PATH = str(tmp_path / "pomofocus_webhook.csv")
+
+    svg = webhook_receiver.app.test_client().get("/billable-week.svg").get_data(as_text=True)
+
+    assert svg.count('fill="#2e2e2b"') == 7  # semaine complète : 1 barre/jour lun..dim
+    assert 'fill="#ffd43b">' in svg           # w=0 → nom du jour courant en jaune
+
+
 def test_billable_week_svg_route_returns_svg(tmp_path):
     webhook_receiver.CSV_PATH = str(tmp_path / "pomofocus_webhook.csv")
 
