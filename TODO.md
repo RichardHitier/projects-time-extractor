@@ -164,19 +164,15 @@ les numéros/lettres sont des **ID stables** (références croisées « point 1 
   visuellement du repère 4h (pas de clamp à 100%), style distinct pour
   signaler le dépassement.
 
-- [ ] **7. Vue semaine : barre graphique `nn / 20h`**
-  Ajouter dans la vue semaine (`/billable-week.svg` ou le header) une barre
-  graphique du total facturable de la semaine par rapport à l'objectif de
-  20h (`nn / 20h`), sur le modèle de la jauge journalière `/4h`.
-  cette barre remplace le titre "Semaine: 18,36 / 20h" et
-  occupe toute la largeur du graphique , chiffre affiché à
-  droite aligné avec lse chiffres jours
+- [x] **7. Vue semaine : barre graphique `nn / 20h`** — FAIT sur `/view` (spec
+  `week-graphs`). Titre texte « Semaine : nn / 20h » remplacé par une barre
+  pleine largeur (`_week_header_bar`), chiffre `nn / 20h` à droite aligné avec
+  les jours. Reste `/weeks` → #13.
 
-- [ ] **7-bis. Vue activitè : barre graphique `nn / 60h`**
-   idem 7: on supprim le titre texte Activité Semaine: 29:46
-   et on rajoute une barre de progression nn/60 qui occupe
-   toute la largeur, chiffre affiché à droite aligné avec
-   lse chiffres jours
+- [x] **7-bis. Vue activitè : barre graphique `nn / 60h`** — FAIT sur `/view`
+  (spec `week-graphs`). Titre « Activité Semaine : nn » remplacé par barre
+  pleine largeur `nn / 60h` (const `ACTIVITY_WEEK_MAX_HOURS = 60`). Reste
+  `/weeks` → #13-bis.
 
 - [ ] **12. Mise en relief du jour courant**
   Dans les vues semaine (`render_week_svg` / `render_activity_week_svg`), 

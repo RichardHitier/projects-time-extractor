@@ -257,7 +257,9 @@ def test_billable_week_route_shows_full_week_and_colors_today(tmp_path):
 
     svg = webhook_receiver.app.test_client().get("/billable-week.svg").get_data(as_text=True)
 
-    assert svg.count('fill="#2e2e2b"') == 7  # semaine complète : 1 barre/jour lun..dim
+    # semaine complète : 1 barre/jour lun..dim (hauteur 22 ; la barre d'en-tête
+    # partage la couleur #2e2e2b mais fait hauteur 18)
+    assert svg.count('height="22" rx="5" fill="#2e2e2b"') == 7
     assert 'fill="#ffd43b">' in svg           # w=0 → nom du jour courant en jaune
 
 

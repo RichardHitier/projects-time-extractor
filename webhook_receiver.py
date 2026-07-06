@@ -382,6 +382,27 @@ def render_billable_svg(hours, max_hours=BILLABLE_MAX_HOURS):
 BILLABLE_WEEK_MAX_HOURS = 20
 
 
+def _week_header_bar(total_hours, max_hours, value_x, label_x=20, y=4, height=26):
+    """Full-width progress bar used as the header of a week chart, in place of a
+    text title. Fill ratio is clamped to [0, 1]; the `nn / Nh` figure is
+    left-anchored at `value_x` to line up with the day-row figures below."""
+    bar_x = label_x
+    bar_w = value_x - 12 - bar_x
+    ratio = max(0, min(total_hours / max_hours, 1)) if max_hours else 0
+    fill_w = (bar_w - 6) * ratio
+    corner_radius = 5
+    fill_rect = ""
+    if fill_w > 0:
+        fill_rect = (
+            f'<rect x="{bar_x + 3}" y="{y + 3}" width="{fill_w:.1f}" '
+            f'height="{height - 6}" rx="{corner_radius}" fill="#9d9d93"/>'
+        )
+    return f'''
+  <rect x="{bar_x}" y="{y}" width="{bar_w}" height="{height}" rx="{corner_radius}" fill="#2e2e2b"/>
+  {fill_rect}
+  <text x="{value_x}" y="{y + height // 2 + 5}" font-family="system-ui, sans-serif" font-size="13" fill="#ffffff">{_format_hm(total_hours)} / {max_hours}h</text>'''
+
+
 def render_week_svg(day_hours, max_hours=BILLABLE_MAX_HOURS, week_max_hours=BILLABLE_WEEK_MAX_HOURS, highlight_label=None):
     """Render a "SEMAINE : total / Nh" header, then one bar per
     (day_label, hours) pair, most recent first.
@@ -427,16 +448,18 @@ def render_week_svg(day_hours, max_hours=BILLABLE_MAX_HOURS, week_max_hours=BILL
   {overflow_rect}
   <text x="{bar_x + bar_w + overflow_max + 12}" y="{y + row_h - 6}" font-family="system-ui, sans-serif" font-size="13" fill="#ffffff">{_format_hm(hours)}</text>''')
 
+    header_bar = _week_header_bar(total_hours, week_max_hours, bar_x + bar_w + overflow_max + 12)
     return f"""<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">
   <title>{title}</title>
   <rect width="{width}" height="{height}" fill="#1a1a19"/>
-  <text x="{label_x}" y="20" font-family="system-ui, sans-serif" font-size="18" fill="#ffffff">{title}</text>
+  {header_bar}
   {"".join(rows_svg)}
 </svg>"""
 
 
 # ── Activité par projet (couleurs identiques à `timer day-bars`) ──────────────
 ACTIVITY_MAX_HOURS = 8
+ACTIVITY_WEEK_MAX_HOURS = 60
 
 # tab20 + tab20b (40 couleurs), figées depuis matplotlib pour rester identiques à
 # core.plots._project_color_map sans embarquer matplotlib dans le conteneur.
@@ -556,7 +579,7 @@ def render_activity_svg(totals, max_hours=ACTIVITY_MAX_HOURS):
 </svg>"""
 
 
-def render_activity_week_svg(days, max_hours=ACTIVITY_MAX_HOURS, uid="", highlight_label=None):
+def render_activity_week_svg(days, max_hours=ACTIVITY_MAX_HOURS, uid="", highlight_label=None, week_max_hours=ACTIVITY_WEEK_MAX_HOURS):
     """One stacked activity bar per day (most recent first). Row geometry
     matches render_week_svg so the two week charts line up side by side.
 
@@ -570,7 +593,7 @@ def render_activity_week_svg(days, max_hours=ACTIVITY_MAX_HOURS, uid="", highlig
     corner_radius, inset = 5, 3
     height = top + len(days) * (row_h + row_gap)
     week_total = sum(sum(t.values()) for _, t in days) / 60
-    title = f"ACTIVITÉ SEMAINE : {_format_hm(week_total)}"
+    title = f"ACTIVITÉ SEMAINE : {_format_hm(week_total)} / {week_max_hours}h"
     rows_svg = []
     for i, (label, totals) in enumerate(days):
         y = top + i * (row_h + row_gap)
@@ -584,10 +607,11 @@ def render_activity_week_svg(days, max_hours=ACTIVITY_MAX_HOURS, uid="", highlig
   <defs><clipPath id="actwk{uid}{i}"><rect x="{inner_x}" y="{inner_y}" width="{fill_w:.1f}" height="{inner_h}" rx="{corner_radius}"/></clipPath></defs>
   <g clip-path="url(#actwk{uid}{i})">{segs}</g>
   <text x="{bar_x + bar_w + 12}" y="{y + row_h - 6}" font-family="system-ui, sans-serif" font-size="13" fill="#ffffff">{_format_hm(sum(totals.values()) / 60)}</text>''')
+    header_bar = _week_header_bar(week_total, week_max_hours, bar_x + bar_w + 12)
     return f"""<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">
   <title>{title}</title>
   <rect width="{width}" height="{height}" fill="#1a1a19"/>
-  <text x="{label_x}" y="20" font-family="system-ui, sans-serif" font-size="18" fill="#ffffff">{title}</text>
+  {header_bar}
   {"".join(rows_svg)}
 </svg>"""
 
