@@ -80,6 +80,8 @@ Suite de `/view` (`webhook_receiver.py`) : jauge d'heures facturables du jour
     désynchroniser les chiffres plutôt que juste dupliquer. Sauvegarde prise
     avant chaque modification du fichier réel (`webhook-data/*.bak-*`,
     supprimées une fois vérifiées).
+  - [ ] **À vérifier** : les données d'avant mars manquent côté webhook —
+    `suivi_chantiers.ods` en est-il alors la seule source ? (ex-Divers 07-05).
 
 - [x] **1-bis. Comprendre le flux `report.csv` → `pomofocus.csv` → `suivi_chantiers.ods`**
   `report.csv` (brut, pomofocus.io, `~/Téléchargements`) fusionne déjà, côté
@@ -120,11 +122,13 @@ Suite de `/view` (`webhook_receiver.py`) : jauge d'heures facturables du jour
   maison (pas de matplotlib/pandas dans le conteneur webhook), dans l'esprit
   de `render_billable_svg`. Référence CLI existante (non réutilisable telle
   quelle) : `plot_swimlane` (`core/plots.py:413-492`), lit `pomofocus.csv`.
+  Décidé (ex-Divers 07-06) : le swimlane s'affiche **à la place** du graphe
+  d'activité (aujourd'hui + semaine dans `/view`, chaque semaine dans `/weeks`),
+  avec un **bouton** pour basculer présentation swimlane / barres.
 
-- [ ] **5. Naviguer dans l'historique des semaines** : la vue `/weeks`
-  (`webhook_receiver.py`) n'affiche que les `BILLABLE_WEEKS_SHOWN` (= 12)
-  semaines les plus récentes. Ajouter une navigation vers les semaines plus
-  anciennes (pagination, ou décalage `?before=YYYYMMDD`).
+- [x] **5. Naviguer dans l'historique des semaines** — FAIT (e3616c2, spec
+  `chart-weeks` terminé). `/weeks` pagine par fenêtres de 12 semaines via `?p=N`,
+  `/view` décale d'une semaine via `?w=N` (boutons prev/next).
 
 - [ ] **6. Calcul des heures facturables : « 1/4h commencé est dû »**
   La jauge webhook (`/billable.svg`) somme les minutes brutes ; il faut
@@ -138,9 +142,9 @@ Suite de `/view` (`webhook_receiver.py`) : jauge d'heures facturables du jour
   20h (`nn / 20h`), sur le modèle de la jauge journalière `/4h`.
 
 - [ ] **8. Bascule visualisation comptage exact / arrondi 1/4h**
-  Réfléchir à comment présenter les deux modes de comptage (minutes brutes
-  vs arrondi au 1/4h supérieur, cf. items 6 et d) sur `/view` : graphes côte
-  à côte ? bouton de bascule ? À trancher avant implémentation.
+  Présenter les deux modes de comptage (minutes brutes vs arrondi au 1/4h
+  supérieur, cf. items 6 et d) sur `/view`. Décidé (ex-Divers 07-06) : **bouton
+  de bascule** sur le graphe 20h.
 
 - [ ] **9. Jauge du jour : débordement au-delà de 4h**
   `render_billable_svg` (`webhook_receiver.py:312`) clampe à `min(ratio, 1)` :
@@ -158,7 +162,9 @@ Suite de `/view` (`webhook_receiver.py`) : jauge d'heures facturables du jour
 
 - [ ] **12. Mise en relief du jour courant**
   Dans les vues semaine (`render_week_svg` / `render_activity_week_svg`), la
-  1re ligne = aujourd'hui mais rien ne le signale (gras / cadre).
+  1re ligne = aujourd'hui mais rien ne le signale (gras / cadre). La semaine
+  courante (20h ou activités) montre tous les jours mais **encadre le jour
+  courant** (ex-Divers 07-06).
 
 - [ ] **13. Barre `nn / 20h` dans `/weeks`**
   Réutiliser l'item 7 sur chaque semaine de la page `/weeks`, et colorer
@@ -210,6 +216,14 @@ Suite de `/view` (`webhook_receiver.py`) : jauge d'heures facturables du jour
     (`pytest` introuvable) → pusher avec `--no-verify` ou `workon time_tracking`
     avant. Voir [[feedback_virtualenv]].
 
+- [ ] **22. Layout de la vue live `/view`** : disposer la page en grille —
+  ligne 1 `Semaine 20h` | `Semaine activités`, ligne 2 `heures du jour` |
+  `activités du jour`, ligne 3 `Tâche courante` (sous les deux graphes du jour).
+  En naviguant vers une semaine plus ancienne : ne garder **que** la ligne 1
+  (`Semaine 20h` | `Semaine activités`) ; le jour et la tâche courante restent
+  masqués (comportement actuel `webhook_receiver.py:955`, `weeks_back == 0`).
+  (Ex-Divers 07-04/05/06.)
+
 - [ ] **a. Factoriser la lib commune** entre `webhook_receiver.py`
   (webhook_flask), `analysis_web.py` (analysis_flask) et `cli.py`/`core/`
   (timer_cli) — actuellement 3 pipelines distincts (cf. CLAUDE.md) qui
@@ -240,7 +254,5 @@ Suite de `/view` (`webhook_receiver.py`) : jauge d'heures facturables du jour
 - [ ] [2026-07-04] versionner
 - [ ] [2026-07-05] menu de navigation, avec liens live + semaines facturables (harmoniser en pastilles comme les flèches prev/next)
 - [ ] [2026-07-05] renommer la route /view → /live (ex « modifier le endpoint view en live »)
-- [ ] [2026-07-04] navigation view: conserver les barre total semaine (facturable/4h - activité / 8h)
-- [ ] [2026-07-05] view: conserver 'tache en cours' 'facturable aujourd'hui' et 'activité aujourd'hui' lorsque l'on navigue d'une semaine à l'autre. y reflechire et toun cas
-- [ ] [2026-07-05] verifier le merge de pomofocus.csv en webhook.csv: les données d'avant mars manquent (suivi_chantier.ods seule source ?)
+- [ ] [2026-07-05] présenter les graphes de l'accueil sur la lageur de la page
 - [x] [2026-07-04] navigation semaines fwb/bckw : icones fleches
