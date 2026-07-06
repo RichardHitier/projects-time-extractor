@@ -52,12 +52,16 @@ Réintégrer dans le CLI les deux plots de `core/suivi_chantier.py` :
 ## Webhook live view — backlog
 
 Suite de `/view` (`webhook_receiver.py`) : jauge d'heures facturables du jour
-(`hh:min`, échelle 4h). Traité petit à petit.
+(`hh:min`, échelle 4h). Traité petit à petit. Items regroupés par thème ci-dessous ;
+les numéros/lettres sont des **ID stables** (références croisées « point 1 »,
+« items 6 et d »…), pas un ordre de priorité.
 
 > Livré hors items numérotés : activité par projet (segments colorés + légende
 > partagée) sur `/view` **et** `/weeks` (chaque semaine porte le chart facturable
 > + le chart activité côte à côte). Contexte pour #5 (navigation) et #13 (barre
 > `nn/20h`), qui touchent la même page `/weeks`.
+
+### A — Données & fiabilité backend
 
 - [x] **1. Donner l'historique complet à `pomofocus_webhook.csv`**
   Fait en deux temps, sans renommage (le plan initial envisageait de fusionner
@@ -102,12 +106,106 @@ Suite de `/view` (`webhook_receiver.py`) : jauge d'heures facturables du jour
   (`eighty-hours`, `eighty-bars`, `billing_export*` dans `core/suivi_chantier.py`).
   → deux consommateurs distincts de `pomofocus.csv`, aucun ne passe par le webhook.
 
+- [ ] **15. Cache mtime des lectures CSV**
+  À chaque refresh (toutes les 3s), le CSV est relu et re-parsé 6× (`billable`,
+  `week`, `activity`, `activity-week`, `legend`, `api`). Cache invalidé au
+  `mtime` pour l'éviter.
+
+- [ ] **16. Fixer le fuseau horaire**
+  `_from_epoch_ms` (`webhook_receiver.py:58`) et « today » utilisent l'heure
+  locale serveur (naïve) ; en conteneur la TZ peut différer → frontières de
+  jour décalées. Épingler `Europe/Paris`.
+
+- [ ] **18. Indicateur de fraîcheur**
+  Afficher le dernier `mtime` du CSV / dernier webhook reçu, pour savoir que
+  les données sont vivantes.
+
+### B — Heures facturables & arrondi 1/4h
+
+- [ ] **6. Calcul des heures facturables : « 1/4h commencé est dû »**
+  La jauge webhook (`/billable.svg`) somme les minutes brutes ; il faut
+  facturer chaque tranche de 1/4h commencée (arrondi au quart d'heure
+  supérieur). Lié à l'étude point d (arrondi `math.ceil(duration_d / 0.03125)
+  * 0.03125` déjà utilisé côté `report_view_export` / `_ods_data_row`).
+
+- [ ] **8. Bascule visualisation comptage exact / arrondi 1/4h**
+  Présenter les deux modes de comptage (minutes brutes vs arrondi au 1/4h
+  supérieur, cf. items 6 et d) sur `/view`. Décidé (ex-Divers 07-06) : **bouton
+  de bascule** sur le graphe 20h. Même mécanique de toggle que **#4** (swimlane /
+  barres) — partager le composant plutôt que coder deux boutons.
+
+- [ ] **d. Étudier précisément où et comment se fait l'arrondi au 1/4h.**
+  Deux comportements différents identifiés aujourd'hui pour "les heures
+  facturables" : `core/plots.py:143` (`report_view_export`, `quantize=True`)
+  et `core/plots.py:171` (`_ods_data_row`, toujours actif) arrondissent
+  chaque session au 1/4h supérieur (`math.ceil(duration_d / 0.03125) * 0.03125`)
+  avant export/ODS ; la jauge webhook (`/billable.svg`) n'arrondit plus du
+  tout (somme brute des minutes, décision prise précédemment). À clarifier :
+  laquelle est la référence, faut-il aligner les deux.
+
+### C — Jauge du jour (live)
+
+- [ ] **9. Jauge du jour : débordement au-delà de 4h**
+  `render_billable_svg` (`webhook_receiver.py:312`) clampe à `min(ratio, 1)` :
+  au-delà de 4h la barre du jour n'indique rien. Harmoniser avec
+  `render_week_svg`, qui gère déjà le débordement (marqueur + lane rouge).
+
+- [ ] **10. Tâche en cours reflétée en temps réel**
+  `CURRENT_TASK` / `current_task_row()` ne servent qu'au tableau ; les jauges
+  `billable.svg` / `activity.svg` ne comptent que les sessions terminées.
+  Ajouter un segment « en cours » (rayé/pulsant) pour un affichage live.
+
+### D — Refactor week graphs
+
 - [x] **2. Vue semaine sur `/view`** : heures facturables/4h des autres jours
   de la semaine, aujourd'hui en haut, plus anciens en bas, nom du jour en
   préfixe de ligne. Dépend du point 1 (il faut l'historique dans le fichier
   webhook). Décidé : en cas de dépassement de 4h, la barre déborde
   visuellement du repère 4h (pas de clamp à 100%), style distinct pour
   signaler le dépassement.
+
+- [ ] **7. Vue semaine : barre graphique `nn / 20h`**
+  Ajouter dans la vue semaine (`/billable-week.svg` ou le header) une barre
+  graphique du total facturable de la semaine par rapport à l'objectif de
+  20h (`nn / 20h`), sur le modèle de la jauge journalière `/4h`.
+  cette barre remplace le titre "Semaine: 18,36 / 20h" et
+  occupe toute la largeur du graphique , chiffre affiché à
+  droite aligné avec lse chiffres jours
+
+- [ ] **7-bis. Vue activitè : barre graphique `nn / 60h`**
+   idem 7: on supprim le titre texte Activité Semaine: 29:46
+   et on rajoute une barre de progression nn/60 qui occupe
+   toute la largeur, chiffre affiché à droite aligné avec
+   lse chiffres jours
+
+- [ ] **12. Mise en relief du jour courant**
+  Dans les vues semaine (`render_week_svg` / `render_activity_week_svg`), 
+  La semaine courante (20h ou activités) doit maintenant
+  montrer tous les jours mais **encadre le jour courant**
+  (ex-Divers 07-06).
+
+
+- [ ] **13. Barre `nn / 20h` dans `/weeks`**
+  Réutiliser l'item 7 sur chaque semaine de la page `/weeks`
+
+
+- [ ] **13-bis. Barre `nn / 60h` dans `/weeks`**
+  Réutiliser l'item 7-bis sur chaque semaine de la page `/weeks`
+
+### E — Navigation & layout de page
+
+- [x] **5. Naviguer dans l'historique des semaines** — FAIT (e3616c2, spec
+  `chart-weeks` terminé). `/weeks` pagine par fenêtres de 12 semaines via `?p=N`,
+  `/view` décale d'une semaine via `?w=N` (boutons prev/next).
+
+- [ ] **22. Layout de la vue live `/view`** : disposer la page en grille —
+  ligne 1 `Semaine 20h` | `Semaine activités`, ligne 2 `heures du jour` |
+  `activités du jour`, ligne 3 `Tâche courante` (sous les deux graphes du jour).
+  En naviguant vers une semaine plus ancienne : ne garder **que** la ligne 1
+  (`Semaine 20h` | `Semaine activités`) ; le jour et la tâche courante restent
+  masqués (comportement actuel `webhook_receiver.py:955`, `weeks_back == 0`).
+  (Ex-Divers 07-04/05/06.)
+### F — Activité par projet (couleurs, swimlane, interactions)
 
 - [ ] **3. Couleurs par projet sur la barre facturable** : segmenter
   `/billable.svg` par projet, en réutilisant le champ `color` déjà présent
@@ -126,77 +224,20 @@ Suite de `/view` (`webhook_receiver.py`) : jauge d'heures facturables du jour
   d'activité (aujourd'hui + semaine dans `/view`, chaque semaine dans `/weeks`),
   avec un **bouton** pour basculer présentation swimlane / barres.
 
-- [x] **5. Naviguer dans l'historique des semaines** — FAIT (e3616c2, spec
-  `chart-weeks` terminé). `/weeks` pagine par fenêtres de 12 semaines via `?p=N`,
-  `/view` décale d'une semaine via `?w=N` (boutons prev/next).
-
-- [ ] **6. Calcul des heures facturables : « 1/4h commencé est dû »**
-  La jauge webhook (`/billable.svg`) somme les minutes brutes ; il faut
-  facturer chaque tranche de 1/4h commencée (arrondi au quart d'heure
-  supérieur). Lié à l'étude point d (arrondi `math.ceil(duration_d / 0.03125)
-  * 0.03125` déjà utilisé côté `report_view_export` / `_ods_data_row`).
-
-- [ ] **7. Vue semaine : barre graphique `nn / 20h`**
-  Ajouter dans la vue semaine (`/billable-week.svg` ou le header) une barre
-  graphique du total facturable de la semaine par rapport à l'objectif de
-  20h (`nn / 20h`), sur le modèle de la jauge journalière `/4h`.
-
-- [ ] **8. Bascule visualisation comptage exact / arrondi 1/4h**
-  Présenter les deux modes de comptage (minutes brutes vs arrondi au 1/4h
-  supérieur, cf. items 6 et d) sur `/view`. Décidé (ex-Divers 07-06) : **bouton
-  de bascule** sur le graphe 20h.
-
-- [ ] **9. Jauge du jour : débordement au-delà de 4h**
-  `render_billable_svg` (`webhook_receiver.py:312`) clampe à `min(ratio, 1)` :
-  au-delà de 4h la barre du jour n'indique rien. Harmoniser avec
-  `render_week_svg`, qui gère déjà le débordement (marqueur + lane rouge).
-
-- [ ] **10. Tâche en cours reflétée en temps réel**
-  `CURRENT_TASK` / `current_task_row()` ne servent qu'au tableau ; les jauges
-  `billable.svg` / `activity.svg` ne comptent que les sessions terminées.
-  Ajouter un segment « en cours » (rayé/pulsant) pour un affichage live.
-
 - [ ] **11. Tooltips par segment projet**
   Les `<rect>` de `_activity_segments` n'ont pas de valeur ; un `<title>` par
   rect (projet + `hh:mm`) donnerait un survol natif, sans JS.
 
-- [ ] **12. Mise en relief du jour courant**
-  Dans les vues semaine (`render_week_svg` / `render_activity_week_svg`), la
-  1re ligne = aujourd'hui mais rien ne le signale (gras / cadre). La semaine
-  courante (20h ou activités) montre tous les jours mais **encadre le jour
-  courant** (ex-Divers 07-06).
+- [ ] **20. Légende cliquable / filtrage par projet**
+  Activer/désactiver un projet dans les charts d'activité.
 
-- [ ] **13. Barre `nn / 20h` dans `/weeks`**
-  Réutiliser l'item 7 sur chaque semaine de la page `/weeks`, et colorer
-  distinctement les semaines ≥ 20h.
-
-- [ ] **14. Projection fin de semaine**
-  Au rythme des jours écoulés, est-ce que 20h seront atteintes ? Ligne de
-  « pace » cible.
-
-- [ ] **15. Cache mtime des lectures CSV**
-  À chaque refresh (toutes les 3s), le CSV est relu et re-parsé 6× (`billable`,
-  `week`, `activity`, `activity-week`, `legend`, `api`). Cache invalidé au
-  `mtime` pour l'éviter.
-
-- [ ] **16. Fixer le fuseau horaire**
-  `_from_epoch_ms` (`webhook_receiver.py:58`) et « today » utilisent l'heure
-  locale serveur (naïve) ; en conteneur la TZ peut différer → frontières de
-  jour décalées. Épingler `Europe/Paris`.
+### G — Tests
 
 - [ ] **17. Tests des rendus SVG**
   Couvrir `render_week_svg` (débordement), `render_activity_svg`, et le mapping
   `project_color` config vs hash, dans `test_webhook_receiver.py`.
 
-- [ ] **18. Indicateur de fraîcheur**
-  Afficher le dernier `mtime` du CSV / dernier webhook reçu, pour savoir que
-  les données sont vivantes.
-
-- [ ] **19. Vue mensuelle**
-  Objectif mensuel, au-delà des semaines.
-
-- [ ] **20. Légende cliquable / filtrage par projet**
-  Activer/désactiver un projet dans les charts d'activité.
+### H — Déploiement
 
 - [x] **21. Déploiement : push local → déploiement sur le VPS** — EN PROD
   Autodeploy sur `git push origin` (main). **GitHub Actions + SSH** (push-based),
@@ -216,13 +257,7 @@ Suite de `/view` (`webhook_receiver.py`) : jauge d'heures facturables du jour
     (`pytest` introuvable) → pusher avec `--no-verify` ou `workon time_tracking`
     avant. Voir [[feedback_virtualenv]].
 
-- [ ] **22. Layout de la vue live `/view`** : disposer la page en grille —
-  ligne 1 `Semaine 20h` | `Semaine activités`, ligne 2 `heures du jour` |
-  `activités du jour`, ligne 3 `Tâche courante` (sous les deux graphes du jour).
-  En naviguant vers une semaine plus ancienne : ne garder **que** la ligne 1
-  (`Semaine 20h` | `Semaine activités`) ; le jour et la tâche courante restent
-  masqués (comportement actuel `webhook_receiver.py:955`, `weeks_back == 0`).
-  (Ex-Divers 07-04/05/06.)
+### I — Architecture (à étudier)
 
 - [ ] **a. Factoriser la lib commune** entre `webhook_receiver.py`
   (webhook_flask), `analysis_web.py` (analysis_flask) et `cli.py`/`core/`
@@ -239,15 +274,6 @@ Suite de `/view` (`webhook_receiver.py`) : jauge d'heures facturables du jour
   mixte : CLI/analysis = matplotlib, webhook = SVG maison (choix délibéré de
   légèreté). Décision à prendre : garder ce mix ou converger vers un seul
   choix partout.
-
-- [ ] **d. Étudier précisément où et comment se fait l'arrondi au 1/4h.**
-  Deux comportements différents identifiés aujourd'hui pour "les heures
-  facturables" : `core/plots.py:143` (`report_view_export`, `quantize=True`)
-  et `core/plots.py:171` (`_ods_data_row`, toujours actif) arrondissent
-  chaque session au 1/4h supérieur (`math.ceil(duration_d / 0.03125) * 0.03125`)
-  avant export/ODS ; la jauge webhook (`/billable.svg`) n'arrondit plus du
-  tout (somme brute des minutes, décision prise précédemment). À clarifier :
-  laquelle est la référence, faut-il aligner les deux.
 
 ## Divers
 
