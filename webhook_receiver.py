@@ -36,7 +36,7 @@ CSV_COLUMNS = ["date", "project", "task", "minutes", "startTime", "endTime"]
 EXPORT_TYPES = {"finish", "pause"}
 SECRET = os.environ.get("WEBHOOK_SECRET", "").strip("/")
 PORT = int(os.environ.get("WEBHOOK_PORT", "5000"))
-APP_VERSION = "0.2.0"  # affiché en pied de page (miroir de pyproject.toml)
+APP_VERSION = "0.3.0"  # affiché en pied de page (miroir de pyproject.toml)
 
 BILLABLE_PROJECTS = {p.lower() for p in _config.get("BILLABLE_PROJECTS", [])}
 BILLABLE_MAX_HOURS = 4
@@ -382,7 +382,7 @@ def render_billable_svg(hours, max_hours=BILLABLE_MAX_HOURS):
 BILLABLE_WEEK_MAX_HOURS = 20
 
 
-def _week_header_bar(total_hours, max_hours, value_x, label_x=20, y=4, height=26):
+def _week_header_bar(total_hours, max_hours, value_x, label_x=20, y=4, height=34):
     """Full-width progress bar used as the header of a week chart, in place of a
     text title. Fill ratio is clamped to [0, 1]; the `nn / Nh` figure is
     left-anchored at `value_x` to line up with the day-row figures below."""
@@ -397,10 +397,30 @@ def _week_header_bar(total_hours, max_hours, value_x, label_x=20, y=4, height=26
             f'<rect x="{bar_x + 3}" y="{y + 3}" width="{fill_w:.1f}" '
             f'height="{height - 6}" rx="{corner_radius}" fill="#9d9d93"/>'
         )
+    # 4 intervalles égaux : graduations aux quarts (5/10/15h sur /20h, 15/30/45h sur /60h)
+    ticks = "".join(
+        f'<line x1="{bar_x + bar_w * f:.1f}" y1="{y - 4}" '
+        f'x2="{bar_x + bar_w * f:.1f}" y2="{y + height + 4}" '
+        f'stroke="#383835" stroke-width="1" opacity=".6"/>'
+        for f in (0.25, 0.5, 0.75)
+    )
     return f'''
   <rect x="{bar_x}" y="{y}" width="{bar_w}" height="{height}" rx="{corner_radius}" fill="#2e2e2b"/>
   {fill_rect}
+  {ticks}
   <text x="{value_x}" y="{y + height // 2 + 5}" font-family="system-ui, sans-serif" font-size="13" fill="#ffffff">{_format_hm(total_hours)} / {max_hours}h</text>'''
+
+
+def _text_width(s, size=13):
+    """Rough proportional text width (system-ui) for sizing highlight frames."""
+    narrow = set("iIjl.,:;'!| ")
+    return sum(size * (0.30 if c in narrow else 0.60) for c in s)
+
+
+def _hl_frame(x, y, w, h, rx=4):
+    """Yellow outline used to flag the current day's label/hours/bar."""
+    return (f'<rect x="{x:.1f}" y="{y:.1f}" width="{w:.1f}" height="{h:.1f}" '
+            f'rx="{rx}" fill="none" stroke="#ffd43b" stroke-width="1.5"/>')
 
 
 def render_week_svg(day_hours, max_hours=BILLABLE_MAX_HOURS, week_max_hours=BILLABLE_WEEK_MAX_HOURS, highlight_label=None):
@@ -411,7 +431,7 @@ def render_week_svg(day_hours, max_hours=BILLABLE_MAX_HOURS, week_max_hours=BILL
     color) instead of being clamped, up to a capped overflow lane.
     """
     width = 640
-    row_h, row_gap, header_h = 22, 12, 30
+    row_h, row_gap, header_h = 22, 12, 38
     top = header_h + row_gap
     label_x, bar_x, bar_w, overflow_max = 20, 110, 380, 60
     corner_radius = 5
@@ -439,14 +459,22 @@ def render_week_svg(day_hours, max_hours=BILLABLE_MAX_HOURS, week_max_hours=BILL
                 f'<rect x="{bar_x + bar_w + inset}" y="{y + inset}" width="{overflow_w:.1f}" '
                 f'height="{inner_h}" rx="{corner_radius}" fill="#d9a441"/>'
             )
-        label_fill = "#ffd43b" if label == highlight_label else "#c3c2b7"
+        hours_text = _format_hm(hours)
+        hours_x = bar_x + bar_w + overflow_max + 12
+        frames = ""
+        if label == highlight_label:
+            frames = (
+                _hl_frame(label_x - 5, y, _text_width(label) + 10, row_h)
+                + _hl_frame(hours_x - 5, y, _text_width(hours_text) + 10, row_h)
+            )
         rows_svg.append(f'''
-  <text x="{label_x}" y="{y + row_h - 6}" font-family="system-ui, sans-serif" font-size="13" fill="{label_fill}">{label}</text>
+  <text x="{label_x}" y="{y + row_h - 6}" font-family="system-ui, sans-serif" font-size="13" fill="#c3c2b7">{label}</text>
   <rect x="{bar_x}" y="{y}" width="{bar_w}" height="{row_h}" rx="{corner_radius}" fill="#2e2e2b"/>
   {fill_rect}
   <line x1="{bar_x + bar_w}" y1="{y - 2}" x2="{bar_x + bar_w}" y2="{y + row_h + 2}" stroke="#c3c2b7" stroke-width="2"/>
   {overflow_rect}
-  <text x="{bar_x + bar_w + overflow_max + 12}" y="{y + row_h - 6}" font-family="system-ui, sans-serif" font-size="13" fill="#ffffff">{_format_hm(hours)}</text>''')
+  {frames}
+  <text x="{hours_x}" y="{y + row_h - 6}" font-family="system-ui, sans-serif" font-size="13" fill="#ffffff">{hours_text}</text>''')
 
     header_bar = _week_header_bar(total_hours, week_max_hours, bar_x + bar_w + overflow_max + 12)
     return f"""<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">
@@ -587,7 +615,7 @@ def render_activity_week_svg(days, max_hours=ACTIVITY_MAX_HOURS, uid="", highlig
     one HTML document (the /weeks page), where clipPath ids are document-global,
     so a shared `actwk{i}` would make every week clip to the first week's bar."""
     width = 640
-    row_h, row_gap, header_h = 22, 12, 30
+    row_h, row_gap, header_h = 22, 12, 38
     top = header_h + row_gap
     label_x, bar_x, bar_w = 20, 110, 380
     corner_radius, inset = 5, 3
@@ -600,13 +628,21 @@ def render_activity_week_svg(days, max_hours=ACTIVITY_MAX_HOURS, uid="", highlig
         inner_x, inner_w = bar_x + inset, bar_w - 2 * inset
         inner_y, inner_h = y + inset, row_h - 2 * inset
         segs, fill_w = _activity_segments(totals, inner_x, inner_w, inner_y, inner_h, max_hours)
-        label_fill = "#ffd43b" if label == highlight_label else "#c3c2b7"
+        hours_text = _format_hm(sum(totals.values()) / 60)
+        hours_x = bar_x + bar_w + 12
+        frames = ""
+        if label == highlight_label:
+            frames = (
+                _hl_frame(label_x - 5, y, _text_width(label) + 10, row_h)
+                + _hl_frame(hours_x - 5, y, _text_width(hours_text) + 10, row_h)
+            )
         rows_svg.append(f'''
-  <text x="{label_x}" y="{y + row_h - 6}" font-family="system-ui, sans-serif" font-size="13" fill="{label_fill}">{label}</text>
+  <text x="{label_x}" y="{y + row_h - 6}" font-family="system-ui, sans-serif" font-size="13" fill="#c3c2b7">{label}</text>
   <rect x="{bar_x}" y="{y}" width="{bar_w}" height="{row_h}" rx="{corner_radius}" fill="#2b2b28"/>
   <defs><clipPath id="actwk{uid}{i}"><rect x="{inner_x}" y="{inner_y}" width="{fill_w:.1f}" height="{inner_h}" rx="{corner_radius}"/></clipPath></defs>
   <g clip-path="url(#actwk{uid}{i})">{segs}</g>
-  <text x="{bar_x + bar_w + 12}" y="{y + row_h - 6}" font-family="system-ui, sans-serif" font-size="13" fill="#ffffff">{_format_hm(sum(totals.values()) / 60)}</text>''')
+  {frames}
+  <text x="{hours_x}" y="{y + row_h - 6}" font-family="system-ui, sans-serif" font-size="13" fill="#ffffff">{hours_text}</text>''')
     header_bar = _week_header_bar(week_total, week_max_hours, bar_x + bar_w + 12)
     return f"""<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">
   <title>{title}</title>
@@ -674,9 +710,10 @@ VIEW_HTML = """<!doctype html>
   tr.new {{ animation: flash 2s ease-out; }}
   @keyframes flash {{ from {{ background: #2a5; }} to {{ background: transparent; }} }}
   #current-box {{
-    border: 1px solid #2a5; border-radius: 6px; padding: .8rem 1rem; margin-bottom: 1.5rem;
+    border: 1px solid #9d9d93; border-radius: 6px; padding: .8rem 1rem; margin-bottom: 1.5rem;
+    box-sizing: border-box; min-height: 5.4rem;
   }}
-  #current-box.empty {{ border-color: #333; color: #666; font-style: italic; }}
+  #current-box.empty {{ display: flex; align-items: center; color: #666; font-style: italic; }}
   #current-box table {{ margin-top: .3rem; }}
   .dot {{ display: inline-block; width: .5rem; height: .5rem; border-radius: 50%; background: #2a5;
           animation: pulse 1.5s ease-in-out infinite; margin-right: .4rem; }}
