@@ -36,7 +36,7 @@ CSV_COLUMNS = ["date", "project", "task", "minutes", "startTime", "endTime"]
 EXPORT_TYPES = {"finish", "pause"}
 SECRET = os.environ.get("WEBHOOK_SECRET", "").strip("/")
 PORT = int(os.environ.get("WEBHOOK_PORT", "5000"))
-APP_VERSION = "0.3.0"  # affiché en pied de page (miroir de pyproject.toml)
+APP_VERSION = "0.4.0"  # affiché en pied de page (miroir de pyproject.toml)
 
 BILLABLE_PROJECTS = {p.lower() for p in _config.get("BILLABLE_PROJECTS", [])}
 BILLABLE_MAX_HOURS = 4
@@ -688,6 +688,130 @@ def render_activity_legend_svg(prefixes):
 </svg>"""
 
 
+SWIMLANE_DAYS = 10
+SWIMLANE_HOUR_MIN, SWIMLANE_HOUR_MAX = 6, 24
+
+
+def _hhmm_to_hours(value):
+    """'HH:MM' -> decimal hours of day, or None if unparseable."""
+    try:
+        h, m = value.split(":")
+        return int(h) + int(m) / 60
+    except (ValueError, AttributeError):
+        return None
+
+
+def swimlane_days(rows, last_day, n=SWIMLANE_DAYS):
+    """`n` days ending at `last_day`, most recent first. Each entry is
+    (label, is_weekend, sessions) with sessions a list of
+    (start_h, end_h, minutes, prefix) in decimal hours of the day. Days with no
+    activity keep an empty session list (blank row, cf. critère 2)."""
+    by_date = {}
+    for row in rows:
+        by_date.setdefault(row.get("date"), []).append(row)
+    days = []
+    for i in range(n):
+        day = last_day - timedelta(days=i)
+        sessions = []
+        for row in by_date.get(day.strftime("%Y%m%d"), []):
+            prefix = _project_prefix(row.get("project"))
+            if not prefix or prefix == "nan":
+                continue
+            start_h = _hhmm_to_hours(row.get("startTime"))
+            end_h = _hhmm_to_hours(row.get("endTime"))
+            if start_h is None or end_h is None:
+                continue
+            minutes = int(row.get("minutes") or 0)
+            if end_h <= start_h:  # passage minuit / trame courte, cf. core.plots
+                end_h = start_h + minutes / 60
+            sessions.append((start_h, end_h, minutes, prefix))
+        label = f"{_FR_WEEKDAYS[day.weekday()][:3].lower()}. {day.strftime('%d/%m')}"
+        days.append((label, day.weekday() >= 5, sessions))
+    return days
+
+
+def render_swimlane_svg(days):
+    """Gantt-style swimlane: one row per day (most recent first), colored bars
+    positioned by hour of day (6h→24h), same dark theme as the activity charts.
+    Reuses project_color so colors match /activity."""
+    width = 960
+    label_x, bar_x, bar_w = 20, 100, 840
+    hmin, hmax = SWIMLANE_HOUR_MIN, SWIMLANE_HOUR_MAX
+    span = hmax - hmin
+    row_h, row_gap, top = 24, 6, 60
+    height = top + len(days) * (row_h + row_gap) + 10
+
+    def hx(h):
+        h = max(hmin, min(h, hmax))
+        return bar_x + (h - hmin) / span * bar_w
+
+    tracks, bars = [], []
+    for i, (label, is_we, sessions) in enumerate(days):
+        y = top + i * (row_h + row_gap)
+        track_fill = "#201f1d" if is_we else "#2b2b28"
+        label_fill = "#6f6e66" if is_we else "#c3c2b7"
+        tracks.append(
+            f'<rect x="{bar_x}" y="{y}" width="{bar_w}" height="{row_h}" rx="4" fill="{track_fill}"/>'
+        )
+        tracks.append(
+            f'<text x="{label_x}" y="{y + row_h - 7}" font-family="monospace" '
+            f'font-size="12" fill="{label_fill}">{label}</text>'
+        )
+        for start_h, end_h, minutes, prefix in sessions:
+            x0, x1 = hx(start_h), hx(end_h)
+            if x1 - x0 < 0.5:
+                continue
+            bars.append(
+                f'<rect x="{x0:.1f}" y="{y + 3}" width="{x1 - x0:.1f}" '
+                f'height="{row_h - 6}" rx="2" fill="{project_color(prefix)}"/>'
+            )
+            if x1 - x0 > 24:  # ~30 min : assez large pour un label lisible
+                bars.append(
+                    f'<text x="{(x0 + x1) / 2:.1f}" y="{y + row_h - 8}" '
+                    f'text-anchor="middle" font-family="system-ui, sans-serif" '
+                    f'font-size="9" fill="#ffffff" font-weight="bold">{minutes}m</text>'
+                )
+
+    grid = []
+    for h in range(hmin, hmax + 1, 2):
+        gx = bar_x + (h - hmin) / span * bar_w
+        grid.append(
+            f'<line x1="{gx:.1f}" y1="{top - 6}" x2="{gx:.1f}" y2="{height - 8}" '
+            f'stroke="#383835" stroke-width="1" stroke-dasharray="2 3" opacity=".6"/>'
+        )
+        grid.append(
+            f'<text x="{gx:.1f}" y="{top - 12}" text-anchor="middle" '
+            f'font-family="system-ui, sans-serif" font-size="11" fill="#7a7a72">{h:02d}h</text>'
+        )
+
+    title = f"SWIMLANE · {len(days)} DERNIERS JOURS"
+    return f"""<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">
+  <title>{title}</title>
+  <rect width="{width}" height="{height}" fill="#1a1a19"/>
+  <text x="{label_x}" y="30" font-family="system-ui, sans-serif" font-size="18" fill="#ffffff">{title}</text>
+  {"".join(tracks)}
+  {"".join(grid)}
+  {"".join(bars)}
+</svg>"""
+
+
+def _menu_bar(prefix, active):
+    """Shared top navigation across /view, /weeks and /swimlane. `active` is one
+    of 'view' | 'weeks' | 'swimlane' and gets the highlighted pill."""
+    items = [
+        ("view", "Live", f"{prefix}/view"),
+        ("weeks", "Semaines", f"{prefix}/weeks"),
+        ("swimlane", "Swimlane", f"{prefix}/swimlane"),
+    ]
+    links = "".join(
+        f'<a href="{href}" class="active">{text}</a>'
+        if key == active
+        else f'<a href="{href}">{text}</a>'
+        for key, text, href in items
+    )
+    return f'<nav class="menubar">{links}</nav>'
+
+
 def persist_event(event):
     _write_event(event)
     payload = event.get("json")
@@ -734,6 +858,11 @@ VIEW_HTML = """<!doctype html>
   #legend {{ display: block; max-width: 100%; margin: .3rem 0 1.5rem calc(640px + 1rem); }}
   @media (max-width: 1360px) {{ #legend {{ margin-left: 0; }} }}
   a {{ color: #3987e5; text-decoration: none; }}
+  .menubar {{ display: flex; gap: .6rem; margin-bottom: 1.5rem; }}
+  .menubar a {{ background: #2e2e2b; padding: .4rem .9rem; border-radius: 999px;
+    text-transform: uppercase; font-size: .8rem; color: #bbb; transition: background .15s ease; }}
+  .menubar a:hover {{ background: #3c3c37; }}
+  .menubar a.active {{ background: #3987e5; color: #fff; }}
   .nav {{ margin-bottom: 1.5rem; }}
   .weeknav {{ display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.5rem; }}
   .weeknav a {{ display: inline-flex; align-items: center; gap: .3em; background: #2e2e2b;
@@ -745,6 +874,7 @@ VIEW_HTML = """<!doctype html>
 </style>
 </head>
 <body>
+{menu}
 {nav}
 
 <div class="charts-row">
@@ -848,6 +978,11 @@ WEEKS_HTML = """<!doctype html>
   h1 {{ font-size: 1.1rem; font-weight: normal; color: #999; }}
   a {{ color: #3987e5; text-decoration: none; }}
   #legend svg {{ display: block; max-width: 100%; margin: .2rem 0 1.8rem; }}
+  .menubar {{ display: flex; gap: .6rem; margin-bottom: 1.5rem; }}
+  .menubar a {{ background: #2e2e2b; padding: .4rem .9rem; border-radius: 999px;
+    text-transform: uppercase; font-size: .8rem; color: #bbb; transition: background .15s ease; }}
+  .menubar a:hover {{ background: #3c3c37; }}
+  .menubar a.active {{ background: #3987e5; color: #fff; }}
   .week {{ margin-bottom: 1.8rem; }}
   .week-label {{ font-size: .8rem; text-transform: uppercase; color: #999; margin: 0 0 .4rem; }}
   .week-charts {{ display: flex; flex-wrap: wrap; gap: 1rem; align-items: flex-start; }}
@@ -861,6 +996,7 @@ WEEKS_HTML = """<!doctype html>
 </style>
 </head>
 <body>
+{menu}
 <h1><a href="{view_url}">← live</a> — {count} semaines (page {page}) : facturable + activité</h1>
 {nav}
 <div id="legend">{legend}</div>
@@ -870,6 +1006,50 @@ WEEKS_HTML = """<!doctype html>
 </body>
 </html>
 """
+
+
+SWIMLANE_HTML = """<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Swimlane — 10 derniers jours</title>
+<style>
+  body {{ font-family: system-ui, sans-serif; margin: 2rem; background: #111; color: #eee; }}
+  a {{ color: #3987e5; text-decoration: none; }}
+  .menubar {{ display: flex; gap: .6rem; margin-bottom: 1.5rem; }}
+  .menubar a {{ background: #2e2e2b; padding: .4rem .9rem; border-radius: 999px;
+    text-transform: uppercase; font-size: .8rem; color: #bbb; transition: background .15s ease; }}
+  .menubar a:hover {{ background: #3c3c37; }}
+  .menubar a.active {{ background: #3987e5; color: #fff; }}
+  #chart svg {{ display: block; max-width: 100%; }}
+  #legend svg {{ display: block; max-width: 100%; margin: .6rem 0 1.8rem; }}
+  .ver {{ color: #666; font-size: .7rem; margin-top: 2rem; }}
+</style>
+</head>
+<body>
+{menu}
+<div id="chart">{chart}</div>
+<div id="legend">{legend}</div>
+<footer class="ver">v{version}</footer>
+</body>
+</html>
+"""
+
+
+@app.get("/swimlane", defaults={"secret_path": ""})
+@app.get("/<path:secret_path>/swimlane")
+def swimlane(secret_path):
+    if SECRET and secret_path.strip("/") != SECRET:
+        return "not found\n", 404
+    prefix = f"/{secret_path.strip('/')}" if secret_path.strip("/") else ""
+    days = swimlane_days(_read_csv_rows(CSV_PATH), datetime.now().date())
+    prefixes = {p for _, _, sessions in days for *_, p in sessions}
+    return SWIMLANE_HTML.format(
+        menu=_menu_bar(prefix, "swimlane"),
+        chart=render_swimlane_svg(days),
+        legend=render_activity_legend_svg(_ordered_projects(prefixes)),
+        version=APP_VERSION,
+    )
 
 
 @app.get("/view", defaults={"secret_path": ""})
@@ -912,6 +1092,7 @@ def view(secret_path):
         activity_week_url=f"{prefix}/activity-week.svg{wq}",
         legend_url=f"{prefix}/activity-legend.svg{wq}",
         weeks_url=f"{prefix}/weeks",
+        menu=_menu_bar(prefix, "view"),
         nav=nav,
         current_box=current_box,
         today_charts=today_charts,
@@ -957,6 +1138,7 @@ def weeks(secret_path):
         view_url=f"{prefix}/view",
         count=BILLABLE_WEEKS_SHOWN,
         page=page,
+        menu=_menu_bar(prefix, "weeks"),
         nav=nav,
         legend=legend,
         blocks="\n".join(blocks),
