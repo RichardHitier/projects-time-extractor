@@ -710,10 +710,11 @@ VIEW_HTML = """<!doctype html>
   tr.new {{ animation: flash 2s ease-out; }}
   @keyframes flash {{ from {{ background: #2a5; }} to {{ background: transparent; }} }}
   #current-box {{
-    border: 1px solid #9d9d93; border-radius: 6px; padding: .8rem 1rem; margin-bottom: 1.5rem;
+    border: 1px solid #2a5; border-radius: 6px; padding: .8rem 1rem; margin-bottom: 1.5rem;
     box-sizing: border-box; min-height: 5.4rem;
   }}
-  #current-box.empty {{ display: flex; align-items: center; color: #666; font-style: italic; }}
+  #current-box.empty {{ display: flex; align-items: center; color: #666; font-style: italic;
+    border-color: #9d9d93; }}
   #current-box table {{ margin-top: .3rem; }}
   .dot {{ display: inline-block; width: .5rem; height: .5rem; border-radius: 50%; background: #2a5;
           animation: pulse 1.5s ease-in-out infinite; margin-right: .4rem; }}
