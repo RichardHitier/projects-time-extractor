@@ -382,9 +382,11 @@ def render_billable_svg(hours, max_hours=BILLABLE_MAX_HOURS):
 BILLABLE_WEEK_MAX_HOURS = 20
 
 
-def _week_header_bar(total_hours, max_hours, value_x, bar_end_x=None, label_x=20, y=4, height=34, divisions=4):
+def _week_header_bar(total_hours, max_hours, value_x, bar_end_x=None, label_x=20, y=4, height=34, divisions=4, overflow_max=0):
     """Full-width progress bar used as the header of a week chart, in place of a
-    text title. Fill ratio is clamped to [0, 1]; the `nn / Nh` figure is
+    text title. The grey fill is clamped to the bar; a total past `max_hours`
+    spills into a gold overflow lane of width `overflow_max` to the right of the
+    bar (same as the day rows), when `overflow_max` > 0. The `nn / Nh` figure is
     left-anchored at `value_x` to line up with the day-row figures below. The
     bar's right edge is `bar_end_x` (default: just left of the figure) so it can
     be aligned with the day-row bars rather than reaching the figures column."""
@@ -392,14 +394,21 @@ def _week_header_bar(total_hours, max_hours, value_x, bar_end_x=None, label_x=20
     if bar_end_x is None:
         bar_end_x = value_x - 12
     bar_w = bar_end_x - bar_x
-    ratio = max(0, min(total_hours / max_hours, 1)) if max_hours else 0
-    fill_w = (bar_w - 6) * ratio
+    ratio = max(0, total_hours / max_hours) if max_hours else 0
+    fill_w = (bar_w - 6) * min(ratio, 1)
     corner_radius = 5
     fill_rect = ""
     if fill_w > 0:
         fill_rect = (
             f'<rect x="{bar_x + 3}" y="{y + 3}" width="{fill_w:.1f}" '
             f'height="{height - 6}" rx="{corner_radius}" fill="#9d9d93"/>'
+        )
+    overflow_rect = ""
+    if overflow_max and ratio > 1:
+        overflow_w = overflow_max * min(ratio - 1, 1)
+        overflow_rect = (
+            f'<rect x="{bar_end_x + 3}" y="{y + 3}" width="{overflow_w:.1f}" '
+            f'height="{height - 6}" rx="{corner_radius}" fill="#d9a441"/>'
         )
     # `divisions` intervalles égaux : traits internes séparant les graduations
     # (5 → tous les 4h sur /20h ; 7 → tous les 8h sur /56h)
@@ -412,6 +421,7 @@ def _week_header_bar(total_hours, max_hours, value_x, bar_end_x=None, label_x=20
     return f'''
   <rect x="{bar_x}" y="{y}" width="{bar_w}" height="{height}" rx="{corner_radius}" fill="#2e2e2b"/>
   {fill_rect}
+  {overflow_rect}
   {ticks}
   <text x="{value_x}" y="{y + height // 2 + 5}" font-family="system-ui, sans-serif" font-size="14" font-weight="700" fill="#ffffff">{_format_hm(total_hours)} / {max_hours}h</text>'''
 
@@ -483,7 +493,7 @@ def render_week_svg(day_hours, max_hours=BILLABLE_MAX_HOURS, week_max_hours=BILL
 
     header_bar = _week_header_bar(
         total_hours, week_max_hours, bar_x + bar_w + overflow_max + 12,
-        bar_end_x=bar_x + bar_w, divisions=5,
+        bar_end_x=bar_x + bar_w, divisions=5, overflow_max=overflow_max,
     )
     return f"""<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">
   <title>{title}</title>
