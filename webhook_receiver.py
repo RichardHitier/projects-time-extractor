@@ -876,7 +876,6 @@ VIEW_HTML = """<!doctype html>
     text-transform: uppercase; font-size: .8rem; color: #bbb; transition: background .15s ease; }}
   .menubar a:hover {{ background: #3c3c37; }}
   .menubar a.active {{ background: #3987e5; color: #fff; }}
-  .nav {{ margin-bottom: 1.5rem; }}
   .weeknav {{ display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.5rem; }}
   .weeknav a {{ display: inline-flex; align-items: center; gap: .3em; background: #2e2e2b;
     padding: .4rem .8rem; border-radius: 999px; transition: background .15s ease; }}
@@ -895,11 +894,7 @@ VIEW_HTML = """<!doctype html>
   <img id="week-activity" src="{activity_week_url}" alt="activité de la semaine par projet">
 </div>
 
-{today_charts}
-
 <img id="legend" src="{legend_url}" alt="légende des projets">
-
-<p class="nav"><a href="{weeks_url}">→ semaines facturables</a></p>
 
 {current_box}
 
@@ -911,9 +906,7 @@ VIEW_HTML = """<!doctype html>
 <div id="status">chargement...</div>
 <script>
 const API_URL = "{api_url}";
-const BILLABLE_URL = "{billable_url}";
 const WEEK_URL = "{week_url}";
-const ACTIVITY_URL = "{activity_url}";
 const ACTIVITY_WEEK_URL = "{activity_week_url}";
 const LEGEND_URL = "{legend_url}";
 let known = new Set();
@@ -965,9 +958,7 @@ async function poll() {{
   document.getElementById("status").textContent =
     data.rows.length + " lignes — dernière vérification " + new Date().toLocaleTimeString();
 
-  setSrc("billable", BILLABLE_URL);
   setSrc("week", WEEK_URL);
-  setSrc("day-activity", ACTIVITY_URL);
   setSrc("week-activity", ACTIVITY_WEEK_URL);
   setSrc("legend", LEGEND_URL);
 }}
@@ -1010,7 +1001,7 @@ WEEKS_HTML = """<!doctype html>
 </head>
 <body>
 {menu}
-<h1><a href="{view_url}">← live</a> — {count} semaines (page {page}) : facturable + activité</h1>
+<h1>{count} semaines (page {page}) : facturable + activité</h1>
 {nav}
 <div id="legend">{legend}</div>
 {blocks}
@@ -1078,14 +1069,8 @@ def view(secret_path):
 
     if show_today:
         current_box = '<div id="current-box" class="empty">aucune tâche en cours</div>'
-        today_charts = (
-            '<div class="charts-row">'
-            f'<img id="billable" src="{prefix}/billable.svg" alt="heures facturables">'
-            f'<img id="day-activity" src="{prefix}/activity.svg" alt="activité du jour par projet">'
-            '</div>'
-        )
     else:
-        current_box = today_charts = ""
+        current_box = ""
 
     newer = (
         f'<a href="{prefix}/view?w={weeks_back - 1}">{_CHEVRON_LEFT}semaine suivante</a>'
@@ -1099,16 +1084,12 @@ def view(secret_path):
 
     return VIEW_HTML.format(
         api_url=f"{prefix}/api/rows{wq}",
-        billable_url=f"{prefix}/billable.svg",
         week_url=f"{prefix}/billable-week.svg{wq}",
-        activity_url=f"{prefix}/activity.svg",
         activity_week_url=f"{prefix}/activity-week.svg{wq}",
         legend_url=f"{prefix}/activity-legend.svg{wq}",
-        weeks_url=f"{prefix}/weeks",
         menu=_menu_bar(prefix, "view"),
         nav=nav,
         current_box=current_box,
-        today_charts=today_charts,
         version=APP_VERSION,
     )
 
@@ -1148,7 +1129,6 @@ def weeks(secret_path):
     older = f'<a href="{prefix}/weeks?p={page + 1}">{BILLABLE_WEEKS_SHOWN} plus anciennes{_CHEVRON_RIGHT}</a>'
     nav = f'<p class="weeknav">{newer}{older}</p>'
     return WEEKS_HTML.format(
-        view_url=f"{prefix}/view",
         count=BILLABLE_WEEKS_SHOWN,
         page=page,
         menu=_menu_bar(prefix, "weeks"),

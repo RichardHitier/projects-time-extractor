@@ -387,7 +387,7 @@ def test_view_hides_today_charts_for_past_weeks(tmp_path):
 
     current = client.get("/view").get_data(as_text=True)
     assert '<div id="current-box"' in current
-    assert 'id="billable"' in current
+    assert 'id="billable"' not in current       # graphes du jour retirés de /view
     assert "/billable-week.svg?w=0" in current
     assert "semaine suivante" not in current  # w=0: no newer week
 
