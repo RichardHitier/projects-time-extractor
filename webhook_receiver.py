@@ -382,7 +382,7 @@ def render_billable_svg(hours, max_hours=BILLABLE_MAX_HOURS):
 BILLABLE_WEEK_MAX_HOURS = 20
 
 
-def _week_header_bar(total_hours, max_hours, value_x, bar_end_x=None, label_x=20, y=4, height=34):
+def _week_header_bar(total_hours, max_hours, value_x, bar_end_x=None, label_x=20, y=4, height=34, divisions=4):
     """Full-width progress bar used as the header of a week chart, in place of a
     text title. Fill ratio is clamped to [0, 1]; the `nn / Nh` figure is
     left-anchored at `value_x` to line up with the day-row figures below. The
@@ -401,12 +401,13 @@ def _week_header_bar(total_hours, max_hours, value_x, bar_end_x=None, label_x=20
             f'<rect x="{bar_x + 3}" y="{y + 3}" width="{fill_w:.1f}" '
             f'height="{height - 6}" rx="{corner_radius}" fill="#9d9d93"/>'
         )
-    # 4 intervalles égaux : graduations aux quarts (5/10/15h sur /20h, 15/30/45h sur /60h)
+    # `divisions` intervalles égaux : traits internes séparant les graduations
+    # (5 → tous les 4h sur /20h ; 7 → tous les 8h sur /56h)
     ticks = "".join(
-        f'<line x1="{bar_x + bar_w * f:.1f}" y1="{y - 4}" '
-        f'x2="{bar_x + bar_w * f:.1f}" y2="{y + height + 4}" '
+        f'<line x1="{bar_x + bar_w * i / divisions:.1f}" y1="{y - 4}" '
+        f'x2="{bar_x + bar_w * i / divisions:.1f}" y2="{y + height + 4}" '
         f'stroke="#383835" stroke-width="1" opacity=".6"/>'
-        for f in (0.25, 0.5, 0.75)
+        for i in range(1, divisions)
     )
     return f'''
   <rect x="{bar_x}" y="{y}" width="{bar_w}" height="{height}" rx="{corner_radius}" fill="#2e2e2b"/>
@@ -481,7 +482,8 @@ def render_week_svg(day_hours, max_hours=BILLABLE_MAX_HOURS, week_max_hours=BILL
   <text x="{hours_x}" y="{y + row_h - 6}" font-family="system-ui, sans-serif" font-size="13" fill="#ffffff">{hours_text}</text>''')
 
     header_bar = _week_header_bar(
-        total_hours, week_max_hours, bar_x + bar_w + overflow_max + 12, bar_end_x=bar_x + bar_w
+        total_hours, week_max_hours, bar_x + bar_w + overflow_max + 12,
+        bar_end_x=bar_x + bar_w, divisions=5,
     )
     return f"""<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">
   <title>{title}</title>
@@ -493,7 +495,7 @@ def render_week_svg(day_hours, max_hours=BILLABLE_MAX_HOURS, week_max_hours=BILL
 
 # ── Activité par projet (couleurs identiques à `timer day-bars`) ──────────────
 ACTIVITY_MAX_HOURS = 8
-ACTIVITY_WEEK_MAX_HOURS = 60
+ACTIVITY_WEEK_MAX_HOURS = 56
 
 # tab20 + tab20b (40 couleurs), figées depuis matplotlib pour rester identiques à
 # core.plots._project_color_map sans embarquer matplotlib dans le conteneur.
@@ -650,7 +652,8 @@ def render_activity_week_svg(days, max_hours=ACTIVITY_MAX_HOURS, uid="", highlig
   {frames}
   <text x="{hours_x}" y="{y + row_h - 6}" font-family="system-ui, sans-serif" font-size="13" fill="#ffffff">{hours_text}</text>''')
     header_bar = _week_header_bar(
-        week_total, week_max_hours, bar_x + bar_w + 12, bar_end_x=bar_x + bar_w
+        week_total, week_max_hours, bar_x + bar_w + 12,
+        bar_end_x=bar_x + bar_w, divisions=7,
     )
     return f"""<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">
   <title>{title}</title>
