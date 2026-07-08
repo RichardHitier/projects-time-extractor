@@ -382,12 +382,16 @@ def render_billable_svg(hours, max_hours=BILLABLE_MAX_HOURS):
 BILLABLE_WEEK_MAX_HOURS = 20
 
 
-def _week_header_bar(total_hours, max_hours, value_x, label_x=20, y=4, height=34):
+def _week_header_bar(total_hours, max_hours, value_x, bar_end_x=None, label_x=20, y=4, height=34):
     """Full-width progress bar used as the header of a week chart, in place of a
     text title. Fill ratio is clamped to [0, 1]; the `nn / Nh` figure is
-    left-anchored at `value_x` to line up with the day-row figures below."""
+    left-anchored at `value_x` to line up with the day-row figures below. The
+    bar's right edge is `bar_end_x` (default: just left of the figure) so it can
+    be aligned with the day-row bars rather than reaching the figures column."""
     bar_x = label_x
-    bar_w = value_x - 12 - bar_x
+    if bar_end_x is None:
+        bar_end_x = value_x - 12
+    bar_w = bar_end_x - bar_x
     ratio = max(0, min(total_hours / max_hours, 1)) if max_hours else 0
     fill_w = (bar_w - 6) * ratio
     corner_radius = 5
@@ -408,7 +412,7 @@ def _week_header_bar(total_hours, max_hours, value_x, label_x=20, y=4, height=34
   <rect x="{bar_x}" y="{y}" width="{bar_w}" height="{height}" rx="{corner_radius}" fill="#2e2e2b"/>
   {fill_rect}
   {ticks}
-  <text x="{value_x}" y="{y + height // 2 + 5}" font-family="system-ui, sans-serif" font-size="13" fill="#ffffff">{_format_hm(total_hours)} / {max_hours}h</text>'''
+  <text x="{value_x}" y="{y + height // 2 + 5}" font-family="system-ui, sans-serif" font-size="14" font-weight="700" fill="#ffffff">{_format_hm(total_hours)} / {max_hours}h</text>'''
 
 
 def _text_width(s, size=13):
@@ -476,7 +480,9 @@ def render_week_svg(day_hours, max_hours=BILLABLE_MAX_HOURS, week_max_hours=BILL
   {frames}
   <text x="{hours_x}" y="{y + row_h - 6}" font-family="system-ui, sans-serif" font-size="13" fill="#ffffff">{hours_text}</text>''')
 
-    header_bar = _week_header_bar(total_hours, week_max_hours, bar_x + bar_w + overflow_max + 12)
+    header_bar = _week_header_bar(
+        total_hours, week_max_hours, bar_x + bar_w + overflow_max + 12, bar_end_x=bar_x + bar_w
+    )
     return f"""<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">
   <title>{title}</title>
   <rect width="{width}" height="{height}" fill="#1a1a19"/>
@@ -643,7 +649,9 @@ def render_activity_week_svg(days, max_hours=ACTIVITY_MAX_HOURS, uid="", highlig
   <g clip-path="url(#actwk{uid}{i})">{segs}</g>
   {frames}
   <text x="{hours_x}" y="{y + row_h - 6}" font-family="system-ui, sans-serif" font-size="13" fill="#ffffff">{hours_text}</text>''')
-    header_bar = _week_header_bar(week_total, week_max_hours, bar_x + bar_w + 12)
+    header_bar = _week_header_bar(
+        week_total, week_max_hours, bar_x + bar_w + 12, bar_end_x=bar_x + bar_w
+    )
     return f"""<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">
   <title>{title}</title>
   <rect width="{width}" height="{height}" fill="#1a1a19"/>
