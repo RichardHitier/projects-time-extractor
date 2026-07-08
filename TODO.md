@@ -244,6 +244,14 @@ les numéros/lettres sont des **ID stables** (références croisées « point 1 
   Couvrir `render_week_svg` (débordement), `render_activity_svg`, et le mapping
   `project_color` config vs hash, dans `test_webhook_receiver.py`.
 
+- [ ] ! [2026-07-08] 3 tests SVG rouges depuis le refactor « today highlighted » :
+  ils assertent le nom du jour courant en **texte** jaune (`fill="#ffd43b">Mercredi<`)
+  alors que le code surligne avec des **cadres** (`stroke="#ffd43b"`). Corriger les
+  assertions (vérifier le cadre au lieu du fill). Concerne
+  `test_render_week_svg_colors_today`, `test_render_activity_week_svg_colors_today`,
+  `test_billable_week_route_shows_full_week_and_colors_today`. Dette bloquante :
+  force `--no-verify` à chaque push.
+
 ### H — Déploiement
 
 - [x] **21. Déploiement : push local → déploiement sur le VPS** — EN PROD
@@ -289,3 +297,7 @@ les numéros/lettres sont des **ID stables** (références croisées « point 1 
 - [ ] [2026-07-05] renommer la route /view → /live (ex « modifier le endpoint view en live »)
 - [ ] [2026-07-05] présenter les graphes de l'accueil sur la lageur de la page
 - [x] [2026-07-04] navigation semaines fwb/bckw : icones fleches
+- [ ] [2026-07-07] joshua 'timer sync' pulls csv from http://timer.co-libri.org/csv
+- [ ] [2026-07-07] ovh-vps backups csv on googledrive
+- [x] [2026-07-08] bloc « tâche en cours » : bordure verte quand une tâche tourne, grise sinon (taille constante conservée) — commit 264dbdf
+- [x] [2026-07-08] barres de semaine : chiffre `nn / 20h` et `nn / 60h` en 14px gras ; barre globale /20h alignée à droite sur les jours (fin x=490 au lieu de déborder à x=550) — commit 2ca3dbd
