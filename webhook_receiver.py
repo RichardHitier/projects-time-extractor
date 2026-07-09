@@ -752,7 +752,8 @@ def render_activity_legend_svg(prefixes):
 </svg>"""
 
 
-SWIMLANE_DAYS = 10
+SWIMLANE_DAYS = 10  # nb de jours par défaut (surchargé par ?d=N)
+SWIMLANE_MIN_DAYS, SWIMLANE_MAX_DAYS = 1, 60  # bornes du sélecteur −1/+1
 SWIMLANE_HOUR_MIN, SWIMLANE_HOUR_MAX = 6, 24
 
 
@@ -1067,7 +1068,7 @@ SWIMLANE_HTML = """<!doctype html>
 <html lang="fr">
 <head>
 <meta charset="utf-8">
-<title>Swimlane — 10 derniers jours</title>
+<title>Swimlane — {days} derniers jours</title>
 <style>
   body {{ font-family: system-ui, sans-serif; margin: 2rem; background: #111; color: #eee; }}
   a {{ color: #3987e5; text-decoration: none; }}
@@ -1076,6 +1077,12 @@ SWIMLANE_HTML = """<!doctype html>
     text-transform: uppercase; font-size: .8rem; color: #bbb; transition: background .15s ease; }}
   .menubar a:hover {{ background: #3c3c37; }}
   .menubar a.active {{ background: #3987e5; color: #fff; }}
+  .daynav {{ display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.5rem; }}
+  .daynav a, .daynav .disabled {{ display: inline-flex; align-items: center; background: #2e2e2b;
+    padding: .4rem .9rem; border-radius: 999px; transition: background .15s ease; }}
+  .daynav a:hover {{ background: #3c3c37; }}
+  .daynav .disabled {{ color: #555; }}
+  .daynav .day-label {{ color: #999; text-transform: uppercase; font-size: .8rem; }}
   #chart svg {{ display: block; max-width: 100%; }}
   #legend svg {{ display: block; max-width: 100%; margin: .6rem 0 1.8rem; }}
   .ver {{ color: #666; font-size: .7rem; margin-top: 2rem; }}
@@ -1083,6 +1090,7 @@ SWIMLANE_HTML = """<!doctype html>
 </head>
 <body>
 {menu}
+{nav}
 <div id="chart">{chart}</div>
 <div id="legend">{legend}</div>
 <footer class="ver">v{version}</footer>
@@ -1097,10 +1105,23 @@ def swimlane(secret_path):
     if SECRET and secret_path.strip("/") != SECRET:
         return "not found\n", 404
     prefix = f"/{secret_path.strip('/')}" if secret_path.strip("/") else ""
-    days = swimlane_days(_read_csv_rows(CSV_PATH), datetime.now().date())
+    n = _int_arg("d") or SWIMLANE_DAYS
+    n = max(SWIMLANE_MIN_DAYS, min(n, SWIMLANE_MAX_DAYS))
+    days = swimlane_days(_read_csv_rows(CSV_PATH), datetime.now().date(), n=n)
     prefixes = {p for _, _, sessions in days for *_, p in sessions}
+    fewer = (
+        f'<a href="{prefix}/swimlane?d={n - 1}">−1 jour</a>'
+        if n > SWIMLANE_MIN_DAYS else '<span class="disabled">−1 jour</span>'
+    )
+    more = (
+        f'<a href="{prefix}/swimlane?d={n + 1}">+1 jour</a>'
+        if n < SWIMLANE_MAX_DAYS else '<span class="disabled">+1 jour</span>'
+    )
+    nav = f'<p class="daynav">{fewer}<span class="day-label">{n} jours</span>{more}</p>'
     return SWIMLANE_HTML.format(
+        days=n,
         menu=_menu_bar(prefix, "swimlane"),
+        nav=nav,
         chart=render_swimlane_svg(days),
         legend=render_activity_legend_svg(_ordered_projects(prefixes)),
         version=APP_VERSION,
