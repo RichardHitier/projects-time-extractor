@@ -51,7 +51,7 @@ Réintégrer dans le CLI les deux plots de `core/suivi_chantier.py` :
 
 ## Webhook live view — backlog
 
-Suite de `/view` (`webhook_receiver.py`) : jauge d'heures facturables du jour
+Suite de `/live` (`webhook_receiver.py`) : jauge d'heures facturables du jour
 (`hh:min`, échelle 4h). Traité petit à petit. Items regroupés par thème ci-dessous ;
 les numéros/lettres sont des **ID stables** (références croisées « point 1 »,
 « items 6 et d »…), pas un ordre de priorité.
@@ -205,7 +205,7 @@ les numéros/lettres sont des **ID stables** (références croisées « point 1 
   `chart-weeks` terminé). `/weeks` pagine par fenêtres de 12 semaines via `?p=N`,
   `/view` décale d'une semaine via `?w=N` (boutons prev/next).
 
-- [ ] **22. Layout de la vue live `/view`** : disposer la page en grille —
+- [ ] **22. Layout de la vue live `/live`** : disposer la page en grille —
   ligne 1 `Semaine 20h` | `Semaine activités`, ligne 2 `heures du jour` |
   `activités du jour`, ligne 3 `Tâche courante` (sous les deux graphes du jour).
   En naviguant vers une semaine plus ancienne : ne garder **que** la ligne 1
@@ -221,7 +221,7 @@ les numéros/lettres sont des **ID stables** (références croisées « point 1 
   `load_projects()` (`config.py`). Fallback existant à reprendre si besoin :
   `_project_color_map` (`core/plots.py:241-269`, hash md5 → palette tab20/tab20b).
 
-- [ ] **4. Swimlane — vue semaine complète sur `/view`** : pas juste une
+- [ ] **4. Swimlane — vue semaine complète sur `/live`** : pas juste une
   visualisation ponctuelle, mais le swimlane de toute la semaine courante.
   Agencement dans la page pas encore décidé. Décidé : réimplémentation SVG
   maison (pas de matplotlib/pandas dans le conteneur webhook), dans l'esprit
@@ -294,7 +294,7 @@ les numéros/lettres sont des **ID stables** (références croisées « point 1 
 
 - [x] [2026-07-04] versionner — v0.1.0 affichée en footer (/view + /weeks)
 - [ ] [2026-07-05] menu de navigation, avec liens live + semaines facturables (harmoniser en pastilles comme les flèches prev/next)
-- [ ] [2026-07-05] renommer la route /view → /live (ex « modifier le endpoint view en live »)
+- [x] [2026-07-05] renommer la route /view → /live (ex « modifier le endpoint view en live »)
 - [ ] [2026-07-05] présenter les graphes de l'accueil sur la lageur de la page
 - [x] [2026-07-04] navigation semaines fwb/bckw : icones fleches
 - [ ] [2026-07-07] joshua 'timer sync' pulls csv from http://timer.co-libri.org/csv

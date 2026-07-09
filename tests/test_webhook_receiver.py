@@ -381,17 +381,17 @@ def test_weeks_page_nav_links(tmp_path):
     assert "/weeks?p=2" in p1             # older
 
 
-def test_view_hides_today_charts_for_past_weeks(tmp_path):
+def test_live_hides_today_charts_for_past_weeks(tmp_path):
     webhook_receiver.CSV_PATH = str(tmp_path / "pomofocus_webhook.csv")
     client = webhook_receiver.app.test_client()
 
-    current = client.get("/view").get_data(as_text=True)
+    current = client.get("/live").get_data(as_text=True)
     assert '<div id="current-box"' in current
-    assert 'id="billable"' not in current       # graphes du jour retirés de /view
+    assert 'id="billable"' not in current       # graphes du jour retirés de /live
     assert "/billable-week.svg?w=0" in current
     assert "semaine suivante" not in current  # w=0: no newer week
 
-    past = client.get("/view?w=1").get_data(as_text=True)
+    past = client.get("/live?w=1").get_data(as_text=True)
     assert '<div id="current-box"' not in past  # live box hidden
     assert 'id="billable"' not in past          # daily charts hidden
     assert "/billable-week.svg?w=1" in past     # week charts follow the offset

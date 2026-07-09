@@ -80,11 +80,11 @@ web/
 2. Delete `DATA/histories.parquet` to invalidate the cache.
 3. Reload the app.
 
-## Webhook live view (`/view`) — local Docker dev
+## Webhook live view (`/live`) — local Docker dev
 
 This is a **separate app** from the dashboard above: `webhook_receiver.py`
 (the Pomofocus webhook receiver) also serves a live current-week page at
-`/view`, reading `webhook-data/pomofocus_webhook.csv`. It ships as a Docker
+`/live`, reading `webhook-data/pomofocus_webhook.csv`. It ships as a Docker
 image (`Dockerfile` + `docker-compose.yml`).
 
 The committed `docker-compose.yml` is the **prod** config: it only `expose`s
@@ -100,8 +100,8 @@ with `--reload`.
 docker compose up -d webhook        # base + override merged automatically
 ```
 
-Then open **http://localhost:5000/view** (no secret needed in dev —
-`WEBHOOK_SECRET` is empty, so `/view` answers at the root).
+Then open **http://localhost:5000/live** (no secret needed in dev —
+`WEBHOOK_SECRET` is empty, so `/live` answers at the root).
 
 Editing `webhook_receiver.py` on the host triggers gunicorn `--reload`; no
 rebuild needed. Only a change to `requirements-webhook.txt` requires
@@ -115,7 +115,7 @@ docker compose down                 # stop everything
 
 ### Data
 
-`/view` reads `webhook-data/pomofocus_webhook.csv` (mounted at `/app/DATA` by
+`/live` reads `webhook-data/pomofocus_webhook.csv` (mounted at `/app/DATA` by
 the base compose, exactly like prod). The file is re-read on every request, so
 refreshing data needs no restart — just copy a recent version from the VPS:
 

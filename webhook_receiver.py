@@ -261,7 +261,7 @@ def current_week_bounds(today=None):
 
 
 def week_anchor(weeks_back, today=None):
-    """Last day to display for a /view shifted `weeks_back` weeks into the past.
+    """Last day to display for a /live shifted `weeks_back` weeks into the past.
     The current week (0) ends at `today`; a past week ends on its Sunday."""
     if today is None:
         today = datetime.now().date()
@@ -860,10 +860,10 @@ def render_swimlane_svg(days):
 
 
 def _menu_bar(prefix, active):
-    """Shared top navigation across /view, /weeks and /swimlane. `active` is one
-    of 'view' | 'weeks' | 'swimlane' and gets the highlighted pill."""
+    """Shared top navigation across /live, /weeks and /swimlane. `active` is one
+    of 'live' | 'weeks' | 'swimlane' and gets the highlighted pill."""
     items = [
-        ("view", "Live", f"{prefix}/view"),
+        ("live", "Live", f"{prefix}/live"),
         ("weeks", "Semaines", f"{prefix}/weeks"),
         ("swimlane", "Swimlane", f"{prefix}/swimlane"),
     ]
@@ -891,7 +891,7 @@ def health():
     return "ok\n", 200
 
 
-VIEW_HTML = """<!doctype html>
+LIVE_HTML = """<!doctype html>
 <html lang="fr">
 <head>
 <meta charset="utf-8">
@@ -1107,9 +1107,9 @@ def swimlane(secret_path):
     )
 
 
-@app.get("/view", defaults={"secret_path": ""})
-@app.get("/<path:secret_path>/view")
-def view(secret_path):
+@app.get("/live", defaults={"secret_path": ""})
+@app.get("/<path:secret_path>/live")
+def live(secret_path):
     if SECRET and secret_path.strip("/") != SECRET:
         return "not found\n", 404
     prefix = f"/{secret_path.strip('/')}" if secret_path.strip("/") else ""
@@ -1124,21 +1124,21 @@ def view(secret_path):
         current_box = ""
 
     newer = (
-        f'<a href="{prefix}/view?w={weeks_back - 1}">{_CHEVRON_LEFT}semaine suivante</a>'
+        f'<a href="{prefix}/live?w={weeks_back - 1}">{_CHEVRON_LEFT}semaine suivante</a>'
         if weeks_back > 0 else ""
     )
-    older = f'<a href="{prefix}/view?w={weeks_back + 1}">semaine précédente{_CHEVRON_RIGHT}</a>'
+    older = f'<a href="{prefix}/live?w={weeks_back + 1}">semaine précédente{_CHEVRON_RIGHT}</a>'
     nav = (
         f'<p class="weeknav">{newer}'
         f'<span class="week-label">{_fr_week_range(monday, sunday)}</span>{older}</p>'
     )
 
-    return VIEW_HTML.format(
+    return LIVE_HTML.format(
         api_url=f"{prefix}/api/rows{wq}",
         week_url=f"{prefix}/billable-week.svg{wq}",
         activity_week_url=f"{prefix}/activity-week.svg{wq}",
         legend_url=f"{prefix}/activity-legend.svg{wq}",
-        menu=_menu_bar(prefix, "view"),
+        menu=_menu_bar(prefix, "live"),
         nav=nav,
         current_box=current_box,
         version=APP_VERSION,
