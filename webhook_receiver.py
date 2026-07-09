@@ -36,7 +36,7 @@ CSV_COLUMNS = ["date", "project", "task", "minutes", "startTime", "endTime"]
 EXPORT_TYPES = {"finish", "pause"}
 SECRET = os.environ.get("WEBHOOK_SECRET", "").strip("/")
 PORT = int(os.environ.get("WEBHOOK_PORT", "5000"))
-APP_VERSION = "0.4.0"  # affiché en pied de page (miroir de pyproject.toml)
+APP_VERSION = "0.5.0"  # affiché en pied de page (miroir de pyproject.toml)
 
 BILLABLE_PROJECTS = {p.lower() for p in _config.get("BILLABLE_PROJECTS", [])}
 BILLABLE_MAX_HOURS = 4
@@ -438,12 +438,32 @@ def _hl_frame(x, y, w, h, rx=4):
             f'rx="{rx}" fill="none" stroke="#ffd43b" stroke-width="1.5"/>')
 
 
-def render_week_svg(day_hours, max_hours=BILLABLE_MAX_HOURS, week_max_hours=BILLABLE_WEEK_MAX_HOURS, highlight_label=None):
+def _hatch_pattern(pattern_id, color):
+    """Diagonal-line hatch (45°) in `color` on a faint tint of itself. Fills the
+    running task's elapsed-time zone so it reads as "in progress", distinct from
+    the solid recorded fill."""
+    return (
+        f'<pattern id="{pattern_id}" patternUnits="userSpaceOnUse" width="6" '
+        f'height="6" patternTransform="rotate(45)">'
+        f'<rect width="6" height="6" fill="{color}" opacity="0.16"/>'
+        f'<line x1="0" y1="0" x2="0" y2="6" stroke="{color}" stroke-width="2.4"/>'
+        f'</pattern>'
+    )
+
+
+_BILLABLE_HATCH_ID = "hatch-billable"
+
+
+def render_week_svg(day_hours, max_hours=BILLABLE_MAX_HOURS, week_max_hours=BILLABLE_WEEK_MAX_HOURS, highlight_label=None, current_hours=0.0):
     """Render a "SEMAINE : total / Nh" header, then one bar per
     (day_label, hours) pair, most recent first.
 
     Bars past `max_hours` overflow past a boundary marker (in a distinct
     color) instead of being clamped, up to a capped overflow lane.
+
+    `current_hours` (> 0 only for the running billable task, week w==0) draws a
+    grey hatched zone after the solid fill on the `highlight_label` row, clamped
+    within the bar.
     """
     width = 640
     row_h, row_gap, header_h = 22, 12, 38
@@ -455,18 +475,30 @@ def render_week_svg(day_hours, max_hours=BILLABLE_MAX_HOURS, week_max_hours=BILL
     total_hours = sum(hours for _, hours in day_hours)
     title = f"SEMAINE : {_format_hm(total_hours)} / {week_max_hours}h"
 
+    hatch_defs = ""
     rows_svg = []
     for i, (label, hours) in enumerate(day_hours):
         y = top + i * (row_h + row_gap)
         ratio = hours / max_hours if max_hours else 0
         inner_h = row_h - 2 * inset
-        fill_w = (bar_w - 2 * inset) * min(ratio, 1)
+        inner_w = bar_w - 2 * inset
+        fill_w = inner_w * min(ratio, 1)
         fill_rect = ""
         if fill_w > 0:
             fill_rect = (
                 f'<rect x="{bar_x + inset}" y="{y + inset}" width="{fill_w:.1f}" '
                 f'height="{inner_h}" rx="{corner_radius}" fill="#9d9d93"/>'
             )
+        hatch_rect = ""
+        if current_hours > 0 and label == highlight_label:
+            hatch_w = min(inner_w * (current_hours / max_hours), inner_w - fill_w)
+            if hatch_w > 0:
+                hatch_defs = f'<defs>{_hatch_pattern(_BILLABLE_HATCH_ID, "#9d9d93")}</defs>'
+                hatch_rect = (
+                    f'<rect x="{bar_x + inset + fill_w:.1f}" y="{y + inset}" '
+                    f'width="{hatch_w:.1f}" height="{inner_h}" '
+                    f'fill="url(#{_BILLABLE_HATCH_ID})"/>'
+                )
         overflow_rect = ""
         if ratio > 1:
             overflow_w = overflow_max * min(ratio - 1, 1)
@@ -486,6 +518,7 @@ def render_week_svg(day_hours, max_hours=BILLABLE_MAX_HOURS, week_max_hours=BILL
   <text x="{label_x}" y="{y + row_h - 6}" font-family="system-ui, sans-serif" font-size="13" fill="#c3c2b7">{label}</text>
   <rect x="{bar_x}" y="{y}" width="{bar_w}" height="{row_h}" rx="{corner_radius}" fill="#2e2e2b"/>
   {fill_rect}
+  {hatch_rect}
   <line x1="{bar_x + bar_w}" y1="{y - 2}" x2="{bar_x + bar_w}" y2="{y + row_h + 2}" stroke="#c3c2b7" stroke-width="2"/>
   {overflow_rect}
   {frames}
@@ -498,6 +531,7 @@ def render_week_svg(day_hours, max_hours=BILLABLE_MAX_HOURS, week_max_hours=BILL
     return f"""<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">
   <title>{title}</title>
   <rect width="{width}" height="{height}" fill="#1a1a19"/>
+  {hatch_defs}
   {header_bar}
   {"".join(rows_svg)}
 </svg>"""
@@ -625,13 +659,17 @@ def render_activity_svg(totals, max_hours=ACTIVITY_MAX_HOURS):
 </svg>"""
 
 
-def render_activity_week_svg(days, max_hours=ACTIVITY_MAX_HOURS, uid="", highlight_label=None, week_max_hours=ACTIVITY_WEEK_MAX_HOURS):
+def render_activity_week_svg(days, max_hours=ACTIVITY_MAX_HOURS, uid="", highlight_label=None, week_max_hours=ACTIVITY_WEEK_MAX_HOURS, current_hours=0.0, current_prefix=None):
     """One stacked activity bar per day (most recent first). Row geometry
     matches render_week_svg so the two week charts line up side by side.
 
     `uid` disambiguates the clipPath ids: several of these SVGs are inlined in
     one HTML document (the /weeks page), where clipPath ids are document-global,
-    so a shared `actwk{i}` would make every week clip to the first week's bar."""
+    so a shared `actwk{i}` would make every week clip to the first week's bar.
+
+    `current_hours`/`current_prefix` (set only for the running task, week w==0)
+    draw a hatched zone in the project's color after the stacked segments on the
+    `highlight_label` row, clamped within the bar."""
     width = 640
     row_h, row_gap, header_h = 22, 12, 38
     top = header_h + row_gap
@@ -640,12 +678,23 @@ def render_activity_week_svg(days, max_hours=ACTIVITY_MAX_HOURS, uid="", highlig
     height = top + len(days) * (row_h + row_gap)
     week_total = sum(sum(t.values()) for _, t in days) / 60
     title = f"ACTIVITÉ SEMAINE : {_format_hm(week_total)} / {week_max_hours}h"
+    hatch_defs = ""
     rows_svg = []
     for i, (label, totals) in enumerate(days):
         y = top + i * (row_h + row_gap)
         inner_x, inner_w = bar_x + inset, bar_w - 2 * inset
         inner_y, inner_h = y + inset, row_h - 2 * inset
         segs, fill_w = _activity_segments(totals, inner_x, inner_w, inner_y, inner_h, max_hours)
+        hatch_rect = ""
+        if current_hours > 0 and current_prefix and label == highlight_label:
+            hatch_w = min(inner_w * (current_hours / max_hours), inner_w - fill_w)
+            if hatch_w > 0:
+                hid = f"acthatch{uid}"
+                hatch_defs = f'<defs>{_hatch_pattern(hid, project_color(current_prefix))}</defs>'
+                hatch_rect = (
+                    f'<rect x="{inner_x + fill_w:.1f}" y="{inner_y}" '
+                    f'width="{hatch_w:.1f}" height="{inner_h}" fill="url(#{hid})"/>'
+                )
         hours_text = _format_hm(sum(totals.values()) / 60)
         hours_x = bar_x + bar_w + 12
         frames = ""
@@ -659,6 +708,7 @@ def render_activity_week_svg(days, max_hours=ACTIVITY_MAX_HOURS, uid="", highlig
   <rect x="{bar_x}" y="{y}" width="{bar_w}" height="{row_h}" rx="{corner_radius}" fill="#2b2b28"/>
   <defs><clipPath id="actwk{uid}{i}"><rect x="{inner_x}" y="{inner_y}" width="{fill_w:.1f}" height="{inner_h}" rx="{corner_radius}"/></clipPath></defs>
   <g clip-path="url(#actwk{uid}{i})">{segs}</g>
+  {hatch_rect}
   {frames}
   <text x="{hours_x}" y="{y + row_h - 6}" font-family="system-ui, sans-serif" font-size="13" fill="#ffffff">{hours_text}</text>''')
     header_bar = _week_header_bar(
@@ -668,6 +718,7 @@ def render_activity_week_svg(days, max_hours=ACTIVITY_MAX_HOURS, uid="", highlig
     return f"""<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">
   <title>{title}</title>
   <rect width="{width}" height="{height}" fill="#1a1a19"/>
+  {hatch_defs}
   {header_bar}
   {"".join(rows_svg)}
 </svg>"""
@@ -1157,7 +1208,12 @@ def billable_week_svg(secret_path):
     monday, sunday = current_week_bounds(week_anchor(w))
     day_hours = billable_hours_for_days(monday, sunday, _read_csv_rows(CSV_PATH))
     highlight = _FR_WEEKDAYS[datetime.now().date().weekday()] if w == 0 else None
-    svg = render_week_svg(day_hours, highlight_label=highlight)
+    current_hours = 0.0
+    if w == 0:
+        current = current_task_row()
+        if current and _row_is_billable(current):
+            current_hours = current["minutes"] / 60
+    svg = render_week_svg(day_hours, highlight_label=highlight, current_hours=current_hours)
     return Response(svg, mimetype="image/svg+xml", headers={"Cache-Control": "no-store"})
 
 
@@ -1181,7 +1237,16 @@ def activity_week_svg(secret_path):
     _, sunday = current_week_bounds(week_anchor(w))
     days = activity_week_days(_read_csv_rows(CSV_PATH), sunday)
     highlight = _FR_WEEKDAYS[datetime.now().date().weekday()] if w == 0 else None
-    svg = render_activity_week_svg(days, highlight_label=highlight)
+    current_hours, current_prefix = 0.0, None
+    if w == 0:
+        current = current_task_row()
+        if current:
+            current_hours = current["minutes"] / 60
+            current_prefix = _project_prefix(current["project"])
+    svg = render_activity_week_svg(
+        days, highlight_label=highlight,
+        current_hours=current_hours, current_prefix=current_prefix,
+    )
     return Response(svg, mimetype="image/svg+xml", headers={"Cache-Control": "no-store"})
 
 
