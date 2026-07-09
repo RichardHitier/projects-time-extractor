@@ -239,8 +239,8 @@ def test_render_week_svg_colors_today():
         [("Dimanche", 0.0), ("Mercredi", 3.0), ("Lundi", 2.0)],
         highlight_label="Mercredi",
     )
-    assert 'fill="#ffd43b">Mercredi<' in svg  # nom du jour en jaune
-    assert 'fill="#c3c2b7">Lundi<' in svg     # autres jours inchangés
+    assert 'stroke="#ffd43b" stroke-width="1.5"' in svg  # jour courant encadré en jaune
+    assert 'fill="#c3c2b7">Lundi<' in svg                # autres jours inchangés
     plain = webhook_receiver.render_week_svg([("Mercredi", 3.0)])
     assert "#ffd43b" not in plain
 
@@ -249,7 +249,7 @@ def test_render_activity_week_svg_colors_today():
     svg = webhook_receiver.render_activity_week_svg(
         [("Mercredi", {"speasy": 60})], highlight_label="Mercredi"
     )
-    assert 'fill="#ffd43b">Mercredi<' in svg
+    assert 'stroke="#ffd43b" stroke-width="1.5"' in svg  # jour courant encadré en jaune
 
 
 def test_billable_week_route_shows_full_week_and_colors_today(tmp_path):
@@ -260,7 +260,7 @@ def test_billable_week_route_shows_full_week_and_colors_today(tmp_path):
     # semaine complète : 1 barre/jour lun..dim (hauteur 22 ; la barre d'en-tête
     # partage la couleur #2e2e2b mais fait hauteur 18)
     assert svg.count('height="22" rx="5" fill="#2e2e2b"') == 7
-    assert 'fill="#ffd43b">' in svg           # w=0 → nom du jour courant en jaune
+    assert 'stroke="#ffd43b" stroke-width="1.5"' in svg   # w=0 → jour courant encadré en jaune
 
 
 def test_billable_week_svg_route_returns_svg(tmp_path):
