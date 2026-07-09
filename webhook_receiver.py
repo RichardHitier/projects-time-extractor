@@ -949,7 +949,7 @@ LIVE_HTML = """<!doctype html>
 
 {current_box}
 
-<h1>pomofocus_webhook.csv — semaine affichée, mis à jour toutes les 3s (plus récent en haut)</h1>
+<h1>pomofocus_webhook.csv — aujourd'hui, mis à jour toutes les 3s (plus récent en haut)</h1>
 <table>
   <thead><tr><th>Date</th><th>Projet</th><th>Tâche</th><th>Min</th><th>Début</th><th>Fin</th></tr></thead>
   <tbody id="rows"></tbody>
@@ -1275,10 +1275,9 @@ def api_rows(secret_path):
     if SECRET and secret_path.strip("/") != SECRET:
         return "not found\n", 404
     weeks_back = _int_arg("w")
-    monday, sunday = current_week_bounds(week_anchor(weeks_back))
-    week_start, week_end = monday.strftime("%Y%m%d"), sunday.strftime("%Y%m%d")
-    rows = [r for r in _read_csv_rows(CSV_PATH) if week_start <= r["date"] <= week_end]
-    rows.sort(key=lambda r: (r["date"], r["startTime"]), reverse=True)
+    today = datetime.now().strftime("%Y%m%d")
+    rows = [r for r in _read_csv_rows(CSV_PATH) if r["date"] == today]
+    rows.sort(key=lambda r: r["startTime"], reverse=True)
     current = current_task_row() if weeks_back == 0 else None
     return jsonify({"rows": rows, "current": current})
 

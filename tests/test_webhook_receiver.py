@@ -287,21 +287,20 @@ def test_weeks_page_has_unique_clip_ids(tmp_path):
     assert len(ids) == len(set(ids)), "duplicate clipPath ids across weeks"
 
 
-def test_api_rows_filters_to_current_week(tmp_path):
+def test_api_rows_filters_to_today(tmp_path):
     webhook_receiver.CSV_PATH = str(tmp_path / "pomofocus_webhook.csv")
-    monday, _ = webhook_receiver.current_week_bounds()
-    in_week = monday.strftime("%Y%m%d")
-    out_of_week = (monday - timedelta(days=1)).strftime("%Y%m%d")
+    today = date.today().strftime("%Y%m%d")
+    yesterday = (date.today() - timedelta(days=1)).strftime("%Y%m%d")
 
     with open(webhook_receiver.CSV_PATH, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=webhook_receiver.CSV_COLUMNS)
         writer.writeheader()
         writer.writerow({
-            "date": in_week, "project": "calipso", "task": "t",
+            "date": today, "project": "calipso", "task": "t",
             "minutes": "10", "startTime": "10:00", "endTime": "10:10",
         })
         writer.writerow({
-            "date": out_of_week, "project": "calipso", "task": "t",
+            "date": yesterday, "project": "calipso", "task": "t",
             "minutes": "10", "startTime": "10:00", "endTime": "10:10",
         })
 
@@ -309,7 +308,7 @@ def test_api_rows_filters_to_current_week(tmp_path):
     data = client.get("/api/rows").get_json()
 
     assert len(data["rows"]) == 1
-    assert data["rows"][0]["date"] == in_week
+    assert data["rows"][0]["date"] == today
 
 
 def test_hook_writes_jsonl_and_csv(tmp_path):
