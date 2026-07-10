@@ -1303,6 +1303,25 @@ def api_rows(secret_path):
     return jsonify({"rows": rows, "current": current})
 
 
+@app.get("/api/csv", defaults={"secret_path": ""})
+@app.get("/<path:secret_path>/api/csv")
+def csv_export(secret_path):
+    if SECRET and secret_path.strip("/") != SECRET:
+        return "not found\n", 404
+    if not os.path.exists(CSV_PATH):
+        return "not found\n", 404
+    with open(CSV_PATH, encoding="utf-8") as f:
+        body = f.read()
+    return Response(
+        body,
+        mimetype="text/csv",
+        headers={
+            "Cache-Control": "no-store",
+            "Content-Disposition": "attachment; filename=pomofocus_webhook.csv",
+        },
+    )
+
+
 @app.route("/", defaults={"secret_path": ""}, methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"])
 @app.route("/<path:secret_path>", methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"])
 def hook(secret_path):

@@ -311,6 +311,44 @@ def test_api_rows_filters_to_today(tmp_path):
     assert data["rows"][0]["date"] == today
 
 
+def test_csv_route_serves_raw_file(tmp_path):
+    webhook_receiver.CSV_PATH = str(tmp_path / "pomofocus_webhook.csv")
+    with open(webhook_receiver.CSV_PATH, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=webhook_receiver.CSV_COLUMNS)
+        writer.writeheader()
+        writer.writerow({
+            "date": "20260707", "project": "calipso", "task": "t",
+            "minutes": "10", "startTime": "10:00", "endTime": "10:10",
+        })
+    expected = open(webhook_receiver.CSV_PATH, encoding="utf-8").read()
+
+    response = webhook_receiver.app.test_client().get("/api/csv")
+
+    assert response.status_code == 200
+    assert response.mimetype == "text/csv"
+    assert response.get_data(as_text=True) == expected
+
+
+def test_csv_route_404_when_file_missing(tmp_path):
+    webhook_receiver.CSV_PATH = str(tmp_path / "does-not-exist.csv")
+
+    response = webhook_receiver.app.test_client().get("/api/csv")
+
+    assert response.status_code == 404
+
+
+def test_csv_route_rejects_wrong_secret(tmp_path, monkeypatch):
+    webhook_receiver.CSV_PATH = str(tmp_path / "pomofocus_webhook.csv")
+    with open(webhook_receiver.CSV_PATH, "w", newline="", encoding="utf-8") as f:
+        csv.DictWriter(f, fieldnames=webhook_receiver.CSV_COLUMNS).writeheader()
+    monkeypatch.setattr(webhook_receiver, "SECRET", "s3cret")
+    client = webhook_receiver.app.test_client()
+
+    assert client.get("/api/csv").status_code == 404
+    assert client.get("/wrong/api/csv").status_code == 404
+    assert client.get("/s3cret/api/csv").status_code == 200
+
+
 def test_hook_writes_jsonl_and_csv(tmp_path):
     webhook_receiver.LOG_PATH = str(tmp_path / "webhook_log.jsonl")
     webhook_receiver.CSV_PATH = str(tmp_path / "pomofocus_webhook.csv")
