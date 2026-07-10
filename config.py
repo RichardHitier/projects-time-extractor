@@ -42,6 +42,9 @@ def load_config(config_path=config_filepath):
     config["POMOFOCUS_FILEPATH"] = os.path.join(
         ppt_root_dir, config["PPT_DATA_DIR"], config["POMOFOCUS_FILENAME"]
     )
+    config["WEBHOOK_POMOFOCUS_FILEPATH"] = os.path.join(
+        ppt_root_dir, config["WEBHOOK_DATA_DIR"], config["WEBHOOK_POMOFOCUS_FILENAME"]
+    )
     config["SUPERPROD_FILEPATH"] = os.path.join(
         ppt_root_dir, config["PPT_DATA_DIR"], config["SUPERPROD_FILENAME"]
     )

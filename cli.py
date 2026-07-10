@@ -1,6 +1,8 @@
 import argparse
 import os
 import shutil
+import urllib.error
+import urllib.request
 from datetime import datetime
 
 import pandas as pd
@@ -30,9 +32,14 @@ from core.plots import (
 _config = load_config()
 
 POMO_FILE = _config["POMOFOCUS_FILEPATH"]
+WEBHOOK_POMO_FILE = _config["WEBHOOK_POMOFOCUS_FILEPATH"]
+WEBHOOK_CSV_URL = _config["WEBHOOK_CSV_URL"]
 DATA_DIR = _config["DATA_DIR"]
 BCKP_DIR = os.path.join(_config["DATA_DIR"], "bckp")
 ODS_FILE = _config["ODS_FILEPATH"]
+
+# --input choices → source CSV path
+REPORT_SOURCES = {"pomofocus": POMO_FILE, "web": WEBHOOK_POMO_FILE}
 
 
 POMO_RECORDS_LOG = os.path.join(DATA_DIR, "pomo_records.csv")
@@ -90,7 +97,10 @@ def cmd_report(args):
         report_view_projectlogs(df)
         return
 
-    df = load_pomo_for_report(cutoff, args.project, all_projects=args.all_projects)
+    source = REPORT_SOURCES[getattr(args, "input", "pomofocus")]
+    df = load_pomo_for_report(
+        cutoff, args.project, all_projects=args.all_projects, source=source
+    )
     if df is not None:
         if args.view == "table":
             report_view_table(df)
@@ -197,11 +207,26 @@ def cmd_sync(args):
     print("\n=== report --view ods ===")
     cmd_report(argparse.Namespace(
         view="ods", month=None, since=None, days=7,
-        project=None, all_projects=False, quantize=False,
+        project=None, all_projects=False, quantize=False, input="pomofocus",
     ))
 
     print("\n=== eighty-hours --write-ods ===")
     cmd_eighty_hours(argparse.Namespace(write_ods=True, month=None, week=None))
+
+
+def cmd_web_sync(args):
+    dest = WEBHOOK_POMO_FILE
+    print(f"Downloading {WEBHOOK_CSV_URL} -> {dest}")
+    os.makedirs(os.path.dirname(dest), exist_ok=True)
+    try:
+        with urllib.request.urlopen(WEBHOOK_CSV_URL, timeout=30) as resp:
+            data = resp.read()
+    except urllib.error.URLError as exc:
+        raise SystemExit(f"web_sync failed: {WEBHOOK_CSV_URL}: {exc}")
+    with open(dest, "wb") as f:
+        f.write(data)
+    n_lines = max(data.count(b"\n") - 1, 0)  # minus header
+    print(f"Wrote {len(data)} bytes ({n_lines} records) to {dest}")
 
 
 def cmd_plot(args):
@@ -243,6 +268,13 @@ def build_parser():
         help="Start date (overrides --days)",
     )
     p_report.add_argument("--project", default=None, metavar="NAME")
+    p_report.add_argument(
+        "--input",
+        default="pomofocus",
+        choices=["pomofocus", "web"],
+        help="Source CSV: 'pomofocus' (DATA/pomofocus.csv, default) or "
+             "'web' (webhook-data/pomofocus_webhook.csv)",
+    )
     p_report.add_argument(
         "--quantize",
         action="store_true",
@@ -321,6 +353,11 @@ def build_parser():
 
     p_sync = sub.add_parser("sync", help="pomo-merge + report ods + eighty-hours ods")
     p_sync.set_defaults(func=cmd_sync)
+
+    p_web_sync = sub.add_parser(
+        "web_sync", help="Download webhook CSV → webhook-data/pomofocus_webhook.csv"
+    )
+    p_web_sync.set_defaults(func=cmd_web_sync)
 
     return parser
 

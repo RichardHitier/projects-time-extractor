@@ -9,7 +9,7 @@ from core.data import read_pomo, load_all_pomo
 _config = load_config()
 
 
-def load_pomo_for_report(cutoff, project, all_projects=False):
+def load_pomo_for_report(cutoff, project, all_projects=False, source=None):
     """Load and filter Pomofocus data for text reporting.
 
     Restricts to the configured EXPORT_PROJECTS (unless all_projects is True),
@@ -20,11 +20,13 @@ def load_pomo_for_report(cutoff, project, all_projects=False):
         cutoff: pd.Timestamp — first date to include.
         project: If set, restrict output to this project name.
         all_projects: If True, bypass EXPORT_PROJECTS filter.
+        source: Path to the Pomofocus CSV to read. Defaults to the configured
+            POMOFOCUS_FILEPATH when None.
 
     Returns:
         Aggregated DataFrame sorted by date and project.
     """
-    df = load_all_pomo()
+    df = load_all_pomo() if source is None else load_all_pomo(source)
     if not all_projects:
         df = df[df["project"].isin(_config["EXPORT_PROJECTS"])]
     df = df.sort_values("date")

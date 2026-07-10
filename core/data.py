@@ -23,9 +23,9 @@ def read_pomo(pomo_file: str) -> pd.DataFrame:
         DataFrame with columns:
           date, startTime, endTime, project, task, minutes.
     """
-    if not os.path.exists(POMO_FILE):
+    if not os.path.exists(pomo_file):
         raise FileNotFoundError(
-            f"Pomofocus export not found: {POMO_FILE}."
+            f"Pomofocus export not found: {pomo_file}."
             f" Run 'timer pomo-merge' first."
         )
     df = pd.read_csv(pomo_file, sep=CSV_SEP, encoding="utf-8-sig", dtype=str)
@@ -49,19 +49,23 @@ def read_pomo(pomo_file: str) -> pd.DataFrame:
     return df
 
 
-def load_all_pomo():
+def load_all_pomo(pomo_file: str = POMO_FILE):
     """
-    Load and transform the full Pomofocus dataset from the configured CSV file.
+    Load and transform the full Pomofocus dataset from a CSV file.
 
     Parses dates and times, computes duration columns (minutes, hours, days at
     8 h/day), and splits the project field on the first '_' into project and
     sub_project.
 
+    Args:
+        pomo_file: Path to the Pomofocus CSV to read (defaults to the
+            configured POMOFOCUS_FILEPATH).
+
     Returns:
         DataFrame with columns: date, startTime, endTime, project, sub_project,
         task, duration_m, duration_h, duration_d.
     """  # noqa: E501
-    df = read_pomo(POMO_FILE)
+    df = read_pomo(pomo_file)
     df["date"] = pd.to_datetime(df["date"], format="%Y%m%d", errors="coerce")
     df["startTime"] = pd.to_datetime(df["startTime"], format="%H:%M").dt.time
     df["endTime"] = pd.to_datetime(df["endTime"], format="%H:%M").dt.time
