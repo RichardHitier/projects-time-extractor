@@ -234,15 +234,22 @@ def _row_is_billable(row):
     return project in BILLABLE_PROJECTS
 
 
-def billable_minutes(rows, day):
-    total = 0
+def billable_minutes(rows, day, quantize=False):
+    """Billable minutes for `day`. When `quantize`, reproduces the ODS export
+    rounding (`timer report --view ods`): group rows by (project, task), then
+    ceil each group up to the next quarter-hour (15 min) before summing. Without
+    it, returns the raw sum (grouping is transparent then)."""
+    by_task = {}
     for row in rows:
         if row.get("date") != day:
             continue
         if not _row_is_billable(row):
             continue
-        total += int(row.get("minutes") or 0)
-    return total
+        key = (row.get("project"), row.get("task"))
+        by_task[key] = by_task.get(key, 0) + int(row.get("minutes") or 0)
+    if quantize:
+        return sum(-(-m // 15) * 15 for m in by_task.values())
+    return sum(by_task.values())
 
 
 def billable_hours(day=None):
@@ -272,13 +279,13 @@ def week_anchor(weeks_back, today=None):
     return monday + timedelta(days=6)
 
 
-def billable_hours_for_days(monday, last_day, rows):
+def billable_hours_for_days(monday, last_day, rows, quantize=False):
     """Billable hours per day from `last_day` down to `monday` (most recent
     first), as (day_label, hours) pairs."""
     days = []
     day = last_day
     while day >= monday:
-        hours = billable_minutes(rows, day.strftime("%Y%m%d")) / 60
+        hours = billable_minutes(rows, day.strftime("%Y%m%d"), quantize=quantize) / 60
         days.append((_FR_WEEKDAYS[day.weekday()], hours))
         day -= timedelta(days=1)
     return days
@@ -293,7 +300,7 @@ def billable_hours_for_week(today=None):
     return billable_hours_for_days(monday, today, _read_csv_rows(CSV_PATH))
 
 
-def recent_weeks(today=None, count=BILLABLE_WEEKS_SHOWN, page=0):
+def recent_weeks(today=None, count=BILLABLE_WEEKS_SHOWN, page=0, quantize=False):
     """The `count` most recent weeks, most recent first, as
     (monday, sunday, billable_days, activity_days) tuples — billable hours and
     per-project activity per day, most recent first. The current week stops at
@@ -317,7 +324,7 @@ def recent_weeks(today=None, count=BILLABLE_WEEKS_SHOWN, page=0):
         billable, activity, day = [], [], last_day
         while day >= monday:
             key, label = day.strftime("%Y%m%d"), _FR_WEEKDAYS[day.weekday()]
-            billable.append((label, billable_minutes(rows, key) / 60))
+            billable.append((label, billable_minutes(rows, key, quantize=quantize) / 60))
             activity.append((label, activity_by_project(rows, key)))
             day -= timedelta(days=1)
         weeks.append((monday, sunday, billable, activity))
@@ -877,6 +884,19 @@ def _menu_bar(prefix, active):
     return f'<nav class="menubar">{links}</nav>'
 
 
+def _round_toggle_html(enabled):
+    """Checkbox toggling the 1/4h billable rounding. Stores its state in a
+    `round` cookie (path=/) so it carries across /live and /weeks, then reloads
+    to re-render the server-side charts with the new setting."""
+    checked = " checked" if enabled else ""
+    return (
+        '<label class="roundtoggle" title="Arrondir chaque tâche facturable au quart d\'heure supérieur (comme l\'export ODS)">'
+        '<input type="checkbox"' + checked + " "
+        "onchange=\"document.cookie='round='+(this.checked?1:0)+';path=/;max-age=31536000';location.reload()\">"
+        " arrondi 1/4h</label>"
+    )
+
+
 def persist_event(event):
     _write_event(event)
     payload = event.get("json")
@@ -934,12 +954,16 @@ LIVE_HTML = """<!doctype html>
   .weeknav a:hover {{ background: #3c3c37; }}
   .weeknav svg {{ flex: none; }}
   .weeknav .week-label {{ color: #999; text-transform: uppercase; font-size: .8rem; margin: 0 auto; }}
+  .roundtoggle {{ display: inline-flex; align-items: center; gap: .4rem; color: #bbb;
+    font-size: .8rem; text-transform: uppercase; margin-bottom: 1.5rem; cursor: pointer; }}
+  .roundtoggle input {{ accent-color: #3987e5; cursor: pointer; }}
   .ver {{ color: #666; font-size: .7rem; margin-top: 2rem; }}
 </style>
 </head>
 <body>
 {menu}
 {nav}
+{round_toggle}
 
 <div class="charts-row">
   <img id="week" src="{week_url}" alt="heures facturables par jour de la semaine">
@@ -1048,6 +1072,9 @@ WEEKS_HTML = """<!doctype html>
     padding: .4rem .8rem; border-radius: 999px; transition: background .15s ease; }}
   .weeknav a:hover {{ background: #3c3c37; }}
   .weeknav svg {{ flex: none; }}
+  .roundtoggle {{ display: inline-flex; align-items: center; gap: .4rem; color: #bbb;
+    font-size: .8rem; text-transform: uppercase; margin-bottom: 1.2rem; cursor: pointer; }}
+  .roundtoggle input {{ accent-color: #3987e5; cursor: pointer; }}
   .ver {{ color: #666; font-size: .7rem; margin-top: 2rem; }}
 </style>
 </head>
@@ -1055,6 +1082,7 @@ WEEKS_HTML = """<!doctype html>
 {menu}
 <h1>{count} semaines (page {page}) : facturable + activité</h1>
 {nav}
+{round_toggle}
 <div id="legend">{legend}</div>
 {blocks}
 {nav}
@@ -1161,6 +1189,7 @@ def live(secret_path):
         legend_url=f"{prefix}/activity-legend.svg{wq}",
         menu=_menu_bar(prefix, "live"),
         nav=nav,
+        round_toggle=_round_toggle_html(_quantize_enabled()),
         current_box=current_box,
         version=APP_VERSION,
     )
@@ -1174,6 +1203,11 @@ def _int_arg(name):
         return 0
 
 
+def _quantize_enabled():
+    """Whether the 1/4h billable rounding is active, from the `round` cookie."""
+    return request.cookies.get("round") == "1"
+
+
 @app.get("/weeks", defaults={"secret_path": ""})
 @app.get("/<path:secret_path>/weeks")
 def weeks(secret_path):
@@ -1181,8 +1215,9 @@ def weeks(secret_path):
         return "not found\n", 404
     prefix = f"/{secret_path.strip('/')}" if secret_path.strip("/") else ""
     page = _int_arg("p")
+    quantize = _quantize_enabled()
     blocks, prefixes = [], set()
-    for monday, sunday, billable_days, activity_days in recent_weeks(page=page):
+    for monday, sunday, billable_days, activity_days in recent_weeks(page=page, quantize=quantize):
         for _, totals in activity_days:
             prefixes.update(totals)
         charts = render_week_svg(billable_days) + render_activity_week_svg(
@@ -1205,6 +1240,7 @@ def weeks(secret_path):
         page=page,
         menu=_menu_bar(prefix, "weeks"),
         nav=nav,
+        round_toggle=_round_toggle_html(quantize),
         legend=legend,
         blocks="\n".join(blocks),
         version=APP_VERSION,
@@ -1227,7 +1263,9 @@ def billable_week_svg(secret_path):
         return "not found\n", 404
     w = _int_arg("w")
     monday, sunday = current_week_bounds(week_anchor(w))
-    day_hours = billable_hours_for_days(monday, sunday, _read_csv_rows(CSV_PATH))
+    day_hours = billable_hours_for_days(
+        monday, sunday, _read_csv_rows(CSV_PATH), quantize=_quantize_enabled()
+    )
     highlight = _FR_WEEKDAYS[datetime.now().date().weekday()] if w == 0 else None
     current_hours = 0.0
     if w == 0:

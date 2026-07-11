@@ -134,6 +134,25 @@ def test_billable_minutes_filters_by_day_and_project_without_rounding():
     assert webhook_receiver.billable_minutes(rows, day="20260703") == 8 + 20 + 15
 
 
+def test_billable_minutes_quantize_rounds_each_task_up_to_quarter_hour():
+    # Reproduit l'arrondi de l'export ODS : fusion par (projet, task) puis ceil
+    # au 1/4h de chaque tâche, séparément.
+    rows = [
+        # même tâche en deux blocs non contigus : fusion 10+10=20 -> ceil -> 30
+        {"date": "20260703", "project": "speasy_supermag", "task": "dev", "minutes": "10"},
+        {"date": "20260703", "project": "speasy_supermag", "task": "dev", "minutes": "10"},
+        # tâche distincte : 5 -> ceil -> 15
+        {"date": "20260703", "project": "calipso_iesa", "task": "doc", "minutes": "5"},
+        # non facturable : ignoré
+        {"date": "20260703", "project": "colibri_dev", "task": "x", "minutes": "50"},
+    ]
+
+    # sans arrondi : somme brute inchangée
+    assert webhook_receiver.billable_minutes(rows, "20260703") == 10 + 10 + 5
+    # avec arrondi : ceil par tâche
+    assert webhook_receiver.billable_minutes(rows, "20260703", quantize=True) == 30 + 15
+
+
 def test_billable_hours_reads_from_csv_path_for_given_day(tmp_path):
     csv_path = tmp_path / "pomofocus_webhook.csv"
     with open(csv_path, "w", newline="", encoding="utf-8") as f:
@@ -272,6 +291,43 @@ def test_billable_week_svg_route_returns_svg(tmp_path):
     assert response.status_code == 200
     assert response.mimetype == "image/svg+xml"
     assert b"<svg" in response.data
+
+
+def test_billable_week_svg_cookie_toggles_quarter_hour_rounding(tmp_path):
+    csv_path = tmp_path / "pomofocus_webhook.csv"
+    today = date.today().strftime("%Y%m%d")
+    with open(csv_path, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=webhook_receiver.CSV_COLUMNS)
+        writer.writeheader()
+        writer.writerow({
+            "date": today, "project": "calipso_iesa", "task": "t",
+            "minutes": "5", "startTime": "10:00", "endTime": "10:05",
+        })
+    webhook_receiver.CSV_PATH = str(csv_path)
+    client = webhook_receiver.app.test_client()
+
+    raw = client.get("/billable-week.svg").get_data(as_text=True)
+    assert "SEMAINE : 0:05 / 20h" in raw
+
+    client.set_cookie("round", "1")
+    rounded = client.get("/billable-week.svg").get_data(as_text=True)
+    assert "SEMAINE : 0:15 / 20h" in rounded
+
+
+def test_round_toggle_reflects_cookie(tmp_path):
+    webhook_receiver.CSV_PATH = str(tmp_path / "pomofocus_webhook.csv")
+
+    off_client = webhook_receiver.app.test_client()
+    for path in ("/live", "/weeks"):
+        off = off_client.get(path).get_data(as_text=True)
+        assert "arrondi 1/4h" in off
+        assert '<input type="checkbox" onchange' in off  # décoché par défaut
+
+    on_client = webhook_receiver.app.test_client()
+    on_client.set_cookie("round", "1")
+    for path in ("/live", "/weeks"):
+        on = on_client.get(path).get_data(as_text=True)
+        assert '<input type="checkbox" checked onchange' in on
 
 
 def test_weeks_page_has_unique_clip_ids(tmp_path):
