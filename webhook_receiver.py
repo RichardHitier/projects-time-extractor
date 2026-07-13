@@ -17,11 +17,13 @@ Set WEBHOOK_SECRET to use an unguessable path:
 """
 import csv
 import hashlib
+import html
 import json
 import os
 from datetime import datetime, timedelta, timezone
+from urllib.parse import quote
 
-from flask import Flask, Response, jsonify, request
+from flask import Flask, Response, jsonify, redirect, request
 
 from config import load_config, load_projects
 
@@ -36,7 +38,7 @@ CSV_COLUMNS = ["date", "project", "task", "minutes", "startTime", "endTime"]
 EXPORT_TYPES = {"finish", "pause"}
 SECRET = os.environ.get("WEBHOOK_SECRET", "").strip("/")
 PORT = int(os.environ.get("WEBHOOK_PORT", "5000"))
-APP_VERSION = "0.6.0"  # affiché en pied de page (miroir de pyproject.toml)
+APP_VERSION = "0.7.0"  # affiché en pied de page (miroir de pyproject.toml)
 
 BILLABLE_PROJECTS = {p.lower() for p in _config.get("BILLABLE_PROJECTS", [])}
 BILLABLE_MAX_HOURS = 4
@@ -161,6 +163,49 @@ def upsert_csv_row(row, csv_path=None):
 
     rows.append(row)
     _write_csv_rows(merge_contiguous_sessions(rows), csv_path)
+
+
+class RowEditError(Exception):
+    """Édition refusée : ligne introuvable ou horaires invalides."""
+
+
+def update_csv_row(key, project, task, start, end, csv_path=None):
+    """Remplace la ligne repérée par `key` (date, startTime, project, task —
+    les valeurs d'AVANT l'édition, le CSV n'ayant pas d'identifiant) par les
+    nouvelles valeurs. `minutes` est recalculé depuis start/end, jamais saisi.
+    Lève RowEditError sans rien écrire si la ligne n'existe pas ou si les
+    horaires sont invalides."""
+    if csv_path is None:
+        csv_path = CSV_PATH
+
+    start_h = _hhmm_to_hours(start)
+    end_h = _hhmm_to_hours(end)
+    if start_h is None or end_h is None:
+        raise RowEditError("horaires invalides (format attendu HH:MM)")
+    if end_h <= start_h:
+        raise RowEditError("la fin doit être après le début")
+
+    rows = _read_csv_rows(csv_path)
+    for index, existing in enumerate(rows):
+        existing_key = (
+            existing["date"],
+            existing["startTime"],
+            existing["project"],
+            existing["task"],
+        )
+        if existing_key == tuple(key):
+            rows[index] = {
+                "date": existing["date"],
+                "project": project,
+                "task": task,
+                "minutes": round((end_h - start_h) * 60),
+                "startTime": start,
+                "endTime": end,
+            }
+            _write_csv_rows(merge_contiguous_sessions(rows), csv_path)
+            return rows[index]
+
+    raise RowEditError("ligne introuvable (modifiée entre-temps ?)")
 
 
 def _record(req):
@@ -794,6 +839,9 @@ def render_activity_legend_svg(prefixes):
 </svg>"""
 
 
+ROWS_SHOWN = 50  # /rows : nb de lignes affichées par défaut (surchargé par ?n=N)
+ROWS_MAX = 500
+
 SWIMLANE_DAYS = 10  # nb de jours par défaut (surchargé par ?d=N)
 SWIMLANE_MIN_DAYS, SWIMLANE_MAX_DAYS = 1, 60  # bornes du sélecteur −1/+1
 SWIMLANE_HOUR_MIN, SWIMLANE_HOUR_MAX = 6, 24
@@ -903,13 +951,15 @@ def render_swimlane_svg(days):
 
 
 def _menu_bar(prefix, active):
-    """Shared top navigation across /live, /weeks, /month and /swimlane. `active`
-    is one of 'live' | 'weeks' | 'month' | 'swimlane' and gets the highlighted pill."""
+    """Shared top navigation across /live, /weeks, /month, /swimlane and /rows.
+    `active` is one of 'live' | 'weeks' | 'month' | 'swimlane' | 'rows' and gets
+    the highlighted pill."""
     items = [
         ("live", "Live", f"{prefix}/live"),
         ("weeks", "Semaines", f"{prefix}/weeks"),
         ("month", "Mois", f"{prefix}/month"),
         ("swimlane", "Swimlane", f"{prefix}/swimlane"),
+        ("rows", "Lignes", f"{prefix}/rows"),
     ]
     links = "".join(
         f'<a href="{href}" class="active">{text}</a>'
@@ -1206,6 +1256,99 @@ SWIMLANE_HTML = """<!doctype html>
 """
 
 
+ROWS_HTML = """<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Lignes — {count} dernières</title>
+<style>
+  body {{ font-family: system-ui, sans-serif; margin: 2rem; background: #111; color: #eee; }}
+  h1 {{ font-size: 1.1rem; font-weight: normal; color: #999; }}
+  a {{ color: #3987e5; text-decoration: none; }}
+  .menubar {{ display: flex; gap: .6rem; margin-bottom: 1.5rem; }}
+  .menubar a {{ background: #2e2e2b; padding: .4rem .9rem; border-radius: 999px;
+    text-transform: uppercase; font-size: .8rem; color: #bbb; transition: background .15s ease; }}
+  .menubar a:hover {{ background: #3c3c37; }}
+  .menubar a.active {{ background: #3987e5; color: #fff; }}
+  .flash {{ padding: .6rem .9rem; border-radius: 6px; margin-bottom: 1.2rem; font-size: .85rem; }}
+  .flash.ok {{ background: #1d3a25; color: #7ddb9b; }}
+  .flash.err {{ background: #3d2020; color: #e58787; }}
+  table {{ border-collapse: collapse; width: 100%; }}
+  th {{ text-align: left; color: #999; text-transform: uppercase; font-size: .7rem;
+    font-weight: normal; padding: .4rem .5rem; border-bottom: 1px solid #333; }}
+  td {{ padding: .3rem .5rem; border-bottom: 1px solid #222; font-size: .85rem; }}
+  td.date {{ color: #999; white-space: nowrap; }}
+  td.dur {{ color: #bbb; white-space: nowrap; }}
+  input {{ background: #1b1b1b; border: 1px solid #333; border-radius: 4px; color: #eee;
+    padding: .3rem .4rem; font: inherit; width: 100%; }}
+  input:focus {{ outline: none; border-color: #3987e5; }}
+  input.time {{ width: 5.5rem; }}
+  button {{ background: #2e2e2b; border: 0; border-radius: 999px; color: #bbb; cursor: pointer;
+    padding: .35rem .9rem; font-size: .75rem; text-transform: uppercase; transition: background .15s ease; }}
+  button:hover {{ background: #3987e5; color: #fff; }}
+  .ver {{ color: #666; font-size: .7rem; margin-top: 2rem; }}
+</style>
+</head>
+<body>
+{menu}
+<h1>{count} dernières lignes du CSV</h1>
+{flash}
+{forms}
+<table>
+<tr><th>date</th><th>projet</th><th>tâche</th><th>début</th><th>fin</th><th>durée</th><th></th></tr>
+{rows}
+</table>
+<footer class="ver">v{version}</footer>
+<script>
+// durée affichée = fin − début, recalculée à la saisie ; le serveur reste seul
+// juge au moment de l'enregistrement.
+for (const form of document.querySelectorAll('form.rowform')) {{
+  const cell = document.getElementById('dur-' + form.id);
+  const mins = v => {{ const [h, m] = v.split(':'); return +h * 60 + +m; }};
+  const refresh = () => {{
+    const d = mins(form.endTime.value) - mins(form.startTime.value);
+    cell.textContent = isNaN(d) || d <= 0 ? '—' : d + ' min';
+  }};
+  form.startTime.addEventListener('input', refresh);
+  form.endTime.addEventListener('input', refresh);
+}}
+</script>
+</body>
+</html>
+"""
+
+
+def _rows_markup(rows):
+    """(forms, trs) — une ligne de table = un <form> POST. Le <form> lui-même
+    vit hors de la table (un <form> dans un <tr> est du HTML invalide) et porte
+    la clé d'origine en champs cachés ; les champs visibles s'y rattachent par
+    l'attribut `form=` (cf. update_csv_row : le CSV n'a pas d'identifiant)."""
+    forms, trs = [], []
+    for index, row in enumerate(rows):
+        uid = f"r{index}"
+        cell = {k: html.escape(str(row.get(k, ""))) for k in CSV_COLUMNS}
+        forms.append(
+            f'<form class="rowform" id="{uid}" method="post">'
+            f'<input type="hidden" name="key_date" value="{cell["date"]}">'
+            f'<input type="hidden" name="key_startTime" value="{cell["startTime"]}">'
+            f'<input type="hidden" name="key_project" value="{cell["project"]}">'
+            f'<input type="hidden" name="key_task" value="{cell["task"]}">'
+            f"</form>"
+        )
+        trs.append(
+            f"<tr>"
+            f'<td class="date">{cell["date"]}</td>'
+            f'<td><input form="{uid}" name="project" value="{cell["project"]}"></td>'
+            f'<td><input form="{uid}" name="task" value="{cell["task"]}"></td>'
+            f'<td><input form="{uid}" class="time" name="startTime" value="{cell["startTime"]}"></td>'
+            f'<td><input form="{uid}" class="time" name="endTime" value="{cell["endTime"]}"></td>'
+            f'<td class="dur" id="dur-{uid}">{cell["minutes"]} min</td>'
+            f'<td><button form="{uid}" type="submit">Enregistrer</button></td>'
+            f"</tr>"
+        )
+    return "\n".join(forms), "\n".join(trs)
+
+
 @app.get("/swimlane", defaults={"secret_path": ""})
 @app.get("/<path:secret_path>/swimlane")
 def swimlane(secret_path):
@@ -1456,6 +1599,65 @@ def activity_legend_svg(secret_path):
                 prefixes.add(prefix)
     svg = render_activity_legend_svg(_ordered_projects(prefixes))
     return Response(svg, mimetype="image/svg+xml", headers={"Cache-Control": "no-store"})
+
+
+def _rows_flash():
+    """Bandeau ok/erreur, passé par la query string au retour du POST (l'app
+    n'a pas de SECRET_KEY, donc pas de flash Flask)."""
+    if request.args.get("ok"):
+        return '<p class="flash ok">Ligne enregistrée.</p>'
+    err = request.args.get("err")
+    if err:
+        return f'<p class="flash err">{html.escape(err)}</p>'
+    return ""
+
+
+@app.get("/rows", defaults={"secret_path": ""})
+@app.get("/<path:secret_path>/rows")
+def rows_page(secret_path):
+    if SECRET and secret_path.strip("/") != SECRET:
+        return "not found\n", 404
+    prefix = f"/{secret_path.strip('/')}" if secret_path.strip("/") else ""
+    n = _int_arg("n") or ROWS_SHOWN
+    n = max(1, min(n, ROWS_MAX))
+    rows = _read_csv_rows(CSV_PATH)
+    rows.sort(key=lambda row: (row["date"], row["startTime"]), reverse=True)
+    rows = rows[:n]
+    forms, trs = _rows_markup(rows)
+    return ROWS_HTML.format(
+        count=len(rows),
+        menu=_menu_bar(prefix, "rows"),
+        flash=_rows_flash(),
+        forms=forms,
+        rows=trs,
+        version=APP_VERSION,
+    )
+
+
+@app.post("/rows", defaults={"secret_path": ""})
+@app.post("/<path:secret_path>/rows")
+def rows_edit(secret_path):
+    if SECRET and secret_path.strip("/") != SECRET:
+        return "not found\n", 404
+    prefix = f"/{secret_path.strip('/')}" if secret_path.strip("/") else ""
+    form = request.form
+    key = (
+        form.get("key_date", ""),
+        form.get("key_startTime", ""),
+        form.get("key_project", ""),
+        form.get("key_task", ""),
+    )
+    try:
+        update_csv_row(
+            key,
+            form.get("project", "").strip(),
+            form.get("task", "").strip(),
+            form.get("startTime", "").strip(),
+            form.get("endTime", "").strip(),
+        )
+    except RowEditError as exc:
+        return redirect(f"{prefix}/rows?err={quote(str(exc))}")
+    return redirect(f"{prefix}/rows?ok=1")
 
 
 @app.get("/api/rows", defaults={"secret_path": ""})

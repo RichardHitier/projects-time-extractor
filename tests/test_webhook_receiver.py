@@ -5,6 +5,8 @@ import sys
 from datetime import date, timedelta
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import webhook_receiver
@@ -603,3 +605,72 @@ def test_api_rows_past_week_reports_no_current_task(tmp_path):
         assert client.get("/api/rows?w=1").get_json()["current"] is None
     finally:
         webhook_receiver.CURRENT_TASK = None
+
+
+ROW = {"date": "20260701", "project": "calipso", "task": "vieux nom",
+       "minutes": "25", "startTime": "09:00", "endTime": "09:25"}
+
+
+def test_update_csv_row_rewrites_fields_and_recomputes_minutes(tmp_path):
+    csv_path = tmp_path / "pomofocus_webhook.csv"
+    _write_rows(csv_path, [ROW])
+
+    webhook_receiver.update_csv_row(
+        ("20260701", "09:00", "calipso", "vieux nom"),
+        "speasy", "#12 revue", "09:15", "10:00", csv_path,
+    )
+
+    assert read_rows(csv_path) == [{
+        "date": "20260701", "project": "speasy", "task": "#12 revue",
+        "minutes": "45", "startTime": "09:15", "endTime": "10:00",
+    }]
+
+
+def test_update_csv_row_rejects_unknown_key_without_writing(tmp_path):
+    csv_path = tmp_path / "pomofocus_webhook.csv"
+    _write_rows(csv_path, [ROW])
+
+    with pytest.raises(webhook_receiver.RowEditError):
+        webhook_receiver.update_csv_row(
+            ("20260701", "09:00", "calipso", "autre tâche"),
+            "speasy", "t", "09:00", "09:30", csv_path,
+        )
+
+    assert read_rows(csv_path) == [ROW]
+
+
+def test_update_csv_row_rejects_end_before_start_without_writing(tmp_path):
+    csv_path = tmp_path / "pomofocus_webhook.csv"
+    _write_rows(csv_path, [ROW])
+
+    with pytest.raises(webhook_receiver.RowEditError):
+        webhook_receiver.update_csv_row(
+            ("20260701", "09:00", "calipso", "vieux nom"),
+            "calipso", "vieux nom", "09:00", "08:30", csv_path,
+        )
+
+    assert read_rows(csv_path) == [ROW]
+
+
+def test_rows_page_lists_rows_and_post_applies_the_edit(tmp_path):
+    csv_path = tmp_path / "pomofocus_webhook.csv"
+    _write_rows(csv_path, [ROW])
+    webhook_receiver.CSV_PATH = str(csv_path)
+    client = webhook_receiver.app.test_client()
+
+    page = client.get("/rows").get_data(as_text=True)
+    assert 'value="calipso"' in page and 'value="vieux nom"' in page
+
+    response = client.post("/rows", data={
+        "key_date": "20260701", "key_startTime": "09:00",
+        "key_project": "calipso", "key_task": "vieux nom",
+        "project": "speasy", "task": "#12 revue",
+        "startTime": "09:15", "endTime": "10:00",
+    })
+
+    assert response.status_code == 302
+    assert response.headers["Location"] == "/rows?ok=1"
+    assert read_rows(csv_path) == [{
+        "date": "20260701", "project": "speasy", "task": "#12 revue",
+        "minutes": "45", "startTime": "09:15", "endTime": "10:00",
+    }]
