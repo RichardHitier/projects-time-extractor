@@ -535,9 +535,11 @@ def _hatch_pattern(pattern_id, color):
 _BILLABLE_HATCH_ID = "hatch-billable"
 
 
-def render_week_svg(day_hours, max_hours=BILLABLE_MAX_HOURS, week_max_hours=BILLABLE_WEEK_MAX_HOURS, highlight_label=None, current_hours=0.0, title_label="SEMAINE"):
+def render_week_svg(day_hours, max_hours=BILLABLE_MAX_HOURS, week_max_hours=BILLABLE_WEEK_MAX_HOURS, highlight_label=None, current_hours=0.0, title_label="SEMAINE", show_header=True):
     """Render a "SEMAINE : total / Nh" header, then one bar per
-    (day_label, hours) pair, most recent first.
+    (day_label, hours) pair, most recent first. `show_header=False` drops the
+    total header bar (and its vertical space) — /month shows weeks, whose total
+    over N weeks says little.
 
     Bars past `max_hours` overflow past a boundary marker (in a distinct
     color) instead of being clamped, up to a capped overflow lane.
@@ -550,7 +552,8 @@ def render_week_svg(day_hours, max_hours=BILLABLE_MAX_HOURS, week_max_hours=BILL
     `title_label` for the SVG tooltip.
     """
     width = 640
-    row_h, row_gap, header_h = 22, 12, 38
+    row_h, row_gap = 22, 12
+    header_h = 38 if show_header else 0
     top = header_h + row_gap
     label_x, bar_x, bar_w, overflow_max = 20, 110, 380, 60
     corner_radius = 5
@@ -608,10 +611,12 @@ def render_week_svg(day_hours, max_hours=BILLABLE_MAX_HOURS, week_max_hours=BILL
   {frames}
   <text x="{hours_x}" y="{y + row_h - 6}" font-family="system-ui, sans-serif" font-size="13" fill="#ffffff">{hours_text}</text>''')
 
-    header_bar = _week_header_bar(
-        total_hours, week_max_hours, bar_x + bar_w + overflow_max + 12,
-        bar_end_x=bar_x + bar_w, divisions=5, overflow_max=overflow_max,
-    )
+    header_bar = ""
+    if show_header:
+        header_bar = _week_header_bar(
+            total_hours, week_max_hours, bar_x + bar_w + overflow_max + 12,
+            bar_end_x=bar_x + bar_w, divisions=5, overflow_max=overflow_max,
+        )
     return f"""<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">
   <title>{title}</title>
   <rect width="{width}" height="{height}" fill="#1a1a19"/>
@@ -743,9 +748,10 @@ def render_activity_svg(totals, max_hours=ACTIVITY_MAX_HOURS):
 </svg>"""
 
 
-def render_activity_week_svg(days, max_hours=ACTIVITY_MAX_HOURS, uid="", highlight_label=None, week_max_hours=ACTIVITY_WEEK_MAX_HOURS, current_hours=0.0, current_prefix=None, title_label="ACTIVITÉ SEMAINE"):
+def render_activity_week_svg(days, max_hours=ACTIVITY_MAX_HOURS, uid="", highlight_label=None, week_max_hours=ACTIVITY_WEEK_MAX_HOURS, current_hours=0.0, current_prefix=None, title_label="ACTIVITÉ SEMAINE", show_header=True):
     """One stacked activity bar per day (most recent first). Row geometry
-    matches render_week_svg so the two week charts line up side by side.
+    matches render_week_svg so the two week charts line up side by side —
+    including `show_header`, which must be set the same way on both.
 
     `uid` disambiguates the clipPath ids: several of these SVGs are inlined in
     one HTML document (the /weeks page), where clipPath ids are document-global,
@@ -758,7 +764,8 @@ def render_activity_week_svg(days, max_hours=ACTIVITY_MAX_HOURS, uid="", highlig
     Rows are labelled, not dated: /month passes weeks rather than days, hence
     `title_label` for the SVG tooltip."""
     width = 640
-    row_h, row_gap, header_h = 22, 12, 38
+    row_h, row_gap = 22, 12
+    header_h = 38 if show_header else 0
     top = header_h + row_gap
     label_x, bar_x, bar_w = 20, 110, 380
     corner_radius, inset = 5, 3
@@ -798,10 +805,12 @@ def render_activity_week_svg(days, max_hours=ACTIVITY_MAX_HOURS, uid="", highlig
   {hatch_rect}
   {frames}
   <text x="{hours_x}" y="{y + row_h - 6}" font-family="system-ui, sans-serif" font-size="13" fill="#ffffff">{hours_text}</text>''')
-    header_bar = _week_header_bar(
-        week_total, week_max_hours, bar_x + bar_w + 12,
-        bar_end_x=bar_x + bar_w, divisions=5,
-    )
+    header_bar = ""
+    if show_header:
+        header_bar = _week_header_bar(
+            week_total, week_max_hours, bar_x + bar_w + 12,
+            bar_end_x=bar_x + bar_w, divisions=5,
+        )
     return f"""<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">
   <title>{title}</title>
   <rect width="{width}" height="{height}" fill="#1a1a19"/>
@@ -1486,18 +1495,21 @@ def month(secret_path):
     for _, activity in activity_rows:
         prefixes.update(activity)
     # Une ligne = une semaine : les maxima passent du jour (4h/8h) à la semaine
-    # (20h/40h), et le total d'en-tête à N semaines.
+    # (20h/40h). Pas de barre de total ici (show_header=False) : la page compare
+    # les semaines entre elles, le cumul sur N semaines n'apporte rien.
     charts = render_week_svg(
         billable_rows,
         max_hours=BILLABLE_WEEK_MAX_HOURS,
         week_max_hours=BILLABLE_WEEK_MAX_HOURS * n,
         title_label=f"FACTURABLE — {n} SEMAINES",
+        show_header=False,
     ) + render_activity_week_svg(
         activity_rows,
         max_hours=ACTIVITY_WEEK_MAX_HOURS,
         week_max_hours=ACTIVITY_WEEK_MAX_HOURS * n,
         uid="month",
         title_label=f"ACTIVITÉ — {n} SEMAINES",
+        show_header=False,
     )
 
     fewer = (
