@@ -607,6 +607,48 @@ def test_api_rows_past_week_reports_no_current_task(tmp_path):
         webhook_receiver.CURRENT_TASK = None
 
 
+def test_month_row_groups_collapses_consecutive_weeks_of_a_month():
+    mondays = [date(2026, 7, 13), date(2026, 7, 6), date(2026, 6, 29),
+               date(2026, 6, 22), date(2026, 6, 15)]
+
+    # la semaine du 29/06 déborde sur juillet : elle suit le mois de son lundi
+    assert webhook_receiver.month_row_groups(mondays) == [
+        (0, 1, "Juillet"), (2, 4, "Juin"),
+    ]
+
+
+def test_months_page_writes_month_names_vertically_in_the_gutter(tmp_path):
+    webhook_receiver.CSV_PATH = str(tmp_path / "pomofocus_webhook.csv")
+
+    svg = webhook_receiver.app.test_client().get("/months?n=8").get_data(as_text=True)
+    # la position suit MONTH_LABEL_GAP, le style (taille, graisse, couleur) est
+    # libre de bouger : le test ne fige que le texte pivoté et son abscisse
+    gutter_x = 110 - webhook_receiver.MONTH_LABEL_GAP  # bar_x − écart
+    labels = re.findall(
+        rf'<text transform="translate\({gutter_x},([\d.]+)\) rotate\(-90\)"'
+        r'[^>]*>([^<]+)</text>',
+        svg,
+    )
+
+    months = {name for _, name in labels}
+    assert months  # au moins un mois couvert par les 8 semaines
+    # nom entier, ou abrégé « Sep. » si le mois ne tient qu'à une ou deux lignes
+    full = {m.capitalize() for m in webhook_receiver._FR_MONTHS}
+    assert months <= full | {f"{m[:3]}." for m in full}
+    # deux graphes (facturable + activité), mêmes étiquettes aux mêmes ordonnées
+    assert len(labels) == 2 * len(months)
+
+
+def test_month_label_never_abbreviates_a_short_name(tmp_path):
+    # « Mai » tient sur une seule semaine : l'abréger en « Mai. » le rallongerait
+    labels = webhook_receiver._month_labels_svg(
+        [(0, 0, "Mai"), (1, 1, "Septembre")], top=12, row_h=22, row_gap=12, x=84,
+    )
+
+    assert ">Mai<" in labels
+    assert ">Sep.<" in labels
+
+
 ROW = {"date": "20260701", "project": "calipso", "task": "vieux nom",
        "minutes": "25", "startTime": "09:00", "endTime": "09:25"}
 

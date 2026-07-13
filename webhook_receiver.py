@@ -462,13 +462,18 @@ def render_billable_svg(hours, max_hours=BILLABLE_MAX_HOURS):
 
 BILLABLE_WEEK_MAX_HOURS = 20
 
+# Colonne des heures (chiffres à droite des barres) : alignée à droite sur cette
+# abscisse, la même dans les deux graphes de semaine (largeur 640, marge 20) —
+# c'est ce qui les fait s'aligner entre eux quand ils sont côte à côte.
+WEEK_HOURS_RIGHT_X = 620
+
 
 def _week_header_bar(total_hours, max_hours, value_x, bar_end_x=None, label_x=20, y=4, height=34, divisions=4, overflow_max=0):
     """Full-width progress bar used as the header of a week chart, in place of a
     text title. The grey fill is clamped to the bar; a total past `max_hours`
     spills into a gold overflow lane of width `overflow_max` to the right of the
     bar (same as the day rows), when `overflow_max` > 0. The `nn / Nh` figure is
-    left-anchored at `value_x` to line up with the day-row figures below. The
+    right-anchored at `value_x` to line up with the day-row figures below. The
     bar's right edge is `bar_end_x` (default: just left of the figure) so it can
     be aligned with the day-row bars rather than reaching the figures column."""
     bar_x = label_x
@@ -504,13 +509,62 @@ def _week_header_bar(total_hours, max_hours, value_x, bar_end_x=None, label_x=20
   {fill_rect}
   {overflow_rect}
   {ticks}
-  <text x="{value_x}" y="{y + height // 2 + 5}" font-family="system-ui, sans-serif" font-size="14" font-weight="700" fill="#ffffff">{_format_hm(total_hours)} / {max_hours}h</text>'''
+  <text x="{value_x}" y="{y + height // 2 + 5}" text-anchor="end" font-family="system-ui, sans-serif" font-size="14" font-weight="700" fill="#ffffff">{_format_hm(total_hours)} / {max_hours}h</text>'''
 
 
 def _text_width(s, size=13):
     """Rough proportional text width (system-ui) for sizing highlight frames."""
     narrow = set("iIjl.,:;'!| ")
     return sum(size * (0.30 if c in narrow else 0.60) for c in s)
+
+
+def month_row_groups(mondays):
+    """[(première_ligne, dernière_ligne, 'Juillet')] — lignes consécutives dont
+    le lundi tombe dans le même mois. Une semaine à cheval sur deux mois est
+    rattachée au mois de son lundi."""
+    groups = []
+    previous = None
+    for i, monday in enumerate(mondays):
+        key = (monday.year, monday.month)
+        if groups and key == previous:
+            first, _, name = groups[-1]
+            groups[-1] = (first, i, name)
+        else:
+            groups.append((i, i, _FR_MONTHS[monday.month - 1].capitalize()))
+        previous = key
+    return groups
+
+
+# Étiquette de mois de /months (texte vertical dans la gouttière). Modifiables
+# à chaud : le conteneur monte le dossier, un simple rechargement suffit.
+MONTH_LABEL_SIZE = 15
+MONTH_LABEL_GAP = 26  # écart entre le texte du mois et la barre
+MONTH_LABEL_WEIGHT = "normal"  # "normal" pour dégraisser
+MONTH_LABEL_COLOR = "#ffffff"  # étiquettes de semaine voisines : #c3c2b7
+
+
+def _month_labels_svg(groups, top, row_h, row_gap, x):
+    """Nom du mois écrit verticalement (lu de bas en haut) dans la gouttière
+    entre les étiquettes de semaine et les barres, centré sur les lignes du
+    mois. Un nom long (Septembre…) est abrégé quand il déborde du bloc de
+    lignes ; les noms courts (Mai, Juin, Août) restent entiers — les abréger
+    les rallongerait."""
+    pitch = row_h + row_gap
+    labels = []
+    for first, last, name in groups:
+        y0 = top + first * pitch
+        y1 = top + last * pitch + row_h
+        span = y1 - y0
+        text = name
+        if len(name) > 4 and _text_width(name, MONTH_LABEL_SIZE) > span:
+            text = f"{name[:3]}."
+        labels.append(
+            f'<text transform="translate({x},{(y0 + y1) / 2:.1f}) rotate(-90)" '
+            f'text-anchor="middle" font-family="system-ui, sans-serif" '
+            f'font-size="{MONTH_LABEL_SIZE}" font-weight="{MONTH_LABEL_WEIGHT}" '
+            f'fill="{MONTH_LABEL_COLOR}">{text}</text>'
+        )
+    return "".join(labels)
 
 
 def _hl_frame(x, y, w, h, rx=4):
@@ -535,11 +589,14 @@ def _hatch_pattern(pattern_id, color):
 _BILLABLE_HATCH_ID = "hatch-billable"
 
 
-def render_week_svg(day_hours, max_hours=BILLABLE_MAX_HOURS, week_max_hours=BILLABLE_WEEK_MAX_HOURS, highlight_label=None, current_hours=0.0, title_label="SEMAINE", show_header=True):
+def render_week_svg(day_hours, max_hours=BILLABLE_MAX_HOURS, week_max_hours=BILLABLE_WEEK_MAX_HOURS, highlight_label=None, current_hours=0.0, title_label="SEMAINE", show_header=True, month_groups=None):
     """Render a "SEMAINE : total / Nh" header, then one bar per
     (day_label, hours) pair, most recent first. `show_header=False` drops the
     total header bar (and its vertical space) — /months shows weeks, whose total
     over N weeks says little.
+
+    `month_groups` (cf. month_row_groups) writes the month name vertically in the
+    gutter between the row labels and the bars — /months only.
 
     Bars past `max_hours` overflow past a boundary marker (in a distinct
     color) instead of being clamped, up to a capped overflow lane.
@@ -594,12 +651,12 @@ def render_week_svg(day_hours, max_hours=BILLABLE_MAX_HOURS, week_max_hours=BILL
                 f'height="{inner_h}" rx="{corner_radius}" fill="#d9a441"/>'
             )
         hours_text = _format_hm(hours)
-        hours_x = bar_x + bar_w + overflow_max + 12
+        hours_w = _text_width(hours_text)
         frames = ""
         if label == highlight_label:
             frames = (
                 _hl_frame(label_x - 5, y, _text_width(label) + 10, row_h)
-                + _hl_frame(hours_x - 5, y, _text_width(hours_text) + 10, row_h)
+                + _hl_frame(WEEK_HOURS_RIGHT_X - hours_w - 5, y, hours_w + 10, row_h)
             )
         rows_svg.append(f'''
   <text x="{label_x}" y="{y + row_h - 6}" font-family="system-ui, sans-serif" font-size="13" fill="#c3c2b7">{label}</text>
@@ -609,19 +666,25 @@ def render_week_svg(day_hours, max_hours=BILLABLE_MAX_HOURS, week_max_hours=BILL
   <line x1="{bar_x + bar_w}" y1="{y - 2}" x2="{bar_x + bar_w}" y2="{y + row_h + 2}" stroke="#c3c2b7" stroke-width="2"/>
   {overflow_rect}
   {frames}
-  <text x="{hours_x}" y="{y + row_h - 6}" font-family="system-ui, sans-serif" font-size="13" fill="#ffffff">{hours_text}</text>''')
+  <text x="{WEEK_HOURS_RIGHT_X}" y="{y + row_h - 6}" text-anchor="end" font-family="system-ui, sans-serif" font-size="13" fill="#ffffff">{hours_text}</text>''')
 
     header_bar = ""
     if show_header:
         header_bar = _week_header_bar(
-            total_hours, week_max_hours, bar_x + bar_w + overflow_max + 12,
+            total_hours, week_max_hours, WEEK_HOURS_RIGHT_X,
             bar_end_x=bar_x + bar_w, divisions=5, overflow_max=overflow_max,
+        )
+    month_labels = ""
+    if month_groups:
+        month_labels = _month_labels_svg(
+            month_groups, top, row_h, row_gap, bar_x - MONTH_LABEL_GAP
         )
     return f"""<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">
   <title>{title}</title>
   <rect width="{width}" height="{height}" fill="#1a1a19"/>
   {hatch_defs}
   {header_bar}
+  {month_labels}
   {"".join(rows_svg)}
 </svg>"""
 
@@ -748,10 +811,10 @@ def render_activity_svg(totals, max_hours=ACTIVITY_MAX_HOURS):
 </svg>"""
 
 
-def render_activity_week_svg(days, max_hours=ACTIVITY_MAX_HOURS, uid="", highlight_label=None, week_max_hours=ACTIVITY_WEEK_MAX_HOURS, current_hours=0.0, current_prefix=None, title_label="ACTIVITÉ SEMAINE", show_header=True):
+def render_activity_week_svg(days, max_hours=ACTIVITY_MAX_HOURS, uid="", highlight_label=None, week_max_hours=ACTIVITY_WEEK_MAX_HOURS, current_hours=0.0, current_prefix=None, title_label="ACTIVITÉ SEMAINE", show_header=True, month_groups=None):
     """One stacked activity bar per day (most recent first). Row geometry
     matches render_week_svg so the two week charts line up side by side —
-    including `show_header`, which must be set the same way on both.
+    including `show_header` and `month_groups`, to be set the same way on both.
 
     `uid` disambiguates the clipPath ids: several of these SVGs are inlined in
     one HTML document (the /weeks page), where clipPath ids are document-global,
@@ -790,12 +853,12 @@ def render_activity_week_svg(days, max_hours=ACTIVITY_MAX_HOURS, uid="", highlig
                     f'width="{hatch_w:.1f}" height="{inner_h}" fill="url(#{hid})"/>'
                 )
         hours_text = _format_hm(sum(totals.values()) / 60)
-        hours_x = bar_x + bar_w + 12
+        hours_w = _text_width(hours_text)
         frames = ""
         if label == highlight_label:
             frames = (
                 _hl_frame(label_x - 5, y, _text_width(label) + 10, row_h)
-                + _hl_frame(hours_x - 5, y, _text_width(hours_text) + 10, row_h)
+                + _hl_frame(WEEK_HOURS_RIGHT_X - hours_w - 5, y, hours_w + 10, row_h)
             )
         rows_svg.append(f'''
   <text x="{label_x}" y="{y + row_h - 6}" font-family="system-ui, sans-serif" font-size="13" fill="#c3c2b7">{label}</text>
@@ -804,18 +867,24 @@ def render_activity_week_svg(days, max_hours=ACTIVITY_MAX_HOURS, uid="", highlig
   <g clip-path="url(#actwk{uid}{i})">{segs}</g>
   {hatch_rect}
   {frames}
-  <text x="{hours_x}" y="{y + row_h - 6}" font-family="system-ui, sans-serif" font-size="13" fill="#ffffff">{hours_text}</text>''')
+  <text x="{WEEK_HOURS_RIGHT_X}" y="{y + row_h - 6}" text-anchor="end" font-family="system-ui, sans-serif" font-size="13" fill="#ffffff">{hours_text}</text>''')
     header_bar = ""
     if show_header:
         header_bar = _week_header_bar(
-            week_total, week_max_hours, bar_x + bar_w + 12,
+            week_total, week_max_hours, WEEK_HOURS_RIGHT_X,
             bar_end_x=bar_x + bar_w, divisions=5,
+        )
+    month_labels = ""
+    if month_groups:
+        month_labels = _month_labels_svg(
+            month_groups, top, row_h, row_gap, bar_x - MONTH_LABEL_GAP
         )
     return f"""<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">
   <title>{title}</title>
   <rect width="{width}" height="{height}" fill="#1a1a19"/>
   {hatch_defs}
   {header_bar}
+  {month_labels}
   {"".join(rows_svg)}
 </svg>"""
 
@@ -1497,12 +1566,14 @@ def months(secret_path):
     # Une ligne = une semaine : les maxima passent du jour (4h/8h) à la semaine
     # (20h/40h). Pas de barre de total ici (show_header=False) : la page compare
     # les semaines entre elles, le cumul sur N semaines n'apporte rien.
+    month_groups = month_row_groups([monday for monday, _, _, _, _ in weeks])
     charts = render_week_svg(
         billable_rows,
         max_hours=BILLABLE_WEEK_MAX_HOURS,
         week_max_hours=BILLABLE_WEEK_MAX_HOURS * n,
         title_label=f"FACTURABLE — {n} SEMAINES",
         show_header=False,
+        month_groups=month_groups,
     ) + render_activity_week_svg(
         activity_rows,
         max_hours=ACTIVITY_WEEK_MAX_HOURS,
@@ -1510,6 +1581,7 @@ def months(secret_path):
         uid="month",
         title_label=f"ACTIVITÉ — {n} SEMAINES",
         show_header=False,
+        month_groups=month_groups,
     )
 
     fewer = (
