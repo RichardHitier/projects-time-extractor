@@ -551,7 +551,7 @@ def test_month_page_renders_one_row_per_week(tmp_path):
     webhook_receiver.CSV_PATH = str(tmp_path / "pomofocus_webhook.csv")
     client = webhook_receiver.app.test_client()
 
-    page = client.get("/month?n=3").get_data(as_text=True)
+    page = client.get("/months?n=3").get_data(as_text=True)
 
     labels = re.findall(r">(S\d\d)</text>", page)
     assert len(labels) == 6            # 3 semaines × 2 colonnes (facturable, activité)
@@ -565,16 +565,16 @@ def test_month_page_defaults_and_clamps_the_week_count(tmp_path):
     webhook_receiver.CSV_PATH = str(tmp_path / "pomofocus_webhook.csv")
     client = webhook_receiver.app.test_client()
 
-    default = client.get("/month").get_data(as_text=True)
+    default = client.get("/months").get_data(as_text=True)
     assert f"{webhook_receiver.MONTH_WEEKS_SHOWN} semaines" in default
 
-    too_many = client.get("/month?n=99").get_data(as_text=True)
+    too_many = client.get("/months?n=99").get_data(as_text=True)
     assert f"{webhook_receiver.MONTH_MAX_WEEKS} semaines" in too_many
-    assert "/month?n=53" not in too_many  # borne haute : plus de lien "+1"
+    assert "/months?n=53" not in too_many  # borne haute : plus de lien "+1"
 
-    too_few = client.get("/month?n=1").get_data(as_text=True)
+    too_few = client.get("/months?n=1").get_data(as_text=True)
     assert f"{webhook_receiver.MONTH_MIN_WEEKS} semaines" in too_few
-    assert "/month?n=1" not in too_few    # borne basse : plus de lien "−1"
+    assert "/months?n=1" not in too_few    # borne basse : plus de lien "−1"
 
 
 def test_month_page_respects_the_round_cookie(tmp_path):
@@ -586,11 +586,11 @@ def test_month_page_respects_the_round_cookie(tmp_path):
     webhook_receiver.CSV_PATH = str(csv_path)
     client = webhook_receiver.app.test_client()
 
-    raw = client.get("/month?n=2").get_data(as_text=True)
+    raw = client.get("/months?n=2").get_data(as_text=True)
     assert "FACTURABLE — 2 SEMAINES : 0:05 / 40h" in raw
 
     client.set_cookie("round", "1")
-    rounded = client.get("/month?n=2").get_data(as_text=True)
+    rounded = client.get("/months?n=2").get_data(as_text=True)
     assert "FACTURABLE — 2 SEMAINES : 0:15 / 40h" in rounded
 
 

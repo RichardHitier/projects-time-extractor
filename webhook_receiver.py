@@ -44,7 +44,7 @@ BILLABLE_PROJECTS = {p.lower() for p in _config.get("BILLABLE_PROJECTS", [])}
 BILLABLE_MAX_HOURS = 4
 BILLABLE_WEEKS_SHOWN = 12  # /weeks : nombre de semaines les plus récentes affichées
 
-# /month : une ligne par semaine sur les N dernières semaines (N réglable par ?n=).
+# /months : une ligne par semaine sur les N dernières semaines (N réglable par ?n=).
 MONTH_WEEKS_SHOWN, MONTH_MIN_WEEKS, MONTH_MAX_WEEKS = 8, 2, 52
 
 _FR_WEEKDAYS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"]
@@ -384,7 +384,7 @@ def recent_weeks(today=None, count=BILLABLE_WEEKS_SHOWN, page=0, quantize=False)
 def recent_week_totals(today=None, n=MONTH_WEEKS_SHOWN, quantize=False):
     """The `n` most recent weeks, most recent first, as
     (monday, sunday, label, billable_hours, {prefix: minutes}) tuples — one row
-    per week instead of one per day (/month). The current week stops at `today`;
+    per week instead of one per day (/months). The current week stops at `today`;
     completed weeks span Monday..Sunday. Empty weeks are kept."""
     if today is None:
         today = datetime.now().date()
@@ -538,7 +538,7 @@ _BILLABLE_HATCH_ID = "hatch-billable"
 def render_week_svg(day_hours, max_hours=BILLABLE_MAX_HOURS, week_max_hours=BILLABLE_WEEK_MAX_HOURS, highlight_label=None, current_hours=0.0, title_label="SEMAINE", show_header=True):
     """Render a "SEMAINE : total / Nh" header, then one bar per
     (day_label, hours) pair, most recent first. `show_header=False` drops the
-    total header bar (and its vertical space) — /month shows weeks, whose total
+    total header bar (and its vertical space) — /months shows weeks, whose total
     over N weeks says little.
 
     Bars past `max_hours` overflow past a boundary marker (in a distinct
@@ -548,7 +548,7 @@ def render_week_svg(day_hours, max_hours=BILLABLE_MAX_HOURS, week_max_hours=BILL
     grey hatched zone after the solid fill on the `highlight_label` row, clamped
     within the bar.
 
-    Rows are labelled, not dated: /month passes weeks rather than days, hence
+    Rows are labelled, not dated: /months passes weeks rather than days, hence
     `title_label` for the SVG tooltip.
     """
     width = 640
@@ -761,7 +761,7 @@ def render_activity_week_svg(days, max_hours=ACTIVITY_MAX_HOURS, uid="", highlig
     draw a hatched zone in the project's color after the stacked segments on the
     `highlight_label` row, clamped within the bar.
 
-    Rows are labelled, not dated: /month passes weeks rather than days, hence
+    Rows are labelled, not dated: /months passes weeks rather than days, hence
     `title_label` for the SVG tooltip."""
     width = 640
     row_h, row_gap = 22, 12
@@ -960,13 +960,13 @@ def render_swimlane_svg(days):
 
 
 def _menu_bar(prefix, active):
-    """Shared top navigation across /live, /weeks, /month, /swimlane and /rows.
+    """Shared top navigation across /live, /weeks, /months, /swimlane and /rows.
     `active` is one of 'live' | 'weeks' | 'month' | 'swimlane' | 'rows' and gets
     the highlighted pill."""
     items = [
         ("live", "Live", f"{prefix}/live"),
         ("weeks", "Semaines", f"{prefix}/weeks"),
-        ("month", "Mois", f"{prefix}/month"),
+        ("month", "Mois", f"{prefix}/months"),
         ("swimlane", "Swimlane", f"{prefix}/swimlane"),
         ("rows", "Lignes", f"{prefix}/rows"),
     ]
@@ -1478,9 +1478,9 @@ def weeks(secret_path):
     )
 
 
-@app.get("/month", defaults={"secret_path": ""})
-@app.get("/<path:secret_path>/month")
-def month(secret_path):
+@app.get("/months", defaults={"secret_path": ""})
+@app.get("/<path:secret_path>/months")
+def months(secret_path):
     if SECRET and secret_path.strip("/") != SECRET:
         return "not found\n", 404
     prefix = f"/{secret_path.strip('/')}" if secret_path.strip("/") else ""
@@ -1513,11 +1513,11 @@ def month(secret_path):
     )
 
     fewer = (
-        f'<a href="{prefix}/month?n={n - 1}">{_CHEVRON_LEFT}−1 semaine</a>'
+        f'<a href="{prefix}/months?n={n - 1}">{_CHEVRON_LEFT}−1 semaine</a>'
         if n > MONTH_MIN_WEEKS else f'<span class="disabled">{_CHEVRON_LEFT}−1 semaine</span>'
     )
     more = (
-        f'<a href="{prefix}/month?n={n + 1}">+1 semaine{_CHEVRON_RIGHT}</a>'
+        f'<a href="{prefix}/months?n={n + 1}">+1 semaine{_CHEVRON_RIGHT}</a>'
         if n < MONTH_MAX_WEEKS else f'<span class="disabled">+1 semaine{_CHEVRON_RIGHT}</span>'
     )
     nav = f'<p class="weeknav">{fewer}<span class="week-count">{n} semaines</span>{more}</p>'
