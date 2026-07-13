@@ -230,9 +230,9 @@ def test_billable_hours_for_week_returns_most_recent_first(tmp_path):
     result = webhook_receiver.billable_hours_for_week(today=date(2026, 7, 1))
 
     assert result == [
-        ("Mercredi", 1.0),
-        ("Mardi", 0.0),
-        ("Lundi", 0.5),
+        ("Mercredi 01/07", 1.0),
+        ("Mardi 30/06", 0.0),
+        ("Lundi 29/06", 0.5),
     ]
 
 
@@ -605,6 +605,34 @@ def test_api_rows_past_week_reports_no_current_task(tmp_path):
         assert client.get("/api/rows?w=1").get_json()["current"] is None
     finally:
         webhook_receiver.CURRENT_TASK = None
+
+
+def test_day_label_carries_weekday_and_date():
+    assert webhook_receiver.day_label(date(2026, 7, 25)) == "Samedi 25/07"
+
+
+def test_week_chart_puts_the_name_left_and_the_date_right_against_the_bar():
+    svg = webhook_receiver.render_week_svg(
+        [("Vendredi 25/07", 1.0)], bar_start=webhook_receiver.DAY_BAR_START_X,
+    )
+    bar_x = webhook_receiver.DAY_BAR_START_X
+
+    assert re.search(r'<text x="20" [^>]*>Vendredi</text>', svg)
+    assert re.search(
+        rf'<text x="{bar_x - 12}" [^>]*text-anchor="end"[^>]*>25/07</text>', svg
+    )
+
+
+def test_weeks_page_starts_every_bar_at_the_same_x(tmp_path):
+    # la semaine courante n'a que les jours écoulés : ses étiquettes sont plus
+    # courtes, mais ses barres doivent rester alignées avec celles des semaines
+    # complètes affichées en dessous
+    webhook_receiver.CSV_PATH = str(tmp_path / "pomofocus_webhook.csv")
+
+    svg = webhook_receiver.app.test_client().get("/weeks").get_data(as_text=True)
+    starts = {int(x) for x in re.findall(r'<rect x="(\d+)" y="\d+" width="\d+" height="22"', svg)}
+
+    assert starts == {webhook_receiver.DAY_BAR_START_X}
 
 
 def test_month_row_groups_collapses_consecutive_weeks_of_a_month():

@@ -327,6 +327,13 @@ def week_anchor(weeks_back, today=None):
     return monday + timedelta(days=6)
 
 
+def day_label(day):
+    """« Vendredi 25/07 » — étiquette de ligne des graphes de semaine. Sert aussi
+    de clé de surlignage du jour courant (`highlight_label`) : les deux doivent
+    se calculer ici, sinon le cadre jaune ne trouve plus sa ligne."""
+    return f"{_FR_WEEKDAYS[day.weekday()]} {day.strftime('%d/%m')}"
+
+
 def billable_hours_for_days(monday, last_day, rows, quantize=False):
     """Billable hours per day from `last_day` down to `monday` (most recent
     first), as (day_label, hours) pairs."""
@@ -334,7 +341,7 @@ def billable_hours_for_days(monday, last_day, rows, quantize=False):
     day = last_day
     while day >= monday:
         hours = billable_minutes(rows, day.strftime("%Y%m%d"), quantize=quantize) / 60
-        days.append((_FR_WEEKDAYS[day.weekday()], hours))
+        days.append((day_label(day), hours))
         day -= timedelta(days=1)
     return days
 
@@ -371,7 +378,7 @@ def recent_weeks(today=None, count=BILLABLE_WEEKS_SHOWN, page=0, quantize=False)
         sunday = monday + timedelta(days=6)
         billable, activity, day = [], [], last_day
         while day >= monday:
-            key, label = day.strftime("%Y%m%d"), _FR_WEEKDAYS[day.weekday()]
+            key, label = day.strftime("%Y%m%d"), day_label(day)
             billable.append((label, billable_minutes(rows, key, quantize=quantize) / 60))
             activity.append((label, activity_by_project(rows, key)))
             day -= timedelta(days=1)
@@ -467,6 +474,19 @@ BILLABLE_WEEK_MAX_HOURS = 20
 # c'est ce qui les fait s'aligner entre eux quand ils sont côte à côte.
 WEEK_HOURS_RIGHT_X = 620
 
+# Les barres finissent toutes ici ; c'est leur DÉBUT qui s'adapte à la longueur
+# des étiquettes (« Vendredi 25/07 » sur /live et /weeks, « S28 » sur /months).
+# Le repère de fin, la zone de débordement et la colonne d'heures restent donc
+# fixes d'une page à l'autre — seule la largeur utile de la barre varie.
+WEEK_BAR_END_X = 490
+WEEK_BAR_MIN_X = 110  # début de barre historique, plancher pour les labels courts
+
+
+def _bar_start_x(labels):
+    """Abscisse de début des barres : après la plus large étiquette."""
+    widest = max((_text_width(label) for label in labels), default=0)
+    return max(WEEK_BAR_MIN_X, 20 + round(widest) + 12)
+
 
 def _week_header_bar(total_hours, max_hours, value_x, bar_end_x=None, label_x=20, y=4, height=34, divisions=4, overflow_max=0):
     """Full-width progress bar used as the header of a week chart, in place of a
@@ -516,6 +536,43 @@ def _text_width(s, size=13):
     """Rough proportional text width (system-ui) for sizing highlight frames."""
     narrow = set("iIjl.,:;'!| ")
     return sum(size * (0.30 if c in narrow else 0.60) for c in s)
+
+
+# Début de barre des graphes à étiquettes de jour (/live, /weeks). Calculé une
+# fois sur l'étiquette la plus large possible, et non sur les lignes réellement
+# affichées : la semaine courante n'a que les jours écoulés (« Lundi 13/07 »
+# seul, le lundi), et une barre qui démarrerait plus à gauche que celle des
+# semaines complètes les désalignerait sur /weeks.
+DAY_BAR_START_X = _bar_start_x(f"{name} 00/00" for name in _FR_WEEKDAYS) + 12
+
+
+def _split_day_label(label):
+    """('Vendredi', '25/07') — nom et date d'une étiquette de jour. La date est
+    vide pour les étiquettes sans date (« S28 » sur /months)."""
+    name, _, tail = label.rpartition(" ")
+    if name and len(tail) == 5 and tail[2] == "/" and tail.replace("/", "").isdigit():
+        return name, tail
+    return label, ""
+
+
+def _row_label_svg(label, label_x, bar_x, baseline_y, fill="#c3c2b7"):
+    """Nom du jour aligné à gauche, date alignée à droite contre la barre."""
+    name, date = _split_day_label(label)
+    font = 'font-family="system-ui, sans-serif" font-size="13"'
+    svg = f'<text x="{label_x}" y="{baseline_y}" {font} fill="{fill}">{name}</text>'
+    if date:
+        svg += (
+            f'<text x="{bar_x - 12}" y="{baseline_y}" text-anchor="end" {font} '
+            f'fill="{fill}">{date}</text>'
+        )
+    return svg
+
+
+def _label_frame_w(label, label_x, bar_x):
+    """Largeur du cadre de surlignage : toute la colonne d'étiquettes quand elle
+    porte une date (nom à gauche + date à droite), sinon le texte seul."""
+    _, date = _split_day_label(label)
+    return (bar_x - 12 - label_x) if date else _text_width(label)
 
 
 def month_row_groups(mondays):
@@ -589,7 +646,7 @@ def _hatch_pattern(pattern_id, color):
 _BILLABLE_HATCH_ID = "hatch-billable"
 
 
-def render_week_svg(day_hours, max_hours=BILLABLE_MAX_HOURS, week_max_hours=BILLABLE_WEEK_MAX_HOURS, highlight_label=None, current_hours=0.0, title_label="SEMAINE", show_header=True, month_groups=None):
+def render_week_svg(day_hours, max_hours=BILLABLE_MAX_HOURS, week_max_hours=BILLABLE_WEEK_MAX_HOURS, highlight_label=None, current_hours=0.0, title_label="SEMAINE", show_header=True, month_groups=None, bar_start=None):
     """Render a "SEMAINE : total / Nh" header, then one bar per
     (day_label, hours) pair, most recent first. `show_header=False` drops the
     total header bar (and its vertical space) — /months shows weeks, whose total
@@ -612,7 +669,9 @@ def render_week_svg(day_hours, max_hours=BILLABLE_MAX_HOURS, week_max_hours=BILL
     row_h, row_gap = 22, 12
     header_h = 38 if show_header else 0
     top = header_h + row_gap
-    label_x, bar_x, bar_w, overflow_max = 20, 110, 380, 60
+    label_x, overflow_max = 20, 60
+    bar_x = bar_start or _bar_start_x(label for label, _ in day_hours)
+    bar_w = WEEK_BAR_END_X - bar_x
     corner_radius = 5
     inset = 3
     height = top + len(day_hours) * (row_h + row_gap)
@@ -655,11 +714,11 @@ def render_week_svg(day_hours, max_hours=BILLABLE_MAX_HOURS, week_max_hours=BILL
         frames = ""
         if label == highlight_label:
             frames = (
-                _hl_frame(label_x - 5, y, _text_width(label) + 10, row_h)
+                _hl_frame(label_x - 5, y, _label_frame_w(label, label_x, bar_x) + 10, row_h)
                 + _hl_frame(WEEK_HOURS_RIGHT_X - hours_w - 5, y, hours_w + 10, row_h)
             )
         rows_svg.append(f'''
-  <text x="{label_x}" y="{y + row_h - 6}" font-family="system-ui, sans-serif" font-size="13" fill="#c3c2b7">{label}</text>
+  {_row_label_svg(label, label_x, bar_x, y + row_h - 6)}
   <rect x="{bar_x}" y="{y}" width="{bar_w}" height="{row_h}" rx="{corner_radius}" fill="#2e2e2b"/>
   {fill_rect}
   {hatch_rect}
@@ -763,7 +822,7 @@ def activity_week_days(rows, last_day):
     days, day = [], last_day
     while day >= monday:
         totals = activity_by_project(rows, day.strftime("%Y%m%d"))
-        days.append((_FR_WEEKDAYS[day.weekday()], totals))
+        days.append((day_label(day), totals))
         day -= timedelta(days=1)
     return days
 
@@ -811,7 +870,7 @@ def render_activity_svg(totals, max_hours=ACTIVITY_MAX_HOURS):
 </svg>"""
 
 
-def render_activity_week_svg(days, max_hours=ACTIVITY_MAX_HOURS, uid="", highlight_label=None, week_max_hours=ACTIVITY_WEEK_MAX_HOURS, current_hours=0.0, current_prefix=None, title_label="ACTIVITÉ SEMAINE", show_header=True, month_groups=None):
+def render_activity_week_svg(days, max_hours=ACTIVITY_MAX_HOURS, uid="", highlight_label=None, week_max_hours=ACTIVITY_WEEK_MAX_HOURS, current_hours=0.0, current_prefix=None, title_label="ACTIVITÉ SEMAINE", show_header=True, month_groups=None, bar_start=None):
     """One stacked activity bar per day (most recent first). Row geometry
     matches render_week_svg so the two week charts line up side by side —
     including `show_header` and `month_groups`, to be set the same way on both.
@@ -830,7 +889,9 @@ def render_activity_week_svg(days, max_hours=ACTIVITY_MAX_HOURS, uid="", highlig
     row_h, row_gap = 22, 12
     header_h = 38 if show_header else 0
     top = header_h + row_gap
-    label_x, bar_x, bar_w = 20, 110, 380
+    label_x = 20
+    bar_x = bar_start or _bar_start_x(label for label, _ in days)
+    bar_w = WEEK_BAR_END_X - bar_x
     corner_radius, inset = 5, 3
     height = top + len(days) * (row_h + row_gap)
     week_total = sum(sum(t.values()) for _, t in days) / 60
@@ -857,11 +918,11 @@ def render_activity_week_svg(days, max_hours=ACTIVITY_MAX_HOURS, uid="", highlig
         frames = ""
         if label == highlight_label:
             frames = (
-                _hl_frame(label_x - 5, y, _text_width(label) + 10, row_h)
+                _hl_frame(label_x - 5, y, _label_frame_w(label, label_x, bar_x) + 10, row_h)
                 + _hl_frame(WEEK_HOURS_RIGHT_X - hours_w - 5, y, hours_w + 10, row_h)
             )
         rows_svg.append(f'''
-  <text x="{label_x}" y="{y + row_h - 6}" font-family="system-ui, sans-serif" font-size="13" fill="#c3c2b7">{label}</text>
+  {_row_label_svg(label, label_x, bar_x, y + row_h - 6)}
   <rect x="{bar_x}" y="{y}" width="{bar_w}" height="{row_h}" rx="{corner_radius}" fill="#2b2b28"/>
   <defs><clipPath id="actwk{uid}{i}"><rect x="{inner_x}" y="{inner_y}" width="{fill_w:.1f}" height="{inner_h}" rx="{corner_radius}"/></clipPath></defs>
   <g clip-path="url(#actwk{uid}{i})">{segs}</g>
@@ -1520,8 +1581,10 @@ def weeks(secret_path):
     for monday, sunday, billable_days, activity_days in recent_weeks(page=page, quantize=quantize):
         for _, totals in activity_days:
             prefixes.update(totals)
-        charts = render_week_svg(billable_days) + render_activity_week_svg(
-            activity_days, uid=monday.strftime("%Y%m%d")
+        charts = render_week_svg(
+            billable_days, bar_start=DAY_BAR_START_X
+        ) + render_activity_week_svg(
+            activity_days, uid=monday.strftime("%Y%m%d"), bar_start=DAY_BAR_START_X
         )
         blocks.append(
             f'<section class="week"><p class="week-label">'
@@ -1623,13 +1686,16 @@ def billable_week_svg(secret_path):
     day_hours = billable_hours_for_days(
         monday, sunday, _read_csv_rows(CSV_PATH), quantize=_quantize_enabled()
     )
-    highlight = _FR_WEEKDAYS[datetime.now().date().weekday()] if w == 0 else None
+    highlight = day_label(datetime.now().date()) if w == 0 else None
     current_hours = 0.0
     if w == 0:
         current = current_task_row()
         if current and _row_is_billable(current):
             current_hours = current["minutes"] / 60
-    svg = render_week_svg(day_hours, highlight_label=highlight, current_hours=current_hours)
+    svg = render_week_svg(
+        day_hours, highlight_label=highlight, current_hours=current_hours,
+        bar_start=DAY_BAR_START_X,
+    )
     return Response(svg, mimetype="image/svg+xml", headers={"Cache-Control": "no-store"})
 
 
@@ -1652,7 +1718,7 @@ def activity_week_svg(secret_path):
     w = _int_arg("w")
     _, sunday = current_week_bounds(week_anchor(w))
     days = activity_week_days(_read_csv_rows(CSV_PATH), sunday)
-    highlight = _FR_WEEKDAYS[datetime.now().date().weekday()] if w == 0 else None
+    highlight = day_label(datetime.now().date()) if w == 0 else None
     current_hours, current_prefix = 0.0, None
     if w == 0:
         current = current_task_row()
@@ -1662,6 +1728,7 @@ def activity_week_svg(secret_path):
     svg = render_activity_week_svg(
         days, highlight_label=highlight,
         current_hours=current_hours, current_prefix=current_prefix,
+        bar_start=DAY_BAR_START_X,
     )
     return Response(svg, mimetype="image/svg+xml", headers={"Cache-Control": "no-store"})
 
