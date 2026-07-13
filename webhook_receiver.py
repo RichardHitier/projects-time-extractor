@@ -45,7 +45,7 @@ BILLABLE_MAX_HOURS = 4
 BILLABLE_WEEKS_SHOWN = 12  # /weeks : nombre de semaines les plus récentes affichées
 
 # /months : une ligne par semaine sur les N dernières semaines (N réglable par ?n=).
-MONTH_WEEKS_SHOWN, MONTH_MIN_WEEKS, MONTH_MAX_WEEKS = 8, 2, 52
+MONTH_WEEKS_SHOWN, MONTH_MIN_WEEKS, MONTH_MAX_WEEKS = 8, 2, 120
 
 _FR_WEEKDAYS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"]
 _FR_MONTHS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet",

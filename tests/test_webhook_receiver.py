@@ -568,9 +568,11 @@ def test_month_page_defaults_and_clamps_the_week_count(tmp_path):
     default = client.get("/months").get_data(as_text=True)
     assert f"{webhook_receiver.MONTH_WEEKS_SHOWN} semaines" in default
 
-    too_many = client.get("/months?n=99").get_data(as_text=True)
+    over = webhook_receiver.MONTH_MAX_WEEKS + 10
+    too_many = client.get(f"/months?n={over}").get_data(as_text=True)
     assert f"{webhook_receiver.MONTH_MAX_WEEKS} semaines" in too_many
-    assert "/months?n=53" not in too_many  # borne haute : plus de lien "+1"
+    # borne haute : plus de lien "+1"
+    assert f"/months?n={webhook_receiver.MONTH_MAX_WEEKS + 1}" not in too_many
 
     too_few = client.get("/months?n=1").get_data(as_text=True)
     assert f"{webhook_receiver.MONTH_MIN_WEEKS} semaines" in too_few
