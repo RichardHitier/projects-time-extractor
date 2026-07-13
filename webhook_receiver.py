@@ -576,18 +576,24 @@ def _label_frame_w(label, label_x, bar_x):
 
 
 def month_row_groups(mondays):
-    """[(première_ligne, dernière_ligne, 'Juillet')] — lignes consécutives dont
-    le lundi tombe dans le même mois. Une semaine à cheval sur deux mois est
-    rattachée au mois de son lundi."""
+    """[(première_ligne, dernière_ligne, 'Juillet', '26')] — lignes consécutives
+    dont le lundi tombe dans le même mois. Une semaine à cheval sur deux mois est
+    rattachée au mois de son lundi. L'année est portée séparément : elle survit à
+    l'abréviation du nom (« Sep.25 »), et /months affiche jusqu'à 120 semaines,
+    où deux « Juillet » d'années différentes se côtoient."""
     groups = []
     previous = None
     for i, monday in enumerate(mondays):
         key = (monday.year, monday.month)
         if groups and key == previous:
-            first, _, name = groups[-1]
-            groups[-1] = (first, i, name)
+            first, _, name, year = groups[-1]
+            groups[-1] = (first, i, name, year)
         else:
-            groups.append((i, i, _FR_MONTHS[monday.month - 1].capitalize()))
+            groups.append((
+                i, i,
+                _FR_MONTHS[monday.month - 1].capitalize(),
+                monday.strftime("%y"),
+            ))
         previous = key
     return groups
 
@@ -601,20 +607,20 @@ MONTH_LABEL_COLOR = "#ffffff"  # étiquettes de semaine voisines : #c3c2b7
 
 
 def _month_labels_svg(groups, top, row_h, row_gap, x):
-    """Nom du mois écrit verticalement (lu de bas en haut) dans la gouttière
+    """« Juillet26 » écrit verticalement (lu de bas en haut) dans la gouttière
     entre les étiquettes de semaine et les barres, centré sur les lignes du
-    mois. Un nom long (Septembre…) est abrégé quand il déborde du bloc de
-    lignes ; les noms courts (Mai, Juin, Août) restent entiers — les abréger
-    les rallongerait."""
+    mois. Un nom long (Septembre…) est abrégé quand l'étiquette déborde du bloc
+    de lignes — l'année est conservée (« Sep.25 ») ; les noms courts (Mai, Juin,
+    Août) restent entiers, les abréger les rallongerait."""
     pitch = row_h + row_gap
     labels = []
-    for first, last, name in groups:
+    for first, last, name, year in groups:
         y0 = top + first * pitch
         y1 = top + last * pitch + row_h
         span = y1 - y0
-        text = name
-        if len(name) > 4 and _text_width(name, MONTH_LABEL_SIZE) > span:
-            text = f"{name[:3]}."
+        text = f"{name} {year}"
+        if len(name) > 4 and _text_width(text, MONTH_LABEL_SIZE) > span:
+            text = f"{name[:3]}. {year}"
         labels.append(
             f'<text transform="translate({x},{(y0 + y1) / 2:.1f}) rotate(-90)" '
             f'text-anchor="middle" font-family="system-ui, sans-serif" '

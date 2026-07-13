@@ -643,7 +643,7 @@ def test_month_row_groups_collapses_consecutive_weeks_of_a_month():
 
     # la semaine du 29/06 déborde sur juillet : elle suit le mois de son lundi
     assert webhook_receiver.month_row_groups(mondays) == [
-        (0, 1, "Juillet"), (2, 4, "Juin"),
+        (0, 1, "Juillet", "26"), (2, 4, "Juin", "26"),
     ]
 
 
@@ -662,21 +662,26 @@ def test_months_page_writes_month_names_vertically_in_the_gutter(tmp_path):
 
     months = {name for _, name in labels}
     assert months  # au moins un mois couvert par les 8 semaines
-    # nom entier, ou abrégé « Sep. » si le mois ne tient qu'à une ou deux lignes
+    # « Juillet 26 », ou « Sep. 25 » si le mois ne tient qu'à une ou deux lignes
+    year = date.today().strftime("%y")
     full = {m.capitalize() for m in webhook_receiver._FR_MONTHS}
-    assert months <= full | {f"{m[:3]}." for m in full}
+    expected = {f"{m} {y}" for m in full | {f"{m[:3]}." for m in full}
+                for y in (year, str(int(year) - 1))}
+    assert months <= expected
     # deux graphes (facturable + activité), mêmes étiquettes aux mêmes ordonnées
     assert len(labels) == 2 * len(months)
 
 
-def test_month_label_never_abbreviates_a_short_name(tmp_path):
-    # « Mai » tient sur une seule semaine : l'abréger en « Mai. » le rallongerait
+def test_month_label_keeps_the_year_when_it_abbreviates_a_long_name(tmp_path):
+    # « Mai » tient sur une seule semaine : l'abréger en « Mai. » le rallongerait.
+    # « Septembre » ne tient pas : on le coupe, mais l'année doit survivre.
     labels = webhook_receiver._month_labels_svg(
-        [(0, 0, "Mai"), (1, 1, "Septembre")], top=12, row_h=22, row_gap=12, x=84,
+        [(0, 0, "Mai", "25"), (1, 1, "Septembre", "25")],
+        top=12, row_h=22, row_gap=12, x=84,
     )
 
-    assert ">Mai<" in labels
-    assert ">Sep.<" in labels
+    assert ">Mai 25<" in labels
+    assert ">Sep. 25<" in labels
 
 
 ROW = {"date": "20260701", "project": "calipso", "task": "vieux nom",
