@@ -301,3 +301,4 @@ les numéros/lettres sont des **ID stables** (références croisées « point 1 
 - [ ] [2026-07-07] ovh-vps backups csv on googledrive
 - [x] [2026-07-08] bloc « tâche en cours » : bordure verte quand une tâche tourne, grise sinon (taille constante conservée) — commit 264dbdf
 - [x] [2026-07-08] barres de semaine : chiffre `nn / 20h` et `nn / 60h` en 14px gras ; barre globale /20h alignée à droite sur les jours (fin x=490 au lieu de déborder à x=550) — commit 2ca3dbd
+- [ ] [2026-07-13] rajouter le titre des graphe en page /live/

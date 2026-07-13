@@ -492,6 +492,106 @@ def test_live_hides_today_charts_for_past_weeks(tmp_path):
     assert "semaine suivante" in past           # can page back to newer
 
 
+def _write_rows(csv_path, rows):
+    with open(csv_path, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=webhook_receiver.CSV_COLUMNS)
+        writer.writeheader()
+        for row in rows:
+            writer.writerow(row)
+
+
+def test_recent_week_totals_sums_a_whole_week_into_one_row(tmp_path):
+    csv_path = tmp_path / "pomofocus_webhook.csv"
+    _write_rows(csv_path, [
+        # semaine du lundi 2026-06-29 : deux jours facturables + un jour perso
+        {"date": "20260629", "project": "calipso_iesa", "task": "t",
+         "minutes": "60", "startTime": "10:00", "endTime": "11:00"},
+        {"date": "20260630", "project": "speasy_core", "task": "t",
+         "minutes": "90", "startTime": "10:00", "endTime": "11:30"},
+        {"date": "20260630", "project": "perso", "task": "t",
+         "minutes": "30", "startTime": "14:00", "endTime": "14:30"},
+    ])
+    webhook_receiver.CSV_PATH = str(csv_path)
+    today = date(2026, 7, 1)  # mercredi ; lundi = 2026-06-29
+
+    weeks = webhook_receiver.recent_week_totals(today=today, n=3)
+
+    assert len(weeks) == 3
+    monday, sunday, label, billable, activity = weeks[0]
+    assert (monday, sunday) == (date(2026, 6, 29), date(2026, 7, 5))
+    assert label == "S27"
+    assert billable == 2.5  # 60 + 90 min, le perso n'est pas facturable
+    assert activity == {"calipso": 60, "speasy": 90, "perso": 30}
+    # les semaines précédentes sont vides mais présentes, plus récente d'abord
+    assert weeks[1][0] == date(2026, 6, 22)
+    assert (weeks[1][3], weeks[1][4]) == (0, {})
+
+
+def test_recent_week_totals_quantizes_each_day_to_the_quarter_hour(tmp_path):
+    csv_path = tmp_path / "pomofocus_webhook.csv"
+    _write_rows(csv_path, [
+        {"date": "20260629", "project": "calipso_iesa", "task": "t",
+         "minutes": "5", "startTime": "10:00", "endTime": "10:05"},
+        {"date": "20260630", "project": "calipso_iesa", "task": "t",
+         "minutes": "20", "startTime": "10:00", "endTime": "10:20"},
+    ])
+    webhook_receiver.CSV_PATH = str(csv_path)
+    today = date(2026, 7, 1)
+
+    raw = webhook_receiver.recent_week_totals(today=today, n=1)[0][3]
+    rounded = webhook_receiver.recent_week_totals(today=today, n=1, quantize=True)[0][3]
+
+    assert raw == 25 / 60           # 5 + 20
+    assert rounded == 45 / 60       # 15 + 30 : arrondi par jour, pas sur le total
+
+
+def test_month_page_renders_one_row_per_week(tmp_path):
+    webhook_receiver.CSV_PATH = str(tmp_path / "pomofocus_webhook.csv")
+    client = webhook_receiver.app.test_client()
+
+    page = client.get("/month?n=3").get_data(as_text=True)
+
+    labels = re.findall(r">(S\d\d)</text>", page)
+    assert len(labels) == 6            # 3 semaines × 2 colonnes (facturable, activité)
+    assert len(set(labels)) == 3       # les mêmes 3 semaines des deux côtés
+    # les maxima passent du jour à la semaine, et le total d'en-tête à N semaines
+    assert "FACTURABLE — 3 SEMAINES : 0:00 / 60h" in page
+    assert "ACTIVITÉ — 3 SEMAINES : 0:00 / 120h" in page
+
+
+def test_month_page_defaults_and_clamps_the_week_count(tmp_path):
+    webhook_receiver.CSV_PATH = str(tmp_path / "pomofocus_webhook.csv")
+    client = webhook_receiver.app.test_client()
+
+    default = client.get("/month").get_data(as_text=True)
+    assert f"{webhook_receiver.MONTH_WEEKS_SHOWN} semaines" in default
+
+    too_many = client.get("/month?n=99").get_data(as_text=True)
+    assert f"{webhook_receiver.MONTH_MAX_WEEKS} semaines" in too_many
+    assert "/month?n=53" not in too_many  # borne haute : plus de lien "+1"
+
+    too_few = client.get("/month?n=1").get_data(as_text=True)
+    assert f"{webhook_receiver.MONTH_MIN_WEEKS} semaines" in too_few
+    assert "/month?n=1" not in too_few    # borne basse : plus de lien "−1"
+
+
+def test_month_page_respects_the_round_cookie(tmp_path):
+    csv_path = tmp_path / "pomofocus_webhook.csv"
+    _write_rows(csv_path, [
+        {"date": date.today().strftime("%Y%m%d"), "project": "calipso_iesa",
+         "task": "t", "minutes": "5", "startTime": "10:00", "endTime": "10:05"},
+    ])
+    webhook_receiver.CSV_PATH = str(csv_path)
+    client = webhook_receiver.app.test_client()
+
+    raw = client.get("/month?n=2").get_data(as_text=True)
+    assert "FACTURABLE — 2 SEMAINES : 0:05 / 40h" in raw
+
+    client.set_cookie("round", "1")
+    rounded = client.get("/month?n=2").get_data(as_text=True)
+    assert "FACTURABLE — 2 SEMAINES : 0:15 / 40h" in rounded
+
+
 def test_api_rows_past_week_reports_no_current_task(tmp_path):
     webhook_receiver.CSV_PATH = str(tmp_path / "pomofocus_webhook.csv")
     webhook_receiver.CURRENT_TASK = {

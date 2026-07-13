@@ -42,6 +42,9 @@ BILLABLE_PROJECTS = {p.lower() for p in _config.get("BILLABLE_PROJECTS", [])}
 BILLABLE_MAX_HOURS = 4
 BILLABLE_WEEKS_SHOWN = 12  # /weeks : nombre de semaines les plus récentes affichées
 
+# /month : une ligne par semaine sur les N dernières semaines (N réglable par ?n=).
+MONTH_WEEKS_SHOWN, MONTH_MIN_WEEKS, MONTH_MAX_WEEKS = 8, 2, 52
+
 _FR_WEEKDAYS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"]
 _FR_MONTHS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet",
               "août", "septembre", "octobre", "novembre", "décembre"]
@@ -333,6 +336,32 @@ def recent_weeks(today=None, count=BILLABLE_WEEKS_SHOWN, page=0, quantize=False)
     return weeks
 
 
+def recent_week_totals(today=None, n=MONTH_WEEKS_SHOWN, quantize=False):
+    """The `n` most recent weeks, most recent first, as
+    (monday, sunday, label, billable_hours, {prefix: minutes}) tuples — one row
+    per week instead of one per day (/month). The current week stops at `today`;
+    completed weeks span Monday..Sunday. Empty weeks are kept."""
+    if today is None:
+        today = datetime.now().date()
+    rows = _read_csv_rows(CSV_PATH)
+    monday, _ = current_week_bounds(today)
+    weeks = []
+    for _ in range(n):
+        sunday = monday + timedelta(days=6)
+        last_day = min(sunday, today)
+        minutes, activity, day = 0, {}, monday
+        while day <= last_day:
+            key = day.strftime("%Y%m%d")
+            minutes += billable_minutes(rows, key, quantize=quantize)
+            for prefix, mins in activity_by_project(rows, key).items():
+                activity[prefix] = activity.get(prefix, 0) + mins
+            day += timedelta(days=1)
+        label = f"S{monday.isocalendar()[1]:02d}"
+        weeks.append((monday, sunday, label, minutes / 60, activity))
+        monday -= timedelta(days=7)
+    return weeks
+
+
 def _fr_week_range(monday, sunday):
     """French label like 'Semaine du 23 au 29 juin 2026', collapsing the
     start's month/year when identical to the end's."""
@@ -461,7 +490,7 @@ def _hatch_pattern(pattern_id, color):
 _BILLABLE_HATCH_ID = "hatch-billable"
 
 
-def render_week_svg(day_hours, max_hours=BILLABLE_MAX_HOURS, week_max_hours=BILLABLE_WEEK_MAX_HOURS, highlight_label=None, current_hours=0.0):
+def render_week_svg(day_hours, max_hours=BILLABLE_MAX_HOURS, week_max_hours=BILLABLE_WEEK_MAX_HOURS, highlight_label=None, current_hours=0.0, title_label="SEMAINE"):
     """Render a "SEMAINE : total / Nh" header, then one bar per
     (day_label, hours) pair, most recent first.
 
@@ -471,6 +500,9 @@ def render_week_svg(day_hours, max_hours=BILLABLE_MAX_HOURS, week_max_hours=BILL
     `current_hours` (> 0 only for the running billable task, week w==0) draws a
     grey hatched zone after the solid fill on the `highlight_label` row, clamped
     within the bar.
+
+    Rows are labelled, not dated: /month passes weeks rather than days, hence
+    `title_label` for the SVG tooltip.
     """
     width = 640
     row_h, row_gap, header_h = 22, 12, 38
@@ -480,7 +512,7 @@ def render_week_svg(day_hours, max_hours=BILLABLE_MAX_HOURS, week_max_hours=BILL
     inset = 3
     height = top + len(day_hours) * (row_h + row_gap)
     total_hours = sum(hours for _, hours in day_hours)
-    title = f"SEMAINE : {_format_hm(total_hours)} / {week_max_hours}h"
+    title = f"{title_label} : {_format_hm(total_hours)} / {week_max_hours}h"
 
     hatch_defs = ""
     rows_svg = []
@@ -666,7 +698,7 @@ def render_activity_svg(totals, max_hours=ACTIVITY_MAX_HOURS):
 </svg>"""
 
 
-def render_activity_week_svg(days, max_hours=ACTIVITY_MAX_HOURS, uid="", highlight_label=None, week_max_hours=ACTIVITY_WEEK_MAX_HOURS, current_hours=0.0, current_prefix=None):
+def render_activity_week_svg(days, max_hours=ACTIVITY_MAX_HOURS, uid="", highlight_label=None, week_max_hours=ACTIVITY_WEEK_MAX_HOURS, current_hours=0.0, current_prefix=None, title_label="ACTIVITÉ SEMAINE"):
     """One stacked activity bar per day (most recent first). Row geometry
     matches render_week_svg so the two week charts line up side by side.
 
@@ -676,7 +708,10 @@ def render_activity_week_svg(days, max_hours=ACTIVITY_MAX_HOURS, uid="", highlig
 
     `current_hours`/`current_prefix` (set only for the running task, week w==0)
     draw a hatched zone in the project's color after the stacked segments on the
-    `highlight_label` row, clamped within the bar."""
+    `highlight_label` row, clamped within the bar.
+
+    Rows are labelled, not dated: /month passes weeks rather than days, hence
+    `title_label` for the SVG tooltip."""
     width = 640
     row_h, row_gap, header_h = 22, 12, 38
     top = header_h + row_gap
@@ -684,7 +719,7 @@ def render_activity_week_svg(days, max_hours=ACTIVITY_MAX_HOURS, uid="", highlig
     corner_radius, inset = 5, 3
     height = top + len(days) * (row_h + row_gap)
     week_total = sum(sum(t.values()) for _, t in days) / 60
-    title = f"ACTIVITÉ SEMAINE : {_format_hm(week_total)} / {week_max_hours}h"
+    title = f"{title_label} : {_format_hm(week_total)} / {week_max_hours}h"
     hatch_defs = ""
     rows_svg = []
     for i, (label, totals) in enumerate(days):
@@ -868,11 +903,12 @@ def render_swimlane_svg(days):
 
 
 def _menu_bar(prefix, active):
-    """Shared top navigation across /live, /weeks and /swimlane. `active` is one
-    of 'live' | 'weeks' | 'swimlane' and gets the highlighted pill."""
+    """Shared top navigation across /live, /weeks, /month and /swimlane. `active`
+    is one of 'live' | 'weeks' | 'month' | 'swimlane' and gets the highlighted pill."""
     items = [
         ("live", "Live", f"{prefix}/live"),
         ("weeks", "Semaines", f"{prefix}/weeks"),
+        ("month", "Mois", f"{prefix}/month"),
         ("swimlane", "Swimlane", f"{prefix}/swimlane"),
     ]
     links = "".join(
@@ -1092,6 +1128,49 @@ WEEKS_HTML = """<!doctype html>
 """
 
 
+MONTH_HTML = """<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>{count} dernières semaines</title>
+<style>
+  body {{ font-family: system-ui, sans-serif; margin: 2rem; background: #111; color: #eee; }}
+  h1 {{ font-size: 1.1rem; font-weight: normal; color: #999; }}
+  a {{ color: #3987e5; text-decoration: none; }}
+  #legend svg {{ display: block; max-width: 100%; margin: .2rem 0 1.8rem; }}
+  .menubar {{ display: flex; gap: .6rem; margin-bottom: 1.5rem; }}
+  .menubar a {{ background: #2e2e2b; padding: .4rem .9rem; border-radius: 999px;
+    text-transform: uppercase; font-size: .8rem; color: #bbb; transition: background .15s ease; }}
+  .menubar a:hover {{ background: #3c3c37; }}
+  .menubar a.active {{ background: #3987e5; color: #fff; }}
+  .week-charts {{ display: flex; flex-wrap: wrap; gap: 1rem; align-items: flex-start; }}
+  .week-charts svg {{ max-width: 100%; }}
+  .weeknav {{ display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; margin: 0 0 1.2rem; }}
+  .weeknav a, .weeknav .disabled {{ display: inline-flex; align-items: center; background: #2e2e2b;
+    padding: .4rem .9rem; border-radius: 999px; transition: background .15s ease; }}
+  .weeknav a:hover {{ background: #3c3c37; }}
+  .weeknav .disabled {{ color: #555; }}
+  .weeknav .week-count {{ color: #999; text-transform: uppercase; font-size: .8rem;
+    background: none; padding: 0; }}
+  .roundtoggle {{ display: inline-flex; align-items: center; gap: .4rem; color: #bbb;
+    font-size: .8rem; text-transform: uppercase; margin-bottom: 1.2rem; cursor: pointer; }}
+  .roundtoggle input {{ accent-color: #3987e5; cursor: pointer; }}
+  .ver {{ color: #666; font-size: .7rem; margin-top: 2rem; }}
+</style>
+</head>
+<body>
+{menu}
+<h1>{count} dernières semaines : facturable + activité</h1>
+{nav}
+{round_toggle}
+<div class="week-charts">{charts}</div>
+<div id="legend">{legend}</div>
+<footer class="ver">v{version}</footer>
+</body>
+</html>
+"""
+
+
 SWIMLANE_HTML = """<!doctype html>
 <html lang="fr">
 <head>
@@ -1243,6 +1322,57 @@ def weeks(secret_path):
         round_toggle=_round_toggle_html(quantize),
         legend=legend,
         blocks="\n".join(blocks),
+        version=APP_VERSION,
+    )
+
+
+@app.get("/month", defaults={"secret_path": ""})
+@app.get("/<path:secret_path>/month")
+def month(secret_path):
+    if SECRET and secret_path.strip("/") != SECRET:
+        return "not found\n", 404
+    prefix = f"/{secret_path.strip('/')}" if secret_path.strip("/") else ""
+    n = _int_arg("n") or MONTH_WEEKS_SHOWN
+    n = max(MONTH_MIN_WEEKS, min(n, MONTH_MAX_WEEKS))
+    quantize = _quantize_enabled()
+
+    weeks = recent_week_totals(n=n, quantize=quantize)
+    billable_rows = [(label, hours) for _, _, label, hours, _ in weeks]
+    activity_rows = [(label, activity) for _, _, label, _, activity in weeks]
+    prefixes = set()
+    for _, activity in activity_rows:
+        prefixes.update(activity)
+    # Une ligne = une semaine : les maxima passent du jour (4h/8h) à la semaine
+    # (20h/40h), et le total d'en-tête à N semaines.
+    charts = render_week_svg(
+        billable_rows,
+        max_hours=BILLABLE_WEEK_MAX_HOURS,
+        week_max_hours=BILLABLE_WEEK_MAX_HOURS * n,
+        title_label=f"FACTURABLE — {n} SEMAINES",
+    ) + render_activity_week_svg(
+        activity_rows,
+        max_hours=ACTIVITY_WEEK_MAX_HOURS,
+        week_max_hours=ACTIVITY_WEEK_MAX_HOURS * n,
+        uid="month",
+        title_label=f"ACTIVITÉ — {n} SEMAINES",
+    )
+
+    fewer = (
+        f'<a href="{prefix}/month?n={n - 1}">{_CHEVRON_LEFT}−1 semaine</a>'
+        if n > MONTH_MIN_WEEKS else f'<span class="disabled">{_CHEVRON_LEFT}−1 semaine</span>'
+    )
+    more = (
+        f'<a href="{prefix}/month?n={n + 1}">+1 semaine{_CHEVRON_RIGHT}</a>'
+        if n < MONTH_MAX_WEEKS else f'<span class="disabled">+1 semaine{_CHEVRON_RIGHT}</span>'
+    )
+    nav = f'<p class="weeknav">{fewer}<span class="week-count">{n} semaines</span>{more}</p>'
+    return MONTH_HTML.format(
+        count=n,
+        menu=_menu_bar(prefix, "month"),
+        nav=nav,
+        round_toggle=_round_toggle_html(quantize),
+        charts=charts,
+        legend=render_activity_legend_svg(_ordered_projects(prefixes)),
         version=APP_VERSION,
     )
 
