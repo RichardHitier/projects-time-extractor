@@ -1209,7 +1209,8 @@ LIVE_HTML = """<!doctype html>
           animation: pulse 1.5s ease-in-out infinite; margin-right: .4rem; }}
   @keyframes pulse {{ 50% {{ opacity: .3; }} }}
   #status {{ color: #666; font-size: .8rem; margin-top: 1rem; }}
-  .charts-row {{ display: flex; flex-wrap: wrap; gap: 1rem; margin-bottom: 1rem; align-items: flex-start; }}
+  .charts-row {{ display: flex; flex-wrap: wrap; gap: 1rem; margin-bottom: 1rem;
+    align-items: flex-start; justify-content: center; }}
   .charts-row img {{ max-width: 100%; }}
   /* légende alignée sous la colonne activité (largeur graphe 640 + gap 1rem) */
   #legend {{ display: block; max-width: 100%; margin: .3rem 0 1.5rem calc(640px + 1rem); }}
@@ -1336,8 +1337,10 @@ WEEKS_HTML = """<!doctype html>
   .menubar a:hover {{ background: #3c3c37; }}
   .menubar a.active {{ background: #3987e5; color: #fff; }}
   .week {{ margin-bottom: 1.8rem; }}
-  .week-label {{ font-size: .8rem; font-weight: 700; text-transform: uppercase; color: #fff; margin: 0 0 .4rem; }}
-  .week-charts {{ display: flex; flex-wrap: wrap; gap: 1rem; align-items: flex-start; }}
+  .week-label {{ font-size: .8rem; font-weight: 700; text-transform: uppercase;
+    color: #fff; text-align: center; margin: 0 0 .4rem; }}
+  .week-charts {{ display: flex; flex-wrap: wrap; gap: 1rem; align-items: flex-start;
+    justify-content: center; }}
   .week-charts svg {{ max-width: 100%; }}
   .weeknav {{ display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; margin: 0 0 1.2rem; }}
   .weeknav a {{ display: inline-flex; align-items: center; gap: .3em; background: #2e2e2b;
@@ -1379,7 +1382,8 @@ MONTH_HTML = """<!doctype html>
     text-transform: uppercase; font-size: .8rem; color: #bbb; transition: background .15s ease; }}
   .menubar a:hover {{ background: #3c3c37; }}
   .menubar a.active {{ background: #3987e5; color: #fff; }}
-  .week-charts {{ display: flex; flex-wrap: wrap; gap: 1rem; align-items: flex-start; }}
+  .week-charts {{ display: flex; flex-wrap: wrap; gap: 1rem; align-items: flex-start;
+    justify-content: center; }}
   .week-charts svg {{ max-width: 100%; }}
   .weeknav {{ display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; margin: 0 0 1.2rem; }}
   .weeknav a, .weeknav .disabled {{ display: inline-flex; align-items: center; background: #2e2e2b;
