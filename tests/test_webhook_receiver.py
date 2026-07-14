@@ -579,6 +579,49 @@ def test_month_page_defaults_and_clamps_the_week_count(tmp_path):
     assert "/months?n=1" not in too_few    # borne basse : plus de lien "−1"
 
 
+def test_recent_week_totals_page_shifts_the_window_back(tmp_path):
+    webhook_receiver.CSV_PATH = str(tmp_path / "pomofocus_webhook.csv")
+    today = date(2026, 7, 14)
+
+    page0 = webhook_receiver.recent_week_totals(today=today, n=4)
+    page1 = webhook_receiver.recent_week_totals(today=today, n=4, page=1)
+
+    # la page 1 reprend exactement là où la page 0 s'arrête : son lundi le plus
+    # récent est la semaine qui précède le plus ancien lundi de la page 0
+    assert page1[0][0] == page0[-1][0] - timedelta(weeks=1)
+    assert page1[0][0] == page0[0][0] - timedelta(weeks=4)
+
+
+def test_months_page_navigation_is_disabled_at_both_ends(tmp_path):
+    webhook_receiver.CSV_PATH = str(tmp_path / "pomofocus_webhook.csv")
+    client = webhook_receiver.app.test_client()
+    n = webhook_receiver.MONTH_WEEKS_SHOWN
+    last = webhook_receiver.MONTH_MAX_WEEKS // n  # dernière page atteignable
+
+    first_page = client.get("/months").get_data(as_text=True)
+    assert f"/months?n={n}&p=1" in first_page          # « plus anciennes » actif
+    assert f"/months?n={n}&p=-1" not in first_page     # « plus récentes » grisé
+
+    oldest = client.get(f"/months?p={last}").get_data(as_text=True)
+    assert f"/months?n={n}&p={last - 1}" in oldest     # « plus récentes » actif
+    assert f"/months?n={n}&p={last + 1}" not in oldest  # « plus anciennes » grisé
+
+    # au-delà de la dernière page, on est ramené à la dernière
+    beyond = client.get(f"/months?p={last + 5}").get_data(as_text=True)
+    assert beyond == oldest
+
+
+def test_months_page_title_shows_the_window_and_not_the_last_weeks(tmp_path):
+    webhook_receiver.CSV_PATH = str(tmp_path / "pomofocus_webhook.csv")
+
+    page = webhook_receiver.app.test_client().get("/months?n=4&p=2").get_data(as_text=True)
+
+    # la fenêtre p=2 est ancienne : le titre doit la nommer, pas dire « dernières »
+    weeks = webhook_receiver.recent_week_totals(n=4, page=2)
+    assert webhook_receiver._fr_window(weeks) in page
+    assert "dernières semaines" not in page
+
+
 def test_month_page_respects_the_round_cookie(tmp_path):
     csv_path = tmp_path / "pomofocus_webhook.csv"
     _write_rows(csv_path, [

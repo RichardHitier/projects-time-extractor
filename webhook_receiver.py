@@ -44,8 +44,10 @@ BILLABLE_PROJECTS = {p.lower() for p in _config.get("BILLABLE_PROJECTS", [])}
 BILLABLE_MAX_HOURS = 4
 BILLABLE_WEEKS_SHOWN = 12  # /weeks : nombre de semaines les plus récentes affichées
 
-# /months : une ligne par semaine sur les N dernières semaines (N réglable par ?n=).
-MONTH_WEEKS_SHOWN, MONTH_MIN_WEEKS, MONTH_MAX_WEEKS = 8, 2, 120
+# /months : une ligne par semaine, N semaines par page (?n=), pagination par ?p=.
+# 200 semaines de recul maximum : les données commencent en sept. 2022, soit 201
+# semaines avant juillet 2026 — la page p=3 (n=60) les atteint.
+MONTH_WEEKS_SHOWN, MONTH_MIN_WEEKS, MONTH_MAX_WEEKS = 60, 2, 200
 
 _FR_WEEKDAYS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"]
 _FR_MONTHS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet",
@@ -388,15 +390,20 @@ def recent_weeks(today=None, count=BILLABLE_WEEKS_SHOWN, page=0, quantize=False)
     return weeks
 
 
-def recent_week_totals(today=None, n=MONTH_WEEKS_SHOWN, quantize=False):
+def recent_week_totals(today=None, n=MONTH_WEEKS_SHOWN, page=0, quantize=False):
     """The `n` most recent weeks, most recent first, as
     (monday, sunday, label, billable_hours, {prefix: minutes}) tuples — one row
     per week instead of one per day (/months). The current week stops at `today`;
-    completed weeks span Monday..Sunday. Empty weeks are kept."""
+    completed weeks span Monday..Sunday. Empty weeks are kept.
+
+    `page` recule la fenêtre de `page * n` semaines, comme recent_weeks : page 0
+    est la fenêtre courante, les suivantes sont plus anciennes (et complètes,
+    leur dimanche étant passé)."""
     if today is None:
         today = datetime.now().date()
     rows = _read_csv_rows(CSV_PATH)
     monday, _ = current_week_bounds(today)
+    monday -= timedelta(weeks=page * n)
     weeks = []
     for _ in range(n):
         sunday = monday + timedelta(days=6)
@@ -412,6 +419,17 @@ def recent_week_totals(today=None, n=MONTH_WEEKS_SHOWN, quantize=False):
         weeks.append((monday, sunday, label, minutes / 60, activity))
         monday -= timedelta(days=7)
     return weeks
+
+
+def _fr_window(weeks):
+    """« février 2023 → mars 2024 » — la période couverte par une fenêtre de
+    /months (weeks est trié du plus récent au plus ancien)."""
+    if not weeks:
+        return ""
+    debut = weeks[-1][0]
+    fin = weeks[0][1]
+    return (f"{_FR_MONTHS[debut.month - 1]} {debut.year}"
+            f" → {_FR_MONTHS[fin.month - 1]} {fin.year}")
 
 
 def _fr_week_range(monday, sunday):
@@ -1327,7 +1345,7 @@ MONTH_HTML = """<!doctype html>
 <html lang="fr">
 <head>
 <meta charset="utf-8">
-<title>{count} dernières semaines</title>
+<title>{count} semaines — {window}</title>
 <style>
   body {{ font-family: system-ui, sans-serif; margin: 2rem; background: #111; color: #eee; }}
   h1 {{ font-size: 1.1rem; font-weight: normal; color: #999; }}
@@ -1355,7 +1373,7 @@ MONTH_HTML = """<!doctype html>
 </head>
 <body>
 {menu}
-<h1>{count} dernières semaines : facturable + activité</h1>
+<h1>{count} semaines, {window} : facturable + activité</h1>
 {nav}
 {round_toggle}
 <div class="week-charts">{charts}</div>
@@ -1624,9 +1642,11 @@ def months(secret_path):
     prefix = f"/{secret_path.strip('/')}" if secret_path.strip("/") else ""
     n = _int_arg("n") or MONTH_WEEKS_SHOWN
     n = max(MONTH_MIN_WEEKS, min(n, MONTH_MAX_WEEKS))
+    # la fenêtre ne démarre jamais plus de MONTH_MAX_WEEKS semaines en arrière
+    page = min(_int_arg("p"), MONTH_MAX_WEEKS // n)
     quantize = _quantize_enabled()
 
-    weeks = recent_week_totals(n=n, quantize=quantize)
+    weeks = recent_week_totals(n=n, page=page, quantize=quantize)
     billable_rows = [(label, hours) for _, _, label, hours, _ in weeks]
     activity_rows = [(label, activity) for _, _, label, _, activity in weeks]
     prefixes = set()
@@ -1653,17 +1673,33 @@ def months(secret_path):
         month_groups=month_groups,
     )
 
+    # le réglage de n propage p : changer la taille de page ne doit pas ramener
+    # en page 0
     fewer = (
-        f'<a href="{prefix}/months?n={n - 1}">{_CHEVRON_LEFT}−1 semaine</a>'
+        f'<a href="{prefix}/months?n={n - 1}&p={page}">{_CHEVRON_LEFT}−1 semaine</a>'
         if n > MONTH_MIN_WEEKS else f'<span class="disabled">{_CHEVRON_LEFT}−1 semaine</span>'
     )
     more = (
-        f'<a href="{prefix}/months?n={n + 1}">+1 semaine{_CHEVRON_RIGHT}</a>'
+        f'<a href="{prefix}/months?n={n + 1}&p={page}">+1 semaine{_CHEVRON_RIGHT}</a>'
         if n < MONTH_MAX_WEEKS else f'<span class="disabled">+1 semaine{_CHEVRON_RIGHT}</span>'
     )
-    nav = f'<p class="weeknav">{fewer}<span class="week-count">{n} semaines</span>{more}</p>'
+    newer = (
+        f'<a href="{prefix}/months?n={n}&p={page - 1}">{_CHEVRON_LEFT}plus récentes</a>'
+        if page > 0 else f'<span class="disabled">{_CHEVRON_LEFT}plus récentes</span>'
+    )
+    older = (
+        f'<a href="{prefix}/months?n={n}&p={page + 1}">plus anciennes{_CHEVRON_RIGHT}</a>'
+        if page < MONTH_MAX_WEEKS // n
+        else f'<span class="disabled">plus anciennes{_CHEVRON_RIGHT}</span>'
+    )
+    nav = (
+        f'<p class="weeknav">{fewer}<span class="week-count">{n} semaines</span>{more}</p>'
+        f'<p class="weeknav">{newer}'
+        f'<span class="week-count">{_fr_window(weeks)}</span>{older}</p>'
+    )
     return MONTH_HTML.format(
         count=n,
+        window=_fr_window(weeks),
         menu=_menu_bar(prefix, "month"),
         nav=nav,
         round_toggle=_round_toggle_html(quantize),
