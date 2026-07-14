@@ -1327,7 +1327,7 @@ WEEKS_HTML = """<!doctype html>
 <title>Semaines facturables</title>
 <style>
   body {{ font-family: system-ui, sans-serif; margin: 2rem; background: #111; color: #eee; }}
-  h1 {{ font-size: 1.1rem; font-weight: 700; color: #fff; }}
+  h1 {{ font-size: .8rem; font-weight: 700; text-transform: uppercase; color: #fff; text-align: center; }}
   a {{ color: #3987e5; text-decoration: none; }}
   #legend svg {{ display: block; max-width: 100%; margin: .2rem 0 1.8rem; }}
   .menubar {{ display: flex; gap: .6rem; margin-bottom: 1.5rem; }}
@@ -1371,7 +1371,7 @@ MONTH_HTML = """<!doctype html>
 <title>{count} semaines — {window}</title>
 <style>
   body {{ font-family: system-ui, sans-serif; margin: 2rem; background: #111; color: #eee; }}
-  h1 {{ font-size: 1.1rem; font-weight: 700; color: #fff; }}
+  h1 {{ font-size: .8rem; font-weight: 700; text-transform: uppercase; color: #fff; text-align: center; }}
   a {{ color: #3987e5; text-decoration: none; }}
   #legend svg {{ display: block; max-width: 100%; margin: .2rem 0 1.8rem; }}
   .menubar {{ display: flex; gap: .6rem; margin-bottom: 1.5rem; }}
