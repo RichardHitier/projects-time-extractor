@@ -309,11 +309,11 @@ def test_billable_week_svg_cookie_toggles_quarter_hour_rounding(tmp_path):
     client = webhook_receiver.app.test_client()
 
     raw = client.get("/billable-week.svg").get_data(as_text=True)
-    assert "SEMAINE : 0:05 / 20h" in raw
+    assert "FACTURABLE : 0:05 / 20h" in raw  # libellé de /live
 
     client.set_cookie("round", "1")
     rounded = client.get("/billable-week.svg").get_data(as_text=True)
-    assert "SEMAINE : 0:15 / 20h" in rounded
+    assert "FACTURABLE : 0:15 / 20h" in rounded
 
 
 def test_round_toggle_reflects_cookie(tmp_path):

@@ -683,7 +683,7 @@ def _hatch_pattern(pattern_id, color):
 _BILLABLE_HATCH_ID = "hatch-billable"
 
 
-def render_week_svg(day_hours, max_hours=BILLABLE_MAX_HOURS, week_max_hours=BILLABLE_WEEK_MAX_HOURS, highlight_label=None, current_hours=0.0, title_label="SEMAINE", show_header=True, month_groups=None, bar_start=None):
+def render_week_svg(day_hours, max_hours=BILLABLE_MAX_HOURS, week_max_hours=BILLABLE_WEEK_MAX_HOURS, highlight_label=None, current_hours=0.0, title_label="SEMAINE", show_header=True, month_groups=None, bar_start=None, show_title=True):
     """Render a "SEMAINE : total / Nh" header, then one bar per
     (day_label, hours) pair, most recent first. `show_header=False` drops the
     total header bar (and its vertical space) — /months shows weeks, whose total
@@ -705,7 +705,8 @@ def render_week_svg(day_hours, max_hours=BILLABLE_MAX_HOURS, week_max_hours=BILL
     width = 640
     row_h, row_gap = 22, 12
     header_h = 38 if show_header else 0
-    top = CHART_TITLE_H + header_h + row_gap
+    title_h = CHART_TITLE_H if show_title else 0
+    top = title_h + header_h + row_gap
     label_x, overflow_max = 20, 60
     bar_x = bar_start or _bar_start_x(label for label, _ in day_hours)
     bar_w = WEEK_BAR_END_X - bar_x
@@ -769,7 +770,7 @@ def render_week_svg(day_hours, max_hours=BILLABLE_MAX_HOURS, week_max_hours=BILL
         header_bar = _week_header_bar(
             total_hours, week_max_hours, WEEK_HOURS_RIGHT_X,
             bar_end_x=bar_x + bar_w, divisions=5, overflow_max=overflow_max,
-            y=CHART_TITLE_H + 4,
+            y=title_h + 4,
         )
     month_labels = ""
     if month_groups:
@@ -779,7 +780,7 @@ def render_week_svg(day_hours, max_hours=BILLABLE_MAX_HOURS, week_max_hours=BILL
     return f"""<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">
   <title>{title}</title>
   <rect width="{width}" height="{height}" fill="#1a1a19"/>
-  {_chart_title_svg(title)}
+  {_chart_title_svg(title) if show_title else ''}
   {hatch_defs}
   {header_bar}
   {month_labels}
@@ -909,7 +910,7 @@ def render_activity_svg(totals, max_hours=ACTIVITY_MAX_HOURS):
 </svg>"""
 
 
-def render_activity_week_svg(days, max_hours=ACTIVITY_MAX_HOURS, uid="", highlight_label=None, week_max_hours=ACTIVITY_WEEK_MAX_HOURS, current_hours=0.0, current_prefix=None, title_label="ACTIVITÉ SEMAINE", show_header=True, month_groups=None, bar_start=None):
+def render_activity_week_svg(days, max_hours=ACTIVITY_MAX_HOURS, uid="", highlight_label=None, week_max_hours=ACTIVITY_WEEK_MAX_HOURS, current_hours=0.0, current_prefix=None, title_label="ACTIVITÉ SEMAINE", show_header=True, month_groups=None, bar_start=None, show_title=True):
     """One stacked activity bar per day (most recent first). Row geometry
     matches render_week_svg so the two week charts line up side by side —
     including `show_header` and `month_groups`, to be set the same way on both.
@@ -927,7 +928,8 @@ def render_activity_week_svg(days, max_hours=ACTIVITY_MAX_HOURS, uid="", highlig
     width = 640
     row_h, row_gap = 22, 12
     header_h = 38 if show_header else 0
-    top = CHART_TITLE_H + header_h + row_gap
+    title_h = CHART_TITLE_H if show_title else 0
+    top = title_h + header_h + row_gap
     label_x = 20
     bar_x = bar_start or _bar_start_x(label for label, _ in days)
     bar_w = WEEK_BAR_END_X - bar_x
@@ -972,7 +974,7 @@ def render_activity_week_svg(days, max_hours=ACTIVITY_MAX_HOURS, uid="", highlig
     if show_header:
         header_bar = _week_header_bar(
             week_total, week_max_hours, WEEK_HOURS_RIGHT_X,
-            bar_end_x=bar_x + bar_w, divisions=5, y=CHART_TITLE_H + 4,
+            bar_end_x=bar_x + bar_w, divisions=5, y=title_h + 4,
         )
     month_labels = ""
     if month_groups:
@@ -982,7 +984,7 @@ def render_activity_week_svg(days, max_hours=ACTIVITY_MAX_HOURS, uid="", highlig
     return f"""<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">
   <title>{title}</title>
   <rect width="{width}" height="{height}" fill="#1a1a19"/>
-  {_chart_title_svg(title)}
+  {_chart_title_svg(title) if show_title else ''}
   {hatch_defs}
   {header_bar}
   {month_labels}
@@ -1621,10 +1623,12 @@ def weeks(secret_path):
     for monday, sunday, billable_days, activity_days in recent_weeks(page=page, quantize=quantize):
         for _, totals in activity_days:
             prefixes.update(totals)
+        # pas de titre ici : chaque section porte déjà « Semaine du 23 au 29 juin »
         charts = render_week_svg(
-            billable_days, bar_start=DAY_BAR_START_X
+            billable_days, bar_start=DAY_BAR_START_X, show_title=False,
         ) + render_activity_week_svg(
-            activity_days, uid=monday.strftime("%Y%m%d"), bar_start=DAY_BAR_START_X
+            activity_days, uid=monday.strftime("%Y%m%d"),
+            bar_start=DAY_BAR_START_X, show_title=False,
         )
         blocks.append(
             f'<section class="week"><p class="week-label">'
@@ -1752,7 +1756,7 @@ def billable_week_svg(secret_path):
             current_hours = current["minutes"] / 60
     svg = render_week_svg(
         day_hours, highlight_label=highlight, current_hours=current_hours,
-        bar_start=DAY_BAR_START_X,
+        bar_start=DAY_BAR_START_X, title_label="FACTURABLE",
     )
     return Response(svg, mimetype="image/svg+xml", headers={"Cache-Control": "no-store"})
 
@@ -1786,7 +1790,7 @@ def activity_week_svg(secret_path):
     svg = render_activity_week_svg(
         days, highlight_label=highlight,
         current_hours=current_hours, current_prefix=current_prefix,
-        bar_start=DAY_BAR_START_X,
+        bar_start=DAY_BAR_START_X, title_label="ACTIVITÉS",
     )
     return Response(svg, mimetype="image/svg+xml", headers={"Cache-Control": "no-store"})
 
