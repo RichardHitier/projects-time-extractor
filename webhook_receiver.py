@@ -624,6 +624,19 @@ MONTH_LABEL_WEIGHT = "normal"  # "normal" pour dégraisser
 MONTH_LABEL_COLOR = "#ffffff"  # étiquettes de semaine voisines : #c3c2b7
 
 
+CHART_TITLE_H = 26  # bandeau du titre visible, au-dessus de la barre d'en-tête
+
+
+def _chart_title_svg(title, x=20, y=18):
+    """Titre visible du graphe (« SEMAINE : 4:04 / 20h »). Il vit DANS le SVG et
+    non dans la page : sur /live les graphes sont des <img>, la page HTML ignore
+    donc les totaux."""
+    return (
+        f'<text x="{x}" y="{y}" font-family="system-ui, sans-serif" font-size="13" '
+        f'letter-spacing="0.5" fill="#8a8a80">{title}</text>'
+    )
+
+
 def _month_labels_svg(groups, top, row_h, row_gap, x):
     """« Juillet26 » écrit verticalement (lu de bas en haut) dans la gouttière
     entre les étiquettes de semaine et les barres, centré sur les lignes du
@@ -692,7 +705,7 @@ def render_week_svg(day_hours, max_hours=BILLABLE_MAX_HOURS, week_max_hours=BILL
     width = 640
     row_h, row_gap = 22, 12
     header_h = 38 if show_header else 0
-    top = header_h + row_gap
+    top = CHART_TITLE_H + header_h + row_gap
     label_x, overflow_max = 20, 60
     bar_x = bar_start or _bar_start_x(label for label, _ in day_hours)
     bar_w = WEEK_BAR_END_X - bar_x
@@ -756,6 +769,7 @@ def render_week_svg(day_hours, max_hours=BILLABLE_MAX_HOURS, week_max_hours=BILL
         header_bar = _week_header_bar(
             total_hours, week_max_hours, WEEK_HOURS_RIGHT_X,
             bar_end_x=bar_x + bar_w, divisions=5, overflow_max=overflow_max,
+            y=CHART_TITLE_H + 4,
         )
     month_labels = ""
     if month_groups:
@@ -765,6 +779,7 @@ def render_week_svg(day_hours, max_hours=BILLABLE_MAX_HOURS, week_max_hours=BILL
     return f"""<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">
   <title>{title}</title>
   <rect width="{width}" height="{height}" fill="#1a1a19"/>
+  {_chart_title_svg(title)}
   {hatch_defs}
   {header_bar}
   {month_labels}
@@ -912,7 +927,7 @@ def render_activity_week_svg(days, max_hours=ACTIVITY_MAX_HOURS, uid="", highlig
     width = 640
     row_h, row_gap = 22, 12
     header_h = 38 if show_header else 0
-    top = header_h + row_gap
+    top = CHART_TITLE_H + header_h + row_gap
     label_x = 20
     bar_x = bar_start or _bar_start_x(label for label, _ in days)
     bar_w = WEEK_BAR_END_X - bar_x
@@ -957,7 +972,7 @@ def render_activity_week_svg(days, max_hours=ACTIVITY_MAX_HOURS, uid="", highlig
     if show_header:
         header_bar = _week_header_bar(
             week_total, week_max_hours, WEEK_HOURS_RIGHT_X,
-            bar_end_x=bar_x + bar_w, divisions=5,
+            bar_end_x=bar_x + bar_w, divisions=5, y=CHART_TITLE_H + 4,
         )
     month_labels = ""
     if month_groups:
@@ -967,6 +982,7 @@ def render_activity_week_svg(days, max_hours=ACTIVITY_MAX_HOURS, uid="", highlig
     return f"""<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">
   <title>{title}</title>
   <rect width="{width}" height="{height}" fill="#1a1a19"/>
+  {_chart_title_svg(title)}
   {hatch_defs}
   {header_bar}
   {month_labels}

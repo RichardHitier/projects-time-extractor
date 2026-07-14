@@ -313,5 +313,5 @@ les numéros/lettres sont des **ID stables** (références croisées « point 1 
   rien) et refus d'un CSV plus court que la sauvegarde précédente.
 - [x] [2026-07-08] bloc « tâche en cours » : bordure verte quand une tâche tourne, grise sinon (taille constante conservée) — commit 264dbdf
 - [x] [2026-07-08] barres de semaine : chiffre `nn / 20h` et `nn / 60h` en 14px gras ; barre globale /20h alignée à droite sur les jours (fin x=490 au lieu de déborder à x=550) — commit 2ca3dbd
-- [ ] [2026-07-13] rajouter le titre des graphe en page /live/
+- [x] [2026-07-13] rajouter le titre des graphe en page /live/ — titre visible dans le SVG (« SEMAINE : 4:04 / 20h », « ACTIVITÉ SEMAINE : 6:35 / 40h »), donc aussi sur /weeks et /months qui partagent les mêmes renderers. Dans le SVG et non dans le HTML : sur /live les graphes sont des `<img>`, la page ignore les totaux.
 - [x] [2026-07-13] rajouter jour du mois dans les etiquettes de jour sur vue live/ — « Vendredi 25/07 » sur /live et /weeks (nom à gauche, date à droite)

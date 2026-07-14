@@ -579,6 +579,21 @@ def test_month_page_defaults_and_clamps_the_week_count(tmp_path):
     assert "/months?n=1" not in too_few    # borne basse : plus de lien "−1"
 
 
+def test_week_charts_show_a_visible_title_not_only_a_tooltip(tmp_path):
+    # le titre doit vivre DANS le SVG : sur /live les graphes sont des <img>, la
+    # page HTML ignore donc les totaux
+    svg = webhook_receiver.render_week_svg([("Lundi 13/07", 2.0)])
+    activity = webhook_receiver.render_activity_week_svg([("Lundi 13/07", {"calipso": 60})])
+
+    assert re.search(r'<text x="20" y="18"[^>]*>SEMAINE : 2:00 / 20h</text>', svg)
+    assert re.search(
+        r'<text x="20" y="18"[^>]*>ACTIVITÉ SEMAINE : 1:00 / 40h</text>', activity
+    )
+    # les deux graphes se font face : même hauteur, sinon ils se désalignent
+    height = lambda s: re.search(r'height="(\d+)"', s).group(1)  # noqa: E731
+    assert height(svg) == height(activity)
+
+
 def test_recent_week_totals_page_shifts_the_window_back(tmp_path):
     webhook_receiver.CSV_PATH = str(tmp_path / "pomofocus_webhook.csv")
     today = date(2026, 7, 14)
