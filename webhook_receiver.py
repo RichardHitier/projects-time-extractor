@@ -1225,7 +1225,7 @@ LIVE_HTML = """<!doctype html>
     padding: .4rem .8rem; border-radius: 999px; transition: background .15s ease; }}
   .weeknav a:hover {{ background: #3c3c37; }}
   .weeknav svg {{ flex: none; }}
-  .weeknav .week-label {{ color: #999; text-transform: uppercase; font-size: .8rem; margin: 0 auto; }}
+  .weeknav .week-label {{ color: #fff; font-weight: 700; text-transform: uppercase; font-size: .8rem; margin: 0 auto; }}
   .roundtoggle {{ display: inline-flex; align-items: center; gap: .4rem; color: #bbb;
     font-size: .8rem; text-transform: uppercase; margin-bottom: 1.5rem; cursor: pointer; }}
   .roundtoggle input {{ accent-color: #3987e5; cursor: pointer; }}
@@ -1327,7 +1327,7 @@ WEEKS_HTML = """<!doctype html>
 <title>Semaines facturables</title>
 <style>
   body {{ font-family: system-ui, sans-serif; margin: 2rem; background: #111; color: #eee; }}
-  h1 {{ font-size: 1.1rem; font-weight: normal; color: #999; }}
+  h1 {{ font-size: 1.1rem; font-weight: 700; color: #fff; }}
   a {{ color: #3987e5; text-decoration: none; }}
   #legend svg {{ display: block; max-width: 100%; margin: .2rem 0 1.8rem; }}
   .menubar {{ display: flex; gap: .6rem; margin-bottom: 1.5rem; }}
@@ -1336,7 +1336,7 @@ WEEKS_HTML = """<!doctype html>
   .menubar a:hover {{ background: #3c3c37; }}
   .menubar a.active {{ background: #3987e5; color: #fff; }}
   .week {{ margin-bottom: 1.8rem; }}
-  .week-label {{ font-size: .8rem; text-transform: uppercase; color: #999; margin: 0 0 .4rem; }}
+  .week-label {{ font-size: .8rem; font-weight: 700; text-transform: uppercase; color: #fff; margin: 0 0 .4rem; }}
   .week-charts {{ display: flex; flex-wrap: wrap; gap: 1rem; align-items: flex-start; }}
   .week-charts svg {{ max-width: 100%; }}
   .weeknav {{ display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; margin: 0 0 1.2rem; }}
@@ -1371,7 +1371,7 @@ MONTH_HTML = """<!doctype html>
 <title>{count} semaines — {window}</title>
 <style>
   body {{ font-family: system-ui, sans-serif; margin: 2rem; background: #111; color: #eee; }}
-  h1 {{ font-size: 1.1rem; font-weight: normal; color: #999; }}
+  h1 {{ font-size: 1.1rem; font-weight: 700; color: #fff; }}
   a {{ color: #3987e5; text-decoration: none; }}
   #legend svg {{ display: block; max-width: 100%; margin: .2rem 0 1.8rem; }}
   .menubar {{ display: flex; gap: .6rem; margin-bottom: 1.5rem; }}
