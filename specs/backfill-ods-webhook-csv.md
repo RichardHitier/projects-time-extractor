@@ -1,6 +1,6 @@
 # SPEC — backfill-ods-webhook-csv
 Date : 2026-07-13
-Statut : en cours
+Statut : terminé
 
 ## Objectif (une phrase)
 Un script de backfill hors ligne qui injecte dans `pomofocus_webhook.csv` les

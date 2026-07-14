@@ -1,6 +1,6 @@
 # SPEC — backfill-ods-archive-cae
 Date : 2026-07-13
-Statut : en cours
+Statut : terminé
 
 ## Objectif (une phrase)
 Importer dans `pomofocus_webhook.csv` les 310 lignes exploitables de

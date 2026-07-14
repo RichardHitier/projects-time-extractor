@@ -84,8 +84,13 @@ les numéros/lettres sont des **ID stables** (références croisées « point 1 
     désynchroniser les chiffres plutôt que juste dupliquer. Sauvegarde prise
     avant chaque modification du fichier réel (`webhook-data/*.bak-*`,
     supprimées une fois vérifiées).
-  - [ ] **À vérifier** : les données d'avant mars manquent côté webhook —
+  - [x] **À vérifier** : les données d'avant mars manquent côté webhook —
     `suivi_chantiers.ods` en est-il alors la seule source ? (ex-Divers 07-05).
+    → 2026-07-14 : **non**. `~/00PRO/archives/cae-sapie-2022/facturation
+    projets.ods` couvre sept. 2022 → avril 2025 ; `backfill_ods.py --source
+    archive` en a tiré 310 lignes. Le CSV démarre maintenant au 01/09/2022.
+    Trou résiduel : **11/04/2025 → 30/09/2025**, qu'aucune des deux sources ne
+    couvre (cf. IDEAS.md : piste de l'historique git).
 
 - [x] **1-bis. Comprendre le flux `report.csv` → `pomofocus.csv` → `suivi_chantiers.ods`**
   `report.csv` (brut, pomofocus.io, `~/Téléchargements`) fusionne déjà, côté
@@ -192,12 +197,11 @@ les numéros/lettres sont des **ID stables** (références croisées « point 1 
   séparément.
 
 
-- [ ] **13. Barre `nn / 20h` dans `/weeks`**
-  Réutiliser l'item 7 sur chaque semaine de la page `/weeks`
+- [x] **13. Barre `nn / 20h` dans `/weeks`** — FAIT (vérifié 2026-07-14 : 12
+  barres d'en-tête sur la page, ex. `4:04 / 20h`).
 
-
-- [ ] **13-bis. Barre `nn / 60h` dans `/weeks`**
-  Réutiliser l'item 7-bis sur chaque semaine de la page `/weeks`
+- [x] **13-bis. Barre `nn / 60h` dans `/weeks`** — FAIT, mais sur **/40h** :
+  `ACTIVITY_WEEK_MAX_HOURS` a été ramené de 60 à 40 entre-temps (ex. `6:35 / 40h`).
 
 ### E — Navigation & layout de page
 
@@ -244,13 +248,15 @@ les numéros/lettres sont des **ID stables** (références croisées « point 1 
   Couvrir `render_week_svg` (débordement), `render_activity_svg`, et le mapping
   `project_color` config vs hash, dans `test_webhook_receiver.py`.
 
-- [ ] ! [2026-07-08] 3 tests SVG rouges depuis le refactor « today highlighted » :
+- [x] ! [2026-07-08] 3 tests SVG rouges depuis le refactor « today highlighted » :
   ils assertent le nom du jour courant en **texte** jaune (`fill="#ffd43b">Mercredi<`)
   alors que le code surligne avec des **cadres** (`stroke="#ffd43b"`). Corriger les
   assertions (vérifier le cadre au lieu du fill). Concerne
   `test_render_week_svg_colors_today`, `test_render_activity_week_svg_colors_today`,
   `test_billable_week_route_shows_full_week_and_colors_today`. Dette bloquante :
   force `--no-verify` à chaque push.
+  → 2026-07-14 : les trois passent (vérifié). Corrigés entre-temps ; le push du
+  jour est passé par le hook pre-push sans `--no-verify`.
 
 ### H — Déploiement
 
@@ -293,11 +299,11 @@ les numéros/lettres sont des **ID stables** (références croisées « point 1 
 ## Divers
 
 - [x] [2026-07-04] versionner — v0.1.0 affichée en footer (/view + /weeks)
-- [ ] [2026-07-05] menu de navigation, avec liens live + semaines facturables (harmoniser en pastilles comme les flèches prev/next)
+- [x] [2026-07-05] menu de navigation, avec liens live + semaines facturables (harmoniser en pastilles comme les flèches prev/next) — `_menu_bar` : 5 pastilles (Live, Semaines, Mois, Swimlane, Lignes), partagées par toutes les pages
 - [x] [2026-07-05] renommer la route /view → /live (ex « modifier le endpoint view en live »)
 - [ ] [2026-07-05] présenter les graphes de l'accueil sur la lageur de la page
 - [x] [2026-07-04] navigation semaines fwb/bckw : icones fleches
-- [ ] [2026-07-07] joshua 'timer sync' pulls csv from http://timer.co-libri.org/csv
+- [x] [2026-07-07] joshua 'timer sync' pulls csv from http://timer.co-libri.org/csv — `timer web_sync` (`cmd_web_sync`, cli.py:217), utilisée le 14/07 pour le cycle pull → backfills → scp. L'URL réelle est `/api/csv` (`WEBHOOK_CSV_URL`, config.yml).
 - [x] [2026-07-07] ovh-vps backups csv on googledrive — `timer_csv_backup.sh` (lien
   symbolique dans ~/bin, cron horaire à :50) tire le CSV via l'endpoint public
   /api/csv et l'écrit daté dans ~/00PRO/backups/timer/, que le rclone horaire

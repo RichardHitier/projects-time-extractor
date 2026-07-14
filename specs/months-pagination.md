@@ -1,6 +1,6 @@
 # SPEC — months-pagination
 Date : 2026-07-14
-Statut : en cours
+Statut : terminé
 
 ## Objectif (une phrase)
 Sur `/months`, remonter jusqu'au début des données (sept. 2022) : plafond de

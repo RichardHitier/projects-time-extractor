@@ -1,6 +1,6 @@
 # SPEC — edition-lignes-csv
 Date : 2026-07-13
-Statut : en cours
+Statut : terminé
 
 ## Objectif (une phrase)
 Une page qui liste les lignes du CSV du webhook (`pomofocus_webhook.csv`) et

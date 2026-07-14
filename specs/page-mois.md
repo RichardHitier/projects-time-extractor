@@ -1,6 +1,6 @@
 # SPEC — page-mois
 Date : 2026-07-13
-Statut : en cours
+Statut : terminé
 
 ## Objectif (une phrase)
 Une page `/month` qui affiche, semaine par semaine sur les N dernières semaines
