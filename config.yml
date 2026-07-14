@@ -20,8 +20,16 @@ EXPORT_PROJECTS:
 - "speasy"
 - "calipso"
 
+# Comparé au préfixe du projet (avant le premier « _ »), cf. _row_is_billable.
+# Les projets d'avant le webhook viennent de l'archive CAE : leur caractère
+# facturable est établi par la colonne `projet_facturé` de « facturation
+# projets.ods » (bht facturé sous bht2/uws, heliopropa sous planmotion/uws, iut
+# sous iut ; sapie, infra, colibri et perso ne l'étaient pas).
 BILLABLE_PROJECTS:
 - "speasy"
 - "calipso"
 - "calipso_a"
 - "calipso_b"
+- "bht"
+- "heliopropa"
+- "iut"
