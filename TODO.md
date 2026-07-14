@@ -298,7 +298,13 @@ les numéros/lettres sont des **ID stables** (références croisées « point 1 
 - [ ] [2026-07-05] présenter les graphes de l'accueil sur la lageur de la page
 - [x] [2026-07-04] navigation semaines fwb/bckw : icones fleches
 - [ ] [2026-07-07] joshua 'timer sync' pulls csv from http://timer.co-libri.org/csv
-- [ ] [2026-07-07] ovh-vps backups csv on googledrive
+- [x] [2026-07-07] ovh-vps backups csv on googledrive — `timer_csv_backup.sh` (lien
+  symbolique dans ~/bin, cron horaire à :50) tire le CSV via l'endpoint public
+  /api/csv et l'écrit daté dans ~/00PRO/backups/timer/, que le rclone horaire
+  existant pousse déjà vers gdrive. Sauvegarde **tirée** depuis la machine locale
+  plutôt que **poussée** depuis le VPS : pas d'identifiants Google à installer
+  sur le serveur. Deux garde-fous : en-tête vérifié (une page d'erreur n'écrase
+  rien) et refus d'un CSV plus court que la sauvegarde précédente.
 - [x] [2026-07-08] bloc « tâche en cours » : bordure verte quand une tâche tourne, grise sinon (taille constante conservée) — commit 264dbdf
 - [x] [2026-07-08] barres de semaine : chiffre `nn / 20h` et `nn / 60h` en 14px gras ; barre globale /20h alignée à droite sur les jours (fin x=490 au lieu de déborder à x=550) — commit 2ca3dbd
 - [ ] [2026-07-13] rajouter le titre des graphe en page /live/
