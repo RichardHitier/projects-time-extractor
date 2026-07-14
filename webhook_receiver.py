@@ -625,15 +625,20 @@ MONTH_LABEL_COLOR = "#ffffff"  # étiquettes de semaine voisines : #c3c2b7
 
 
 CHART_TITLE_H = 26  # bandeau du titre visible, au-dessus de la barre d'en-tête
+CHART_TITLE_SIZE = 13
+CHART_TITLE_WEIGHT = "700"
+CHART_TITLE_COLOR = "#ffffff"
 
 
-def _chart_title_svg(title, x=20, y=18):
-    """Titre visible du graphe (« SEMAINE : 4:04 / 20h »). Il vit DANS le SVG et
-    non dans la page : sur /live les graphes sont des <img>, la page HTML ignore
-    donc les totaux."""
+def _chart_title_svg(title, x=320, y=18):
+    """Titre visible du graphe, centré sur sa largeur (640 px). Il vit DANS le
+    SVG et non dans la page : sur /live les graphes sont des <img>, la page HTML
+    ignore donc les totaux."""
     return (
-        f'<text x="{x}" y="{y}" font-family="system-ui, sans-serif" font-size="13" '
-        f'letter-spacing="0.5" fill="#8a8a80">{title}</text>'
+        f'<text x="{x}" y="{y}" text-anchor="middle" '
+        f'font-family="system-ui, sans-serif" '
+        f'font-size="{CHART_TITLE_SIZE}" font-weight="{CHART_TITLE_WEIGHT}" '
+        f'letter-spacing="0.5" fill="{CHART_TITLE_COLOR}">{title}</text>'
     )
 
 
@@ -683,7 +688,7 @@ def _hatch_pattern(pattern_id, color):
 _BILLABLE_HATCH_ID = "hatch-billable"
 
 
-def render_week_svg(day_hours, max_hours=BILLABLE_MAX_HOURS, week_max_hours=BILLABLE_WEEK_MAX_HOURS, highlight_label=None, current_hours=0.0, title_label="SEMAINE", show_header=True, month_groups=None, bar_start=None, show_title=True):
+def render_week_svg(day_hours, max_hours=BILLABLE_MAX_HOURS, week_max_hours=BILLABLE_WEEK_MAX_HOURS, highlight_label=None, current_hours=0.0, title_label="SEMAINE", show_header=True, month_groups=None, bar_start=None, show_title=True, title_totals=True):
     """Render a "SEMAINE : total / Nh" header, then one bar per
     (day_label, hours) pair, most recent first. `show_header=False` drops the
     total header bar (and its vertical space) — /months shows weeks, whose total
@@ -780,7 +785,7 @@ def render_week_svg(day_hours, max_hours=BILLABLE_MAX_HOURS, week_max_hours=BILL
     return f"""<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">
   <title>{title}</title>
   <rect width="{width}" height="{height}" fill="#1a1a19"/>
-  {_chart_title_svg(title) if show_title else ''}
+  {_chart_title_svg(title if title_totals else title_label) if show_title else ''}
   {hatch_defs}
   {header_bar}
   {month_labels}
@@ -910,7 +915,7 @@ def render_activity_svg(totals, max_hours=ACTIVITY_MAX_HOURS):
 </svg>"""
 
 
-def render_activity_week_svg(days, max_hours=ACTIVITY_MAX_HOURS, uid="", highlight_label=None, week_max_hours=ACTIVITY_WEEK_MAX_HOURS, current_hours=0.0, current_prefix=None, title_label="ACTIVITÉ SEMAINE", show_header=True, month_groups=None, bar_start=None, show_title=True):
+def render_activity_week_svg(days, max_hours=ACTIVITY_MAX_HOURS, uid="", highlight_label=None, week_max_hours=ACTIVITY_WEEK_MAX_HOURS, current_hours=0.0, current_prefix=None, title_label="ACTIVITÉ SEMAINE", show_header=True, month_groups=None, bar_start=None, show_title=True, title_totals=True):
     """One stacked activity bar per day (most recent first). Row geometry
     matches render_week_svg so the two week charts line up side by side —
     including `show_header` and `month_groups`, to be set the same way on both.
@@ -984,7 +989,7 @@ def render_activity_week_svg(days, max_hours=ACTIVITY_MAX_HOURS, uid="", highlig
     return f"""<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">
   <title>{title}</title>
   <rect width="{width}" height="{height}" fill="#1a1a19"/>
-  {_chart_title_svg(title) if show_title else ''}
+  {_chart_title_svg(title if title_totals else title_label) if show_title else ''}
   {hatch_defs}
   {header_bar}
   {month_labels}
@@ -1756,7 +1761,7 @@ def billable_week_svg(secret_path):
             current_hours = current["minutes"] / 60
     svg = render_week_svg(
         day_hours, highlight_label=highlight, current_hours=current_hours,
-        bar_start=DAY_BAR_START_X, title_label="FACTURABLE",
+        bar_start=DAY_BAR_START_X, title_label="FACTURABLE", title_totals=False,
     )
     return Response(svg, mimetype="image/svg+xml", headers={"Cache-Control": "no-store"})
 
@@ -1790,7 +1795,7 @@ def activity_week_svg(secret_path):
     svg = render_activity_week_svg(
         days, highlight_label=highlight,
         current_hours=current_hours, current_prefix=current_prefix,
-        bar_start=DAY_BAR_START_X, title_label="ACTIVITÉS",
+        bar_start=DAY_BAR_START_X, title_label="ACTIVITÉS", title_totals=False,
     )
     return Response(svg, mimetype="image/svg+xml", headers={"Cache-Control": "no-store"})
 

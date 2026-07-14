@@ -585,9 +585,14 @@ def test_week_charts_show_a_visible_title_not_only_a_tooltip(tmp_path):
     svg = webhook_receiver.render_week_svg([("Lundi 13/07", 2.0)])
     activity = webhook_receiver.render_activity_week_svg([("Lundi 13/07", {"calipso": 60})])
 
-    assert re.search(r'<text x="20" y="18"[^>]*>SEMAINE : 2:00 / 20h</text>', svg)
+    # centré sur la largeur du graphe ; le style (taille, graisse, couleur) est
+    # libre de bouger, le test ne fige que le texte et son ancrage
     assert re.search(
-        r'<text x="20" y="18"[^>]*>ACTIVITÉ SEMAINE : 1:00 / 40h</text>', activity
+        r'<text x="320" y="18" text-anchor="middle"[^>]*>SEMAINE : 2:00 / 20h</text>', svg
+    )
+    assert re.search(
+        r'<text x="320" y="18" text-anchor="middle"[^>]*>ACTIVITÉ SEMAINE : 1:00 / 40h</text>',
+        activity,
     )
     # les deux graphes se font face : même hauteur, sinon ils se désalignent
     height = lambda s: re.search(r'height="(\d+)"', s).group(1)  # noqa: E731
