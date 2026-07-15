@@ -316,6 +316,27 @@ def test_billable_week_svg_cookie_toggles_quarter_hour_rounding(tmp_path):
     assert "FACTURABLE : 0:15 / 20h" in rounded
 
 
+def test_live_week_charts_carry_the_total_in_the_title_not_the_header(tmp_path):
+    # sur /live le total vit dans le titre du graphe (sans deux-points) et n'est
+    # plus répété à droite de la barre d'en-tête ; le nombre d'en-tête est le seul
+    # texte en font-size 14 / gras, son absence signe le déplacement.
+    csv_path = tmp_path / "pomofocus_webhook.csv"
+    _write_rows(csv_path, [
+        {"date": date.today().strftime("%Y%m%d"), "project": "calipso_iesa",
+         "task": "t", "minutes": "5", "startTime": "10:00", "endTime": "10:05"},
+    ])
+    webhook_receiver.CSV_PATH = str(csv_path)
+    client = webhook_receiver.app.test_client()
+
+    billable = client.get("/billable-week.svg").get_data(as_text=True)
+    activity = client.get("/activity-week.svg").get_data(as_text=True)
+
+    assert re.search(r'text-anchor="middle"[^>]*>FACTURABLE 0:05 / 20h</text>', billable)
+    assert re.search(r'text-anchor="middle"[^>]*>ACTIVITÉS 0:05 / 40h</text>', activity)
+    for svg in (billable, activity):
+        assert 'font-size="14" font-weight="700"' not in svg  # nombre d'en-tête retiré
+
+
 def test_round_toggle_reflects_cookie(tmp_path):
     webhook_receiver.CSV_PATH = str(tmp_path / "pomofocus_webhook.csv")
 
@@ -468,12 +489,33 @@ def test_weeks_page_nav_links(tmp_path):
     client = webhook_receiver.app.test_client()
 
     first = client.get("/weeks").get_data(as_text=True)
-    assert "plus récentes" not in first  # page 0: no newer window
+    assert "/weeks?p=-1" not in first    # page 0 : « plus récentes » sans lien
+    assert 'class="disabled"' in first   # …rendu comme bouton grisé
     assert "/weeks?p=1" in first         # can page older
 
     p1 = client.get("/weeks?p=1").get_data(as_text=True)
     assert "/weeks?p=0" in p1             # newer
     assert "/weeks?p=2" in p1             # older
+
+
+def test_weeks_and_months_title_lives_in_the_nav_flanked_by_buttons(tmp_path):
+    # le titre de page est fondu dans la barre de nav, encadré par les boutons
+    # (cf. /live) — plus de <h1> séparé
+    webhook_receiver.CSV_PATH = str(tmp_path / "pomofocus_webhook.csv")
+    client = webhook_receiver.app.test_client()
+
+    for path in ("/weeks", "/months"):
+        body = client.get(path).get_data(as_text=True).split("<body>", 1)[1]
+        assert "<h1" not in body
+        nav = re.search(r'<p class="weeknav">.*?</p>', body, re.S).group(0)
+        assert 'class="nav-title"' in nav
+
+    # /months : les 4 boutons tiennent sur une seule barre de nav
+    months = client.get("/months").get_data(as_text=True)
+    assert months.count('<p class="weeknav">') == 1
+    nav = re.search(r'<p class="weeknav">.*?</p>', months, re.S).group(0)
+    for label in ("plus récentes", "−1 semaine", "+1 semaine", "plus anciennes"):
+        assert label in nav
 
 
 def test_live_hides_today_charts_for_past_weeks(tmp_path):
@@ -484,7 +526,8 @@ def test_live_hides_today_charts_for_past_weeks(tmp_path):
     assert '<div id="current-box"' in current
     assert 'id="billable"' not in current       # graphes du jour retirés de /live
     assert "/billable-week.svg?w=0" in current
-    assert "semaine suivante" not in current  # w=0: no newer week
+    assert "/live?w=-1" not in current          # w=0 : « semaine suivante » sans lien
+    assert 'class="disabled"' in current        # …rendu comme bouton grisé
 
     past = client.get("/live?w=1").get_data(as_text=True)
     assert '<div id="current-box"' not in past  # live box hidden

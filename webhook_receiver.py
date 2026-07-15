@@ -38,7 +38,7 @@ CSV_COLUMNS = ["date", "project", "task", "minutes", "startTime", "endTime"]
 EXPORT_TYPES = {"finish", "pause"}
 SECRET = os.environ.get("WEBHOOK_SECRET", "").strip("/")
 PORT = int(os.environ.get("WEBHOOK_PORT", "5000"))
-APP_VERSION = "0.9.0"  # affiché en pied de page (miroir de pyproject.toml)
+APP_VERSION = "0.10.0"  # affiché en pied de page (miroir de pyproject.toml)
 
 BILLABLE_PROJECTS = {p.lower() for p in _config.get("BILLABLE_PROJECTS", [])}
 BILLABLE_MAX_HOURS = 4
@@ -506,14 +506,17 @@ def _bar_start_x(labels):
     return max(WEEK_BAR_MIN_X, 20 + round(widest) + 12)
 
 
-def _week_header_bar(total_hours, max_hours, value_x, bar_end_x=None, label_x=20, y=4, height=34, divisions=4, overflow_max=0):
+def _week_header_bar(total_hours, max_hours, value_x, bar_end_x=None, label_x=20, y=4, height=34, divisions=4, overflow_max=0, show_value=True):
     """Full-width progress bar used as the header of a week chart, in place of a
     text title. The grey fill is clamped to the bar; a total past `max_hours`
     spills into a gold overflow lane of width `overflow_max` to the right of the
     bar (same as the day rows), when `overflow_max` > 0. The `nn / Nh` figure is
     right-anchored at `value_x` to line up with the day-row figures below. The
     bar's right edge is `bar_end_x` (default: just left of the figure) so it can
-    be aligned with the day-row bars rather than reaching the figures column."""
+    be aligned with the day-row bars rather than reaching the figures column.
+
+    `show_value=False` drops that figure — /live carries the total in the chart
+    title instead, so repeating it beside the bar would be redundant."""
     bar_x = label_x
     if bar_end_x is None:
         bar_end_x = value_x - 12
@@ -542,12 +545,19 @@ def _week_header_bar(total_hours, max_hours, value_x, bar_end_x=None, label_x=20
         f'stroke="#383835" stroke-width="1" opacity=".6"/>'
         for i in range(1, divisions)
     )
+    value_text = ""
+    if show_value:
+        value_text = (
+            f'<text x="{value_x}" y="{y + height // 2 + 5}" text-anchor="end" '
+            f'font-family="system-ui, sans-serif" font-size="14" font-weight="700" '
+            f'fill="#ffffff">{_format_hm(total_hours)} / {max_hours}h</text>'
+        )
     return f'''
   <rect x="{bar_x}" y="{y}" width="{bar_w}" height="{height}" rx="{corner_radius}" fill="#2e2e2b"/>
   {fill_rect}
   {overflow_rect}
   {ticks}
-  <text x="{value_x}" y="{y + height // 2 + 5}" text-anchor="end" font-family="system-ui, sans-serif" font-size="14" font-weight="700" fill="#ffffff">{_format_hm(total_hours)} / {max_hours}h</text>'''
+  {value_text}'''
 
 
 def _text_width(s, size=13):
@@ -688,7 +698,7 @@ def _hatch_pattern(pattern_id, color):
 _BILLABLE_HATCH_ID = "hatch-billable"
 
 
-def render_week_svg(day_hours, max_hours=BILLABLE_MAX_HOURS, week_max_hours=BILLABLE_WEEK_MAX_HOURS, highlight_label=None, current_hours=0.0, title_label="SEMAINE", show_header=True, month_groups=None, bar_start=None, show_title=True, title_totals=True):
+def render_week_svg(day_hours, max_hours=BILLABLE_MAX_HOURS, week_max_hours=BILLABLE_WEEK_MAX_HOURS, highlight_label=None, current_hours=0.0, title_label="SEMAINE", show_header=True, month_groups=None, bar_start=None, show_title=True, title_totals=True, title_sep=" : "):
     """Render a "SEMAINE : total / Nh" header, then one bar per
     (day_label, hours) pair, most recent first. `show_header=False` drops the
     total header bar (and its vertical space) — /months shows weeks, whose total
@@ -720,6 +730,9 @@ def render_week_svg(day_hours, max_hours=BILLABLE_MAX_HOURS, week_max_hours=BILL
     height = top + len(day_hours) * (row_h + row_gap)
     total_hours = sum(hours for _, hours in day_hours)
     title = f"{title_label} : {_format_hm(total_hours)} / {week_max_hours}h"
+    # Titre visible : séparateur libre (/live veut « FACTURABLE 3:30 / 20h » sans
+    # deux-points). Le tooltip `title` garde le style « LABEL : … » de toute l'app.
+    visible_title = f"{title_label}{title_sep}{_format_hm(total_hours)} / {week_max_hours}h"
 
     hatch_defs = ""
     rows_svg = []
@@ -775,7 +788,7 @@ def render_week_svg(day_hours, max_hours=BILLABLE_MAX_HOURS, week_max_hours=BILL
         header_bar = _week_header_bar(
             total_hours, week_max_hours, WEEK_HOURS_RIGHT_X,
             bar_end_x=bar_x + bar_w, divisions=5, overflow_max=overflow_max,
-            y=title_h + 4,
+            y=title_h + 4, show_value=not (show_title and title_totals),
         )
     month_labels = ""
     if month_groups:
@@ -785,7 +798,7 @@ def render_week_svg(day_hours, max_hours=BILLABLE_MAX_HOURS, week_max_hours=BILL
     return f"""<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">
   <title>{title}</title>
   <rect width="{width}" height="{height}" fill="#1a1a19"/>
-  {_chart_title_svg(title if title_totals else title_label) if show_title else ''}
+  {_chart_title_svg(visible_title if title_totals else title_label) if show_title else ''}
   {hatch_defs}
   {header_bar}
   {month_labels}
@@ -915,7 +928,7 @@ def render_activity_svg(totals, max_hours=ACTIVITY_MAX_HOURS):
 </svg>"""
 
 
-def render_activity_week_svg(days, max_hours=ACTIVITY_MAX_HOURS, uid="", highlight_label=None, week_max_hours=ACTIVITY_WEEK_MAX_HOURS, current_hours=0.0, current_prefix=None, title_label="ACTIVITÉ SEMAINE", show_header=True, month_groups=None, bar_start=None, show_title=True, title_totals=True):
+def render_activity_week_svg(days, max_hours=ACTIVITY_MAX_HOURS, uid="", highlight_label=None, week_max_hours=ACTIVITY_WEEK_MAX_HOURS, current_hours=0.0, current_prefix=None, title_label="ACTIVITÉ SEMAINE", show_header=True, month_groups=None, bar_start=None, show_title=True, title_totals=True, title_sep=" : "):
     """One stacked activity bar per day (most recent first). Row geometry
     matches render_week_svg so the two week charts line up side by side —
     including `show_header` and `month_groups`, to be set the same way on both.
@@ -942,6 +955,8 @@ def render_activity_week_svg(days, max_hours=ACTIVITY_MAX_HOURS, uid="", highlig
     height = top + len(days) * (row_h + row_gap)
     week_total = sum(sum(t.values()) for _, t in days) / 60
     title = f"{title_label} : {_format_hm(week_total)} / {week_max_hours}h"
+    # cf. render_week_svg : titre visible à séparateur libre, tooltip « LABEL : … »
+    visible_title = f"{title_label}{title_sep}{_format_hm(week_total)} / {week_max_hours}h"
     hatch_defs = ""
     rows_svg = []
     for i, (label, totals) in enumerate(days):
@@ -980,6 +995,7 @@ def render_activity_week_svg(days, max_hours=ACTIVITY_MAX_HOURS, uid="", highlig
         header_bar = _week_header_bar(
             week_total, week_max_hours, WEEK_HOURS_RIGHT_X,
             bar_end_x=bar_x + bar_w, divisions=5, y=title_h + 4,
+            show_value=not (show_title and title_totals),
         )
     month_labels = ""
     if month_groups:
@@ -989,7 +1005,7 @@ def render_activity_week_svg(days, max_hours=ACTIVITY_MAX_HOURS, uid="", highlig
     return f"""<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">
   <title>{title}</title>
   <rect width="{width}" height="{height}" fill="#1a1a19"/>
-  {_chart_title_svg(title if title_totals else title_label) if show_title else ''}
+  {_chart_title_svg(visible_title if title_totals else title_label) if show_title else ''}
   {hatch_defs}
   {header_bar}
   {month_labels}
@@ -1222,9 +1238,10 @@ LIVE_HTML = """<!doctype html>
   .menubar a:hover {{ background: #3c3c37; }}
   .menubar a.active {{ background: #3987e5; color: #fff; }}
   .weeknav {{ display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.5rem; }}
-  .weeknav a {{ display: inline-flex; align-items: center; gap: .3em; background: #2e2e2b;
+  .weeknav a, .weeknav .disabled {{ display: inline-flex; align-items: center; gap: .3em; background: #2e2e2b;
     padding: .4rem .8rem; border-radius: 999px; transition: background .15s ease; }}
   .weeknav a:hover {{ background: #3c3c37; }}
+  .weeknav .disabled {{ color: #555; }}
   .weeknav svg {{ flex: none; }}
   .weeknav .week-label {{ color: #fff; font-weight: 700; text-transform: uppercase; font-size: .8rem; margin: 0 auto; }}
   .roundtoggle {{ display: inline-flex; align-items: center; gap: .4rem; color: #bbb;
@@ -1328,7 +1345,6 @@ WEEKS_HTML = """<!doctype html>
 <title>Semaines facturables</title>
 <style>
   body {{ font-family: system-ui, sans-serif; margin: 2rem; background: #111; color: #eee; }}
-  h1 {{ font-size: .8rem; font-weight: 700; text-transform: uppercase; color: #fff; text-align: center; }}
   a {{ color: #3987e5; text-decoration: none; }}
   #legend svg {{ display: block; max-width: 100%; margin: .2rem 0 1.8rem; }}
   .menubar {{ display: flex; gap: .6rem; margin-bottom: 1.5rem; }}
@@ -1343,10 +1359,13 @@ WEEKS_HTML = """<!doctype html>
     justify-content: center; }}
   .week-charts svg {{ max-width: 100%; }}
   .weeknav {{ display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; margin: 0 0 1.2rem; }}
-  .weeknav a {{ display: inline-flex; align-items: center; gap: .3em; background: #2e2e2b;
+  .weeknav a, .weeknav .disabled {{ display: inline-flex; align-items: center; gap: .3em; background: #2e2e2b;
     padding: .4rem .8rem; border-radius: 999px; transition: background .15s ease; }}
   .weeknav a:hover {{ background: #3c3c37; }}
+  .weeknav .disabled {{ color: #555; }}
   .weeknav svg {{ flex: none; }}
+  .weeknav .nav-title {{ color: #fff; font-weight: 700; text-transform: uppercase;
+    font-size: .8rem; text-align: center; margin: 0 auto; }}
   .roundtoggle {{ display: inline-flex; align-items: center; gap: .4rem; color: #bbb;
     font-size: .8rem; text-transform: uppercase; margin-bottom: 1.2rem; cursor: pointer; }}
   .roundtoggle input {{ accent-color: #3987e5; cursor: pointer; }}
@@ -1355,7 +1374,6 @@ WEEKS_HTML = """<!doctype html>
 </head>
 <body>
 {menu}
-<h1>{count} semaines (page {page}) : facturable + activité</h1>
 {nav}
 {round_toggle}
 <div id="legend">{legend}</div>
@@ -1374,7 +1392,6 @@ MONTH_HTML = """<!doctype html>
 <title>{count} semaines — {window}</title>
 <style>
   body {{ font-family: system-ui, sans-serif; margin: 2rem; background: #111; color: #eee; }}
-  h1 {{ font-size: .8rem; font-weight: 700; text-transform: uppercase; color: #fff; text-align: center; }}
   a {{ color: #3987e5; text-decoration: none; }}
   #legend svg {{ display: block; max-width: 100%; margin: .2rem 0 1.8rem; }}
   .menubar {{ display: flex; gap: .6rem; margin-bottom: 1.5rem; }}
@@ -1390,8 +1407,8 @@ MONTH_HTML = """<!doctype html>
     padding: .4rem .9rem; border-radius: 999px; transition: background .15s ease; }}
   .weeknav a:hover {{ background: #3c3c37; }}
   .weeknav .disabled {{ color: #555; }}
-  .weeknav .week-count {{ color: #999; text-transform: uppercase; font-size: .8rem;
-    background: none; padding: 0; }}
+  .weeknav .nav-title {{ color: #fff; font-weight: 700; text-transform: uppercase;
+    font-size: .8rem; text-align: center; margin: 0 auto; background: none; padding: 0; }}
   .roundtoggle {{ display: inline-flex; align-items: center; gap: .4rem; color: #bbb;
     font-size: .8rem; text-transform: uppercase; margin-bottom: 1.2rem; cursor: pointer; }}
   .roundtoggle input {{ accent-color: #3987e5; cursor: pointer; }}
@@ -1400,7 +1417,6 @@ MONTH_HTML = """<!doctype html>
 </head>
 <body>
 {menu}
-<h1>{count} semaines, {window} : facturable + activité</h1>
 {nav}
 {round_toggle}
 <div class="week-charts">{charts}</div>
@@ -1586,7 +1602,8 @@ def live(secret_path):
 
     newer = (
         f'<a href="{prefix}/live?w={weeks_back - 1}">{_CHEVRON_LEFT}semaine suivante</a>'
-        if weeks_back > 0 else ""
+        if weeks_back > 0
+        else f'<span class="disabled">{_CHEVRON_LEFT}semaine suivante</span>'
     )
     older = f'<a href="{prefix}/live?w={weeks_back + 1}">semaine précédente{_CHEVRON_RIGHT}</a>'
     nav = (
@@ -1647,13 +1664,17 @@ def weeks(secret_path):
     legend = render_activity_legend_svg(_ordered_projects(prefixes))
     newer = (
         f'<a href="{prefix}/weeks?p={page - 1}">{_CHEVRON_LEFT}{BILLABLE_WEEKS_SHOWN} plus récentes</a>'
-        if page > 0 else ""
+        if page > 0
+        else f'<span class="disabled">{_CHEVRON_LEFT}{BILLABLE_WEEKS_SHOWN} plus récentes</span>'
     )
     older = f'<a href="{prefix}/weeks?p={page + 1}">{BILLABLE_WEEKS_SHOWN} plus anciennes{_CHEVRON_RIGHT}</a>'
-    nav = f'<p class="weeknav">{newer}{older}</p>'
+    # titre fondu dans la barre de nav, encadré par les boutons (cf. /live)
+    title = f"{BILLABLE_WEEKS_SHOWN} semaines (page {page}) : facturable + activité"
+    nav = (
+        f'<p class="weeknav">{newer}'
+        f'<span class="nav-title">{title}</span>{older}</p>'
+    )
     return WEEKS_HTML.format(
-        count=BILLABLE_WEEKS_SHOWN,
-        page=page,
         menu=_menu_bar(prefix, "weeks"),
         nav=nav,
         round_toggle=_round_toggle_html(quantize),
@@ -1721,10 +1742,13 @@ def months(secret_path):
         if page < MONTH_MAX_WEEKS // n
         else f'<span class="disabled">plus anciennes{_CHEVRON_RIGHT}</span>'
     )
+    # 4 boutons sur une seule ligne : pagination (récentes/anciennes) à
+    # l'extérieur, taille de page (±) à l'intérieur, titre fondu au centre et
+    # encadré par les boutons (cf. /live).
+    title = f"{n} semaines, {_fr_window(weeks)} : facturable + activité"
     nav = (
-        f'<p class="weeknav">{fewer}<span class="week-count">{n} semaines</span>{more}</p>'
-        f'<p class="weeknav">{newer}'
-        f'<span class="week-count">{_fr_window(weeks)}</span>{older}</p>'
+        f'<p class="weeknav">{newer}{fewer}'
+        f'<span class="nav-title">{title}</span>{more}{older}</p>'
     )
     return MONTH_HTML.format(
         count=n,
@@ -1765,7 +1789,8 @@ def billable_week_svg(secret_path):
             current_hours = current["minutes"] / 60
     svg = render_week_svg(
         day_hours, highlight_label=highlight, current_hours=current_hours,
-        bar_start=DAY_BAR_START_X, title_label="FACTURABLE", title_totals=False,
+        bar_start=DAY_BAR_START_X, title_label="FACTURABLE",
+        title_totals=True, title_sep=" ",
     )
     return Response(svg, mimetype="image/svg+xml", headers={"Cache-Control": "no-store"})
 
@@ -1799,7 +1824,8 @@ def activity_week_svg(secret_path):
     svg = render_activity_week_svg(
         days, highlight_label=highlight,
         current_hours=current_hours, current_prefix=current_prefix,
-        bar_start=DAY_BAR_START_X, title_label="ACTIVITÉS", title_totals=False,
+        bar_start=DAY_BAR_START_X, title_label="ACTIVITÉS",
+        title_totals=True, title_sep=" ",
     )
     return Response(svg, mimetype="image/svg+xml", headers={"Cache-Control": "no-store"})
 
