@@ -489,7 +489,7 @@ def test_weeks_page_nav_links(tmp_path):
     client = webhook_receiver.app.test_client()
 
     first = client.get("/weeks").get_data(as_text=True)
-    assert "/weeks?p=-1" not in first    # page 0 : « plus récentes » sans lien
+    assert "/weeks?p=-1" not in first    # page 0 : « suivantes » sans lien
     assert 'class="disabled"' in first   # …rendu comme bouton grisé
     assert "/weeks?p=1" in first         # can page older
 
@@ -514,7 +514,7 @@ def test_weeks_and_months_title_lives_in_the_nav_flanked_by_buttons(tmp_path):
     months = client.get("/months").get_data(as_text=True)
     assert months.count('<p class="weeknav">') == 1
     nav = re.search(r'<p class="weeknav">.*?</p>', months, re.S).group(0)
-    for label in ("plus récentes", "−1 semaine", "+1 semaine", "plus anciennes"):
+    for label in ("précédentes", "−1 semaine", "+1 semaine", "suivantes"):
         assert label in nav
 
 
@@ -662,12 +662,12 @@ def test_months_page_navigation_is_disabled_at_both_ends(tmp_path):
     last = webhook_receiver.MONTH_MAX_WEEKS // n  # dernière page atteignable
 
     first_page = client.get("/months").get_data(as_text=True)
-    assert f"/months?n={n}&p=1" in first_page          # « plus anciennes » actif
-    assert f"/months?n={n}&p=-1" not in first_page     # « plus récentes » grisé
+    assert f"/months?n={n}&p=1" in first_page          # « précédentes » actif
+    assert f"/months?n={n}&p=-1" not in first_page     # « suivantes » grisé
 
     oldest = client.get(f"/months?p={last}").get_data(as_text=True)
-    assert f"/months?n={n}&p={last - 1}" in oldest     # « plus récentes » actif
-    assert f"/months?n={n}&p={last + 1}" not in oldest  # « plus anciennes » grisé
+    assert f"/months?n={n}&p={last - 1}" in oldest     # « suivantes » actif
+    assert f"/months?n={n}&p={last + 1}" not in oldest  # « précédentes » grisé
 
     # au-delà de la dernière page, on est ramené à la dernière
     beyond = client.get(f"/months?p={last + 5}").get_data(as_text=True)

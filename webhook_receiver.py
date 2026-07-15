@@ -1600,15 +1600,15 @@ def live(secret_path):
     else:
         current_box = ""
 
+    older = f'<a href="{prefix}/live?w={weeks_back + 1}">{_CHEVRON_LEFT}semaine précédente</a>'
     newer = (
-        f'<a href="{prefix}/live?w={weeks_back - 1}">{_CHEVRON_LEFT}semaine suivante</a>'
+        f'<a href="{prefix}/live?w={weeks_back - 1}">semaine suivante{_CHEVRON_RIGHT}</a>'
         if weeks_back > 0
-        else f'<span class="disabled">{_CHEVRON_LEFT}semaine suivante</span>'
+        else f'<span class="disabled">semaine suivante{_CHEVRON_RIGHT}</span>'
     )
-    older = f'<a href="{prefix}/live?w={weeks_back + 1}">semaine précédente{_CHEVRON_RIGHT}</a>'
     nav = (
-        f'<p class="weeknav">{newer}'
-        f'<span class="week-label">{_fr_week_range(monday, sunday)}</span>{older}</p>'
+        f'<p class="weeknav">{older}'
+        f'<span class="week-label">{_fr_week_range(monday, sunday)}</span>{newer}</p>'
     )
 
     return LIVE_HTML.format(
@@ -1662,17 +1662,19 @@ def weeks(secret_path):
             f'<div class="week-charts">{charts}</div></section>'
         )
     legend = render_activity_legend_svg(_ordered_projects(prefixes))
+    # précédentes = semaines plus anciennes (p+1, gauche) ; suivantes = plus
+    # récentes (p-1, droite, grisé en page 0)
+    older = f'<a href="{prefix}/weeks?p={page + 1}">{_CHEVRON_LEFT}{BILLABLE_WEEKS_SHOWN} précédentes</a>'
     newer = (
-        f'<a href="{prefix}/weeks?p={page - 1}">{_CHEVRON_LEFT}{BILLABLE_WEEKS_SHOWN} plus récentes</a>'
+        f'<a href="{prefix}/weeks?p={page - 1}">{BILLABLE_WEEKS_SHOWN} suivantes{_CHEVRON_RIGHT}</a>'
         if page > 0
-        else f'<span class="disabled">{_CHEVRON_LEFT}{BILLABLE_WEEKS_SHOWN} plus récentes</span>'
+        else f'<span class="disabled">{BILLABLE_WEEKS_SHOWN} suivantes{_CHEVRON_RIGHT}</span>'
     )
-    older = f'<a href="{prefix}/weeks?p={page + 1}">{BILLABLE_WEEKS_SHOWN} plus anciennes{_CHEVRON_RIGHT}</a>'
     # titre fondu dans la barre de nav, encadré par les boutons (cf. /live)
     title = f"{BILLABLE_WEEKS_SHOWN} semaines (page {page}) : facturable + activité"
     nav = (
-        f'<p class="weeknav">{newer}'
-        f'<span class="nav-title">{title}</span>{older}</p>'
+        f'<p class="weeknav">{older}'
+        f'<span class="nav-title">{title}</span>{newer}</p>'
     )
     return WEEKS_HTML.format(
         menu=_menu_bar(prefix, "weeks"),
@@ -1733,22 +1735,24 @@ def months(secret_path):
         f'<a href="{prefix}/months?n={n + 1}&p={page}">+1 semaine{_CHEVRON_RIGHT}</a>'
         if n < MONTH_MAX_WEEKS else f'<span class="disabled">+1 semaine{_CHEVRON_RIGHT}</span>'
     )
-    newer = (
-        f'<a href="{prefix}/months?n={n}&p={page - 1}">{_CHEVRON_LEFT}plus récentes</a>'
-        if page > 0 else f'<span class="disabled">{_CHEVRON_LEFT}plus récentes</span>'
-    )
+    # précédentes = semaines plus anciennes (p+1, extérieur gauche) ;
+    # suivantes = plus récentes (p-1, extérieur droit, grisé en page 0)
     older = (
-        f'<a href="{prefix}/months?n={n}&p={page + 1}">plus anciennes{_CHEVRON_RIGHT}</a>'
+        f'<a href="{prefix}/months?n={n}&p={page + 1}">{_CHEVRON_LEFT}précédentes</a>'
         if page < MONTH_MAX_WEEKS // n
-        else f'<span class="disabled">plus anciennes{_CHEVRON_RIGHT}</span>'
+        else f'<span class="disabled">{_CHEVRON_LEFT}précédentes</span>'
     )
-    # 4 boutons sur une seule ligne : pagination (récentes/anciennes) à
+    newer = (
+        f'<a href="{prefix}/months?n={n}&p={page - 1}">suivantes{_CHEVRON_RIGHT}</a>'
+        if page > 0 else f'<span class="disabled">suivantes{_CHEVRON_RIGHT}</span>'
+    )
+    # 4 boutons sur une seule ligne : pagination (précédentes/suivantes) à
     # l'extérieur, taille de page (±) à l'intérieur, titre fondu au centre et
     # encadré par les boutons (cf. /live).
     title = f"{n} semaines, {_fr_window(weeks)} : facturable + activité"
     nav = (
-        f'<p class="weeknav">{newer}{fewer}'
-        f'<span class="nav-title">{title}</span>{more}{older}</p>'
+        f'<p class="weeknav">{older}{fewer}'
+        f'<span class="nav-title">{title}</span>{more}{newer}</p>'
     )
     return MONTH_HTML.format(
         count=n,
