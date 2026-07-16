@@ -857,3 +857,79 @@ def test_rows_page_lists_rows_and_post_applies_the_edit(tmp_path):
         "date": "20260701", "project": "speasy", "task": "#12 revue",
         "minutes": "45", "startTime": "09:15", "endTime": "10:00",
     }]
+
+
+# --- compteur euros (/projects) -------------------------------------------
+
+BILLING_ROWS = [
+    # le jour de la facture et avant : déjà facturé, exclu
+    {"date": "20260618", "project": "calipso_iesa", "task": "vieux", "minutes": "120"},
+    {"date": "20260619", "project": "calipso_iesa", "task": "facturé", "minutes": "120"},
+    # après la facture : compté
+    {"date": "20260620", "project": "calipso_iesa", "task": "a", "minutes": "240"},
+    {"date": "20260621", "project": "calipso_lees", "task": "b", "minutes": "240"},
+    {"date": "20260620", "project": "speasy_hapi", "task": "c", "minutes": "480"},
+    {"date": "20260620", "project": "perso", "task": "d", "minutes": "300"},
+]
+
+
+def _fake_projects():
+    return {
+        "calipso": {"pom_project": "CALIPSO", "tjm": 540, "derniere_facture": "20260619"},
+        "speasy": {"pom_project": "SPEASY", "tjm": 490, "derniere_facture": "20260619"},
+        "bht": {"pom_project": "BHT"},  # pas de tarif du tout
+        "perso": {"pom_project": "PERSO", "tjm": 100},  # tjm sans date de facture
+    }
+
+
+def test_project_minutes_since_excludes_the_invoice_day_and_before():
+    minutes = webhook_receiver.project_minutes_since(
+        BILLING_ROWS, "calipso", "20260619"
+    )
+
+    # 240 (iesa) + 240 (lees), sans les 120+120 du 18 et du 19
+    assert minutes == 480
+
+
+def test_project_minutes_since_quantizes_each_day_project_task():
+    rows = [
+        {"date": "20260620", "project": "calipso_iesa", "task": "a", "minutes": "4"},
+        {"date": "20260620", "project": "calipso_iesa", "task": "a", "minutes": "4"},
+        {"date": "20260620", "project": "calipso_iesa", "task": "b", "minutes": "4"},
+        {"date": "20260621", "project": "calipso_iesa", "task": "a", "minutes": "4"},
+    ]
+
+    assert webhook_receiver.project_minutes_since(rows, "calipso", "20260619") == 16
+    # (20/06, a) 8 min → 15 ; (20/06, b) 4 → 15 ; (21/06, a) 4 → 15
+    assert webhook_receiver.project_minutes_since(
+        rows, "calipso", "20260619", quantize=True
+    ) == 45
+
+
+def test_project_amounts_multiplies_days_by_tjm(monkeypatch):
+    monkeypatch.setattr(webhook_receiver, "load_projects", _fake_projects)
+
+    amounts = webhook_receiver.project_amounts(BILLING_ROWS)
+
+    # facturables d'abord, par ordre alpha ; perso (tjm sans date) et bht (sans
+    # tjm) n'apparaissent pas
+    assert amounts == [
+        ("calipso", 1.0, 540.0, "20260619"),  # 480 min = 8 h = 1 j
+        ("speasy", 1.0, 490.0, "20260619"),
+    ]
+
+
+def test_projects_page_lists_amounts_and_skips_untarifed(tmp_path, monkeypatch):
+    monkeypatch.setattr(webhook_receiver, "load_projects", _fake_projects)
+    csv_path = tmp_path / "webhook.csv"
+    _write_rows(csv_path, [
+        {**row, "startTime": "09:00", "endTime": "10:00"} for row in BILLING_ROWS
+    ])
+    monkeypatch.setattr(webhook_receiver, "CSV_PATH", str(csv_path))
+
+    page = webhook_receiver.app.test_client().get("/projects").get_data(as_text=True)
+
+    # \u202f = espace fine insécable posée par _format_eur
+    assert "540\u202f€" in page and "490\u202f€" in page
+    assert "1\u202f030\u202f€" in page  # total
+    assert "perso" not in page and "bht" not in page

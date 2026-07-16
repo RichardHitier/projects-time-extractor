@@ -38,11 +38,12 @@ CSV_COLUMNS = ["date", "project", "task", "minutes", "startTime", "endTime"]
 EXPORT_TYPES = {"finish", "pause"}
 SECRET = os.environ.get("WEBHOOK_SECRET", "").strip("/")
 PORT = int(os.environ.get("WEBHOOK_PORT", "5000"))
-APP_VERSION = "0.10.0"  # affiché en pied de page (miroir de pyproject.toml)
+APP_VERSION = "0.11.0"  # affiché en pied de page (miroir de pyproject.toml)
 
 BILLABLE_PROJECTS = {p.lower() for p in _config.get("BILLABLE_PROJECTS", [])}
 BILLABLE_MAX_HOURS = 4
 BILLABLE_WEEKS_SHOWN = 12  # /weeks : nombre de semaines les plus récentes affichées
+HOURS_PER_DAY = 8  # un jour facturé = 8 h, comme core.data.duration_d
 
 # /months : une ligne par semaine, N semaines par page (?n=), pagination par ?p=.
 # 200 semaines de recul maximum : les données commencent en sept. 2022, soit 201
@@ -449,6 +450,21 @@ def _format_hm(hours):
     total_minutes = round(hours * 60)
     h, m = divmod(total_minutes, 60)
     return f"{h}:{m:02d}"
+
+
+def _format_eur(amount):
+    """« 1 234 € » : espace fine insécable (U+202F) en séparateur de
+    milliers et devant le €, échappée pour rester lisible à la relecture."""
+    return f"{amount:,.0f}".replace(",", "\u202f") + "\u202f€"
+
+
+def _format_days(days):
+    return f"{days:.2f}".replace(".", ",")
+
+
+def _format_ymd(day):
+    """20260619 → 19/06/2026."""
+    return f"{day[6:8]}/{day[4:6]}/{day[0:4]}" if len(day) == 8 else day
 
 
 def render_billable_svg(hours, max_hours=BILLABLE_MAX_HOURS):
@@ -860,6 +876,60 @@ def _ordered_projects(prefixes):
     return billable + other
 
 
+def _project_billing_config():
+    """{préfixe: (tjm, derniere_facture)} depuis projects-config.yml, même règle
+    de nommage que _project_config_colors(). Un projet sans `tjm` ou sans
+    `derniere_facture` est absent : pas de tarif, pas de montant.
+
+    Relu à chaque appel, et non mis en cache comme _PROJECT_CONFIG_COLORS : le
+    reloader Flask ne surveille que les .py, une valeur figée à l'import
+    survivrait donc à l'édition du YAML.
+    """
+    billing = {}
+    for data in (load_projects() or {}).values():
+        if not isinstance(data, dict):
+            continue
+        tjm, since = data.get("tjm"), data.get("derniere_facture")
+        if tjm is None or not since:
+            continue
+        pom = data.get("pom_project")
+        for name in ([pom] if isinstance(pom, str) else (pom or [])):
+            billing[name.lower()] = (float(tjm), str(since))
+    return billing
+
+
+def project_minutes_since(rows, prefix, since, quantize=False):
+    """Minutes du projet `prefix` postérieures au jour `since`, exclu. Avec
+    `quantize`, arrondit chaque (jour, projet, tâche) au quart d'heure supérieur
+    avant de sommer, comme billable_minutes()."""
+    by_task = {}
+    for row in rows:
+        if _project_prefix(row.get("project")) != prefix:
+            continue
+        # dates en YYYYMMDD : l'ordre lexical est l'ordre chronologique
+        day = row.get("date") or ""
+        if day <= since:
+            continue
+        key = (day, row.get("project"), row.get("task"))
+        by_task[key] = by_task.get(key, 0) + int(row.get("minutes") or 0)
+    if quantize:
+        return sum(-(-m // 15) * 15 for m in by_task.values())
+    return sum(by_task.values())
+
+
+def project_amounts(rows, quantize=False):
+    """(préfixe, jours, montant_eur, derniere_facture) pour chaque projet tarifé,
+    dans l'ordre de _ordered_projects()."""
+    billing = _project_billing_config()
+    amounts = []
+    for prefix in _ordered_projects(billing):
+        tjm, since = billing[prefix]
+        minutes = project_minutes_since(rows, prefix, since, quantize=quantize)
+        days = minutes / 60 / HOURS_PER_DAY
+        amounts.append((prefix, days, days * tjm, since))
+    return amounts
+
+
 def activity_by_project(rows, day):
     """{project_prefix: minutes} for `day`, all projects except nan/empty."""
     totals = {}
@@ -1153,15 +1223,16 @@ def render_swimlane_svg(days):
 
 
 def _menu_bar(prefix, active):
-    """Shared top navigation across /live, /weeks, /months, /swimlane and /rows.
-    `active` is one of 'live' | 'weeks' | 'month' | 'swimlane' | 'rows' and gets
-    the highlighted pill."""
+    """Shared top navigation across /live, /weeks, /months, /swimlane, /rows and
+    /projects. `active` is one of 'live' | 'weeks' | 'month' | 'swimlane' |
+    'rows' | 'projects' and gets the highlighted pill."""
     items = [
         ("live", "Live", f"{prefix}/live"),
         ("weeks", "Semaines", f"{prefix}/weeks"),
         ("month", "Mois", f"{prefix}/months"),
         ("swimlane", "Swimlane", f"{prefix}/swimlane"),
         ("rows", "Lignes", f"{prefix}/rows"),
+        ("projects", "Projets", f"{prefix}/projects"),
     ]
     links = "".join(
         f'<a href="{href}" class="active">{text}</a>'
@@ -1524,6 +1595,58 @@ for (const form of document.querySelectorAll('form.rowform')) {{
 """
 
 
+PROJECTS_HTML = """<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Projets — à facturer</title>
+<style>
+  body {{ font-family: system-ui, sans-serif; margin: 2rem; background: #111; color: #eee; }}
+  h1 {{ color: #fff; font-weight: 700; text-transform: uppercase; font-size: .8rem;
+    margin: 0 0 1.2rem; }}
+  a {{ color: #3987e5; text-decoration: none; }}
+  code {{ color: #bbb; }}
+  .menubar {{ display: flex; gap: .6rem; margin-bottom: 1.5rem; }}
+  .menubar a {{ background: #2e2e2b; padding: .4rem .9rem; border-radius: 999px;
+    text-transform: uppercase; font-size: .8rem; color: #bbb; transition: background .15s ease; }}
+  .menubar a:hover {{ background: #3c3c37; }}
+  .menubar a.active {{ background: #3987e5; color: #fff; }}
+  .roundtoggle {{ display: inline-flex; align-items: center; gap: .4rem; color: #bbb;
+    font-size: .8rem; text-transform: uppercase; margin-bottom: 1.2rem; cursor: pointer; }}
+  .roundtoggle input {{ accent-color: #3987e5; cursor: pointer; }}
+  table {{ border-collapse: collapse; width: 100%; max-width: 40rem; }}
+  th {{ text-align: left; color: #999; text-transform: uppercase; font-size: .7rem;
+    font-weight: normal; padding: .4rem .5rem; border-bottom: 1px solid #333; }}
+  th.num {{ text-align: right; }}
+  td {{ padding: .5rem .5rem; border-bottom: 1px solid #222; font-size: .9rem; }}
+  td.proj {{ color: #eee; }}
+  td.num {{ text-align: right; color: #bbb; white-space: nowrap;
+    font-variant-numeric: tabular-nums; }}
+  td.eur {{ color: #fff; font-weight: 700; }}
+  td.date {{ color: #777; white-space: nowrap; }}
+  td.empty {{ color: #777; font-size: .85rem; }}
+  .dot {{ display: inline-block; width: .6rem; height: .6rem; border-radius: 50%;
+    margin-right: .5rem; vertical-align: baseline; }}
+  tr.total td {{ border-bottom: 0; border-top: 1px solid #333; color: #999;
+    text-transform: uppercase; font-size: .75rem; }}
+  .ver {{ color: #666; font-size: .7rem; margin-top: 2rem; }}
+</style>
+</head>
+<body>
+{menu}
+<h1>À facturer — cumul depuis la dernière facture</h1>
+{round_toggle}
+<table>
+  <thead><tr><th>Projet</th><th class="num">Jours</th><th>Dernière facture</th>
+  <th class="num">Montant</th></tr></thead>
+  <tbody>{rows}</tbody>
+</table>
+<footer class="ver">v{version}</footer>
+</body>
+</html>
+"""
+
+
 def _rows_markup(rows):
     """(forms, trs) — une ligne de table = un <form> POST. Le <form> lui-même
     vit hors de la table (un <form> dans un <tr> est du HTML invalide) et porte
@@ -1862,6 +1985,43 @@ def _rows_flash():
     if err:
         return f'<p class="flash err">{html.escape(err)}</p>'
     return ""
+
+
+@app.get("/projects", defaults={"secret_path": ""})
+@app.get("/<path:secret_path>/projects")
+def projects_page(secret_path):
+    if SECRET and secret_path.strip("/") != SECRET:
+        return "not found\n", 404
+    prefix = f"/{secret_path.strip('/')}" if secret_path.strip("/") else ""
+    quantize = _quantize_enabled()
+    amounts = project_amounts(_read_csv_rows(CSV_PATH), quantize=quantize)
+    trs = "".join(
+        f'<tr><td class="proj">'
+        f'<span class="dot" style="background:{project_color(project)}"></span>'
+        f'{project}</td>'
+        f'<td class="num">{_format_days(days)}</td>'
+        f'<td class="date">{_format_ymd(since)}</td>'
+        f'<td class="num eur">{_format_eur(amount)}</td></tr>'
+        for project, days, amount, since in amounts
+    )
+    if amounts:
+        total = sum(amount for _, _, amount, _ in amounts)
+        trs += (
+            f'<tr class="total"><td>total</td><td></td><td></td>'
+            f'<td class="num eur">{_format_eur(total)}</td></tr>'
+        )
+    else:
+        trs = (
+            '<tr><td class="empty" colspan="4">aucun projet tarifé — ajouter '
+            '<code>tjm</code> et <code>derniere_facture</code> dans '
+            'projects-config.yml</td></tr>'
+        )
+    return PROJECTS_HTML.format(
+        menu=_menu_bar(prefix, "projects"),
+        round_toggle=_round_toggle_html(quantize),
+        rows=trs,
+        version=APP_VERSION,
+    )
 
 
 @app.get("/rows", defaults={"secret_path": ""})

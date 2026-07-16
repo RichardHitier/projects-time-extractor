@@ -6,3 +6,5 @@
 - [2026-07-05] more views, seee activity on many months
 - [2026-07-06] Vue mensuelle du webhook : objectif mensuel de facturation, au-delà du grain hebdomadaire (semaine/20h). Agrégation par mois + cible mensuelle. (Vient de l'item #19 du backlog webhook TODO.md, déplacé ici.)
 - [2026-07-14] Trou résiduel du CSV (11/04/2025 → 30/09/2025, aucune source ODS) : voir si l'historique git des dépôts (cf. repo_to_df, web/tools/histories.py) permet au moins d'identifier les projets travaillés sur cette période
+- [2026-07-16] compteur euros (tarif différent selon projet, et montant calculé depuis les derniéres factures)
+- [2026-07-16] grosse feature : page projects/ montrant l'activité de chaque projet — à garder en tête pour le compteur euros, qui ajoutera de la config par projet facturable (TJM / projet)

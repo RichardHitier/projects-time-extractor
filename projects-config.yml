@@ -3,6 +3,10 @@ speasy:
   - /home/richard/01DEV/speasy/.git
   pom_project: SPEASY
   color: "#FFD43B"
+  # Compteur euros de /projects : tarif journalier (jour de 8 h) et dernier jour
+  # déjà facturé (exclu du cumul). Retirer `tjm` retire le projet du tableau.
+  tjm: 490
+  derniere_facture: "20260619"
 calipso:
   git_dirs:
   - /home/richard/01DEV/CalipsoProject/iesa-dispatcher-studio/.git
@@ -15,6 +19,8 @@ calipso:
   pom_project: CALIPSO
   color: "#4169E1"
   export_name: calipso_b
+  tjm: 540
+  derniere_facture: "20260619"
   superprod_projects:
   - Calipso
   - CalipsoDev

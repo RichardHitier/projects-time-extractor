@@ -296,6 +296,12 @@ les numéros/lettres sont des **ID stables** (références croisées « point 1 
   légèreté). Décision à prendre : garder ce mix ou converger vers un seul
   choix partout.
 
+- [ ] **d. Consolider le « jour = 8 h »**, aujourd'hui en dur à cinq endroits :
+  `core/data.py:77` (`duration_d`), `web/tools/histories.py:118` (`git_days`),
+  `cli.py:129`, `core/suivi_chantier.py:68` (l'inverse, `JOURS * 8`) et
+  `webhook_receiver.py:HOURS_PER_DAY` (compteur euros de `/projects`). Un
+  changement de valeur fausserait silencieusement les montants facturés.
+
 ## Divers
 
 - [x] [2026-07-04] versionner — v0.1.0 affichée en footer (/view + /weeks)
