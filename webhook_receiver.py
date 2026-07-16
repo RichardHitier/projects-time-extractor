@@ -38,7 +38,7 @@ CSV_COLUMNS = ["date", "project", "task", "minutes", "startTime", "endTime"]
 EXPORT_TYPES = {"finish", "pause"}
 SECRET = os.environ.get("WEBHOOK_SECRET", "").strip("/")
 PORT = int(os.environ.get("WEBHOOK_PORT", "5000"))
-APP_VERSION = "0.11.0"  # affiché en pied de page (miroir de pyproject.toml)
+APP_VERSION = "0.12.0"  # affiché en pied de page (miroir de pyproject.toml)
 
 BILLABLE_PROJECTS = {p.lower() for p in _config.get("BILLABLE_PROJECTS", [])}
 BILLABLE_MAX_HOURS = 4
@@ -930,6 +930,12 @@ def project_amounts(rows, quantize=False):
     return amounts
 
 
+def billable_total(amounts):
+    """Total à facturer, tous projets tarifés confondus. Le chiffre du bas de
+    /projects et celui affiché en direct sur /live sortent tous deux d'ici."""
+    return sum(amount for _, _, amount, _ in amounts)
+
+
 def activity_by_project(rows, day):
     """{project_prefix: minutes} for `day`, all projects except nan/empty."""
     totals = {}
@@ -1318,6 +1324,12 @@ LIVE_HTML = """<!doctype html>
   .roundtoggle {{ display: inline-flex; align-items: center; gap: .4rem; color: #bbb;
     font-size: .8rem; text-transform: uppercase; margin-bottom: 1.5rem; cursor: pointer; }}
   .roundtoggle input {{ accent-color: #3987e5; cursor: pointer; }}
+  /* posé à côté de l'interrupteur d'arrondi, dont le total dépend */
+  .totalbox {{ display: inline-flex; align-items: center; gap: .4rem; margin-left: 1rem;
+    background: #2e2e2b; border-radius: 999px; padding: .4rem .9rem; color: #bbb;
+    font-size: .8rem; text-transform: uppercase; }}
+  .totalbox strong {{ color: #fff; font-weight: 700;
+    font-variant-numeric: tabular-nums; }}
   .ver {{ color: #666; font-size: .7rem; margin-top: 2rem; }}
 </style>
 </head>
@@ -1325,6 +1337,8 @@ LIVE_HTML = """<!doctype html>
 {menu}
 {nav}
 {round_toggle}
+<span class="totalbox">à facturer :
+  <strong id="billable-total">{billable_total}</strong></span>
 
 <div class="charts-row">
   <img id="week" src="{week_url}" alt="heures facturables par jour de la semaine">
@@ -1381,6 +1395,9 @@ async function poll() {{
       box.textContent = "aucune tâche en cours";
     }}
   }}
+
+  const total = document.getElementById("billable-total");
+  if (total && data.billable_total) total.textContent = data.billable_total;
 
   const tbody = document.getElementById("rows");
   tbody.innerHTML = "";
@@ -1717,6 +1734,9 @@ def live(secret_path):
     monday, sunday = current_week_bounds(week_anchor(weeks_back))
     show_today = weeks_back == 0
     wq = f"?w={weeks_back}"
+    # rendu ici pour éviter le clignotement avant le premier poll() ; ensuite
+    # c'est poll() qui le rafraîchit toutes les 3 s
+    amounts = project_amounts(_read_csv_rows(CSV_PATH), quantize=_quantize_enabled())
 
     if show_today:
         current_box = '<div id="current-box" class="empty">aucune tâche en cours</div>'
@@ -1742,6 +1762,7 @@ def live(secret_path):
         menu=_menu_bar(prefix, "live"),
         nav=nav,
         round_toggle=_round_toggle_html(_quantize_enabled()),
+        billable_total=_format_eur(billable_total(amounts)),
         current_box=current_box,
         version=APP_VERSION,
     )
@@ -2005,10 +2026,9 @@ def projects_page(secret_path):
         for project, days, amount, since in amounts
     )
     if amounts:
-        total = sum(amount for _, _, amount, _ in amounts)
         trs += (
             f'<tr class="total"><td>total</td><td></td><td></td>'
-            f'<td class="num eur">{_format_eur(total)}</td></tr>'
+            f'<td class="num eur">{_format_eur(billable_total(amounts))}</td></tr>'
         )
     else:
         trs = (
@@ -2079,10 +2099,18 @@ def api_rows(secret_path):
         return "not found\n", 404
     weeks_back = _int_arg("w")
     today = datetime.now().strftime("%Y%m%d")
-    rows = [r for r in _read_csv_rows(CSV_PATH) if r["date"] == today]
+    all_rows = _read_csv_rows(CSV_PATH)
+    rows = [r for r in all_rows if r["date"] == today]
     rows.sort(key=lambda r: r["startTime"], reverse=True)
     current = current_task_row() if weeks_back == 0 else None
-    return jsonify({"rows": rows, "current": current})
+    # le total est global (« depuis la dernière facture ») : il ne dépend ni du
+    # jour affiché ni de la semaine demandée, seulement du cookie d'arrondi
+    amounts = project_amounts(all_rows, quantize=_quantize_enabled())
+    return jsonify({
+        "rows": rows,
+        "current": current,
+        "billable_total": _format_eur(billable_total(amounts)),
+    })
 
 
 @app.get("/api/csv", defaults={"secret_path": ""})

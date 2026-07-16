@@ -933,3 +933,41 @@ def test_projects_page_lists_amounts_and_skips_untarifed(tmp_path, monkeypatch):
     assert "540\u202f€" in page and "490\u202f€" in page
     assert "1\u202f030\u202f€" in page  # total
     assert "perso" not in page and "bht" not in page
+
+
+def test_live_shows_the_same_billable_total_as_projects(tmp_path, monkeypatch):
+    monkeypatch.setattr(webhook_receiver, "load_projects", _fake_projects)
+    csv_path = tmp_path / "webhook.csv"
+    _write_rows(csv_path, [
+        {**row, "startTime": "09:00", "endTime": "10:00"} for row in BILLING_ROWS
+    ])
+    monkeypatch.setattr(webhook_receiver, "CSV_PATH", str(csv_path))
+    client = webhook_receiver.app.test_client()
+
+    live = client.get("/live").get_data(as_text=True)
+    projects = client.get("/projects").get_data(as_text=True)
+    api = client.get("/api/rows").get_json()
+
+    # 540 + 490, le même chiffre aux trois endroits
+    assert '<strong id="billable-total">1 030 €</strong>' in live
+    assert "1 030 €" in projects
+    assert api["billable_total"] == "1 030 €"
+
+
+def test_billable_total_on_live_follows_the_rounding_cookie(tmp_path, monkeypatch):
+    monkeypatch.setattr(webhook_receiver, "load_projects", _fake_projects)
+    csv_path = tmp_path / "webhook.csv"
+    # une seule tâche de 8 min, que l'arrondi 1/4h porte à 15 min
+    _write_rows(csv_path, [{
+        "date": "20260620", "project": "calipso_iesa", "task": "a",
+        "minutes": "8", "startTime": "09:00", "endTime": "09:08",
+    }])
+    monkeypatch.setattr(webhook_receiver, "CSV_PATH", str(csv_path))
+    client = webhook_receiver.app.test_client()
+
+    # 8 min = 1/60 j × 540 € = 9 €
+    assert client.get("/api/rows").get_json()["billable_total"] == "9\u202f€"
+
+    client.set_cookie("round", "1")
+    # 15 min = 0,03125 j × 540 € = 16,875 € → 17 €
+    assert client.get("/api/rows").get_json()["billable_total"] == "17 €"
