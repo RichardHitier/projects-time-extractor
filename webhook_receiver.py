@@ -38,7 +38,7 @@ CSV_COLUMNS = ["date", "project", "task", "minutes", "startTime", "endTime"]
 EXPORT_TYPES = {"finish", "pause"}
 SECRET = os.environ.get("WEBHOOK_SECRET", "").strip("/")
 PORT = int(os.environ.get("WEBHOOK_PORT", "5000"))
-APP_VERSION = "0.12.0"  # affiché en pied de page (miroir de pyproject.toml)
+APP_VERSION = "0.13.0"  # affiché en pied de page (miroir de pyproject.toml)
 
 BILLABLE_PROJECTS = {p.lower() for p in _config.get("BILLABLE_PROJECTS", [])}
 BILLABLE_MAX_HOURS = 4
@@ -337,6 +337,18 @@ def day_label(day):
     return f"{_FR_WEEKDAYS[day.weekday()]} {day.strftime('%d/%m')}"
 
 
+def future_day_labels(monday, today=None):
+    """Étiquettes des jours de la semaine du `monday` situés après `today` —
+    vides parce que pas encore advenus. Ensemble vide pour une semaine passée."""
+    if today is None:
+        today = datetime.now().date()
+    return {
+        day_label(monday + timedelta(days=i))
+        for i in range(7)
+        if monday + timedelta(days=i) > today
+    }
+
+
 def billable_hours_for_days(monday, last_day, rows, quantize=False):
     """Billable hours per day from `last_day` down to `monday` (most recent
     first), as (day_label, hours) pairs."""
@@ -361,21 +373,18 @@ def billable_hours_for_week(today=None):
 def recent_weeks(today=None, count=BILLABLE_WEEKS_SHOWN, page=0, quantize=False):
     """The `count` most recent weeks, most recent first, as
     (monday, sunday, billable_days, activity_days) tuples — billable hours and
-    per-project activity per day, most recent first. The current week stops at
-    `today`; completed weeks span Monday..Sunday. Empty weeks are kept.
+    per-project activity per day, most recent first. Every week spans
+    Monday..Sunday, current week included : ses jours à venir sont affichés
+    vides, comme sur /live. Empty weeks are kept.
 
     `page` shifts the window `page * count` weeks into the past: page 0 is the
-    most recent window (current week ending at `today`); pages > 0 are older and
-    span complete Monday..Sunday weeks."""
+    most recent window (week containing `today`); pages > 0 are older."""
     if today is None:
         today = datetime.now().date()
     rows = _read_csv_rows(CSV_PATH)
     monday, _ = current_week_bounds(today)
-    if page > 0:
-        monday -= timedelta(weeks=page * count)
-        last_day = monday + timedelta(days=6)
-    else:
-        last_day = today
+    monday -= timedelta(weeks=page * count)
+    last_day = monday + timedelta(days=6)
     weeks = []
     for _ in range(count):
         sunday = monday + timedelta(days=6)
@@ -714,7 +723,30 @@ def _hatch_pattern(pattern_id, color):
 _BILLABLE_HATCH_ID = "hatch-billable"
 
 
-def render_week_svg(day_hours, max_hours=BILLABLE_MAX_HOURS, week_max_hours=BILLABLE_WEEK_MAX_HOURS, highlight_label=None, current_hours=0.0, title_label="SEMAINE", show_header=True, month_groups=None, bar_start=None, show_title=True, title_totals=True, title_sep=" : "):
+# Jours à venir de la semaine en cours (/weeks affiche la semaine entière, cf.
+# recent_weeks) : leurs lignes sont vides par construction, pas faute d'avoir
+# travaillé. Ces couleurs les distinguent d'un jour écoulé à 0:00. Modifiables à
+# chaud comme les MONTH_LABEL_* — le conteneur monte le dossier.
+# Teinte froide + liseré tireté (variante F de dev/variantes-jours-futurs.html) :
+# le bleuté les sort de la gamme grise des jours travaillés — une catégorie à
+# part, pas juste un gris plus sombre. `hours: None` masquerait le « 0:00 » ;
+# `stroke: None` supprimerait le liseré.
+FUTURE_COLORS = {
+    "track": "#20232a",   # fond de barre
+    "stroke": "#41495a",  # liseré du fond de barre
+    "label": "#7c8798",   # nom du jour + date
+    "hours": "#606a7a",   # chiffre des heures (None : masqué)
+    "marker": "#606a7a",  # repère de fin de barre (graphe facturable)
+}
+
+
+def _track_rect(x, y, w, h, rx, fill, stroke=None):
+    """Fond de barre d'une ligne de jour, avec liseré optionnel (jours à venir)."""
+    edge = f' stroke="{stroke}" stroke-width="1" stroke-dasharray="3 3"' if stroke else ""
+    return f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="{rx}" fill="{fill}"{edge}/>'
+
+
+def render_week_svg(day_hours, max_hours=BILLABLE_MAX_HOURS, week_max_hours=BILLABLE_WEEK_MAX_HOURS, highlight_label=None, current_hours=0.0, title_label="SEMAINE", show_header=True, month_groups=None, bar_start=None, show_title=True, title_totals=True, title_sep=" : ", future_labels=()):
     """Render a "SEMAINE : total / Nh" header, then one bar per
     (day_label, hours) pair, most recent first. `show_header=False` drops the
     total header bar (and its vertical space) — /months shows weeks, whose total
@@ -729,6 +761,10 @@ def render_week_svg(day_hours, max_hours=BILLABLE_MAX_HOURS, week_max_hours=BILL
     `current_hours` (> 0 only for the running billable task, week w==0) draws a
     grey hatched zone after the solid fill on the `highlight_label` row, clamped
     within the bar.
+
+    `future_labels` : étiquettes des jours pas encore advenus (semaine en cours
+    de /weeks), rendus en FUTURE_COLORS pour ne pas se lire comme un jour écoulé
+    sans heures.
 
     Rows are labelled, not dated: /months passes weeks rather than days, hence
     `title_label` for the SVG tooltip.
@@ -789,15 +825,28 @@ def render_week_svg(day_hours, max_hours=BILLABLE_MAX_HOURS, week_max_hours=BILL
                 _hl_frame(label_x - 5, y, _label_frame_w(label, label_x, bar_x) + 10, row_h)
                 + _hl_frame(WEEK_HOURS_RIGHT_X - hours_w - 5, y, hours_w + 10, row_h)
             )
+        future = label in future_labels
+        track = _track_rect(
+            bar_x, y, bar_w, row_h, corner_radius,
+            FUTURE_COLORS["track"] if future else "#2e2e2b",
+            FUTURE_COLORS["stroke"] if future else None,
+        )
+        marker_color = FUTURE_COLORS["marker"] if future else "#c3c2b7"
+        hours_fill = FUTURE_COLORS["hours"] if future else "#ffffff"
+        hours_svg = "" if hours_fill is None else (
+            f'<text x="{WEEK_HOURS_RIGHT_X}" y="{y + row_h - 6}" text-anchor="end" '
+            f'font-family="system-ui, sans-serif" font-size="13" '
+            f'fill="{hours_fill}">{hours_text}</text>'
+        )
         rows_svg.append(f'''
-  {_row_label_svg(label, label_x, bar_x, y + row_h - 6)}
-  <rect x="{bar_x}" y="{y}" width="{bar_w}" height="{row_h}" rx="{corner_radius}" fill="#2e2e2b"/>
+  {_row_label_svg(label, label_x, bar_x, y + row_h - 6, fill=FUTURE_COLORS["label"] if future else "#c3c2b7")}
+  {track}
   {fill_rect}
   {hatch_rect}
-  <line x1="{bar_x + bar_w}" y1="{y - 2}" x2="{bar_x + bar_w}" y2="{y + row_h + 2}" stroke="#c3c2b7" stroke-width="2"/>
+  <line x1="{bar_x + bar_w}" y1="{y - 2}" x2="{bar_x + bar_w}" y2="{y + row_h + 2}" stroke="{marker_color}" stroke-width="2"/>
   {overflow_rect}
   {frames}
-  <text x="{WEEK_HOURS_RIGHT_X}" y="{y + row_h - 6}" text-anchor="end" font-family="system-ui, sans-serif" font-size="13" fill="#ffffff">{hours_text}</text>''')
+  {hours_svg}''')
 
     header_bar = ""
     if show_header:
@@ -1004,7 +1053,7 @@ def render_activity_svg(totals, max_hours=ACTIVITY_MAX_HOURS):
 </svg>"""
 
 
-def render_activity_week_svg(days, max_hours=ACTIVITY_MAX_HOURS, uid="", highlight_label=None, week_max_hours=ACTIVITY_WEEK_MAX_HOURS, current_hours=0.0, current_prefix=None, title_label="ACTIVITÉ SEMAINE", show_header=True, month_groups=None, bar_start=None, show_title=True, title_totals=True, title_sep=" : "):
+def render_activity_week_svg(days, max_hours=ACTIVITY_MAX_HOURS, uid="", highlight_label=None, week_max_hours=ACTIVITY_WEEK_MAX_HOURS, current_hours=0.0, current_prefix=None, title_label="ACTIVITÉ SEMAINE", show_header=True, month_groups=None, bar_start=None, show_title=True, title_totals=True, title_sep=" : ", future_labels=()):
     """One stacked activity bar per day (most recent first). Row geometry
     matches render_week_svg so the two week charts line up side by side —
     including `show_header` and `month_groups`, to be set the same way on both.
@@ -1016,6 +1065,9 @@ def render_activity_week_svg(days, max_hours=ACTIVITY_MAX_HOURS, uid="", highlig
     `current_hours`/`current_prefix` (set only for the running task, week w==0)
     draw a hatched zone in the project's color after the stacked segments on the
     `highlight_label` row, clamped within the bar.
+
+    `future_labels` : cf. render_week_svg — jours pas encore advenus, en
+    FUTURE_COLORS.
 
     Rows are labelled, not dated: /months passes weeks rather than days, hence
     `title_label` for the SVG tooltip."""
@@ -1058,14 +1110,26 @@ def render_activity_week_svg(days, max_hours=ACTIVITY_MAX_HOURS, uid="", highlig
                 _hl_frame(label_x - 5, y, _label_frame_w(label, label_x, bar_x) + 10, row_h)
                 + _hl_frame(WEEK_HOURS_RIGHT_X - hours_w - 5, y, hours_w + 10, row_h)
             )
+        future = label in future_labels
+        track = _track_rect(
+            bar_x, y, bar_w, row_h, corner_radius,
+            FUTURE_COLORS["track"] if future else "#2b2b28",
+            FUTURE_COLORS["stroke"] if future else None,
+        )
+        hours_fill = FUTURE_COLORS["hours"] if future else "#ffffff"
+        hours_svg = "" if hours_fill is None else (
+            f'<text x="{WEEK_HOURS_RIGHT_X}" y="{y + row_h - 6}" text-anchor="end" '
+            f'font-family="system-ui, sans-serif" font-size="13" '
+            f'fill="{hours_fill}">{hours_text}</text>'
+        )
         rows_svg.append(f'''
-  {_row_label_svg(label, label_x, bar_x, y + row_h - 6)}
-  <rect x="{bar_x}" y="{y}" width="{bar_w}" height="{row_h}" rx="{corner_radius}" fill="#2b2b28"/>
+  {_row_label_svg(label, label_x, bar_x, y + row_h - 6, fill=FUTURE_COLORS["label"] if future else "#c3c2b7")}
+  {track}
   <defs><clipPath id="actwk{uid}{i}"><rect x="{inner_x}" y="{inner_y}" width="{fill_w:.1f}" height="{inner_h}" rx="{corner_radius}"/></clipPath></defs>
   <g clip-path="url(#actwk{uid}{i})">{segs}</g>
   {hatch_rect}
   {frames}
-  <text x="{WEEK_HOURS_RIGHT_X}" y="{y + row_h - 6}" text-anchor="end" font-family="system-ui, sans-serif" font-size="13" fill="#ffffff">{hours_text}</text>''')
+  {hours_svg}''')
     header_bar = ""
     if show_header:
         header_bar = _week_header_bar(
@@ -1794,11 +1858,14 @@ def weeks(secret_path):
         for _, totals in activity_days:
             prefixes.update(totals)
         # pas de titre ici : chaque section porte déjà « Semaine du 23 au 29 juin »
+        future = future_day_labels(monday)
         charts = render_week_svg(
             billable_days, bar_start=DAY_BAR_START_X, show_title=False,
+            future_labels=future,
         ) + render_activity_week_svg(
             activity_days, uid=monday.strftime("%Y%m%d"),
             bar_start=DAY_BAR_START_X, show_title=False,
+            future_labels=future,
         )
         blocks.append(
             f'<section class="week"><p class="week-label">'
@@ -1938,7 +2005,7 @@ def billable_week_svg(secret_path):
     svg = render_week_svg(
         day_hours, highlight_label=highlight, current_hours=current_hours,
         bar_start=DAY_BAR_START_X, title_label="FACTURABLE",
-        title_totals=True, title_sep=" ",
+        title_totals=True, title_sep=" ", future_labels=future_day_labels(monday),
     )
     return Response(svg, mimetype="image/svg+xml", headers={"Cache-Control": "no-store"})
 
@@ -1960,7 +2027,7 @@ def activity_week_svg(secret_path):
     if SECRET and secret_path.strip("/") != SECRET:
         return "not found\n", 404
     w = _int_arg("w")
-    _, sunday = current_week_bounds(week_anchor(w))
+    monday, sunday = current_week_bounds(week_anchor(w))
     days = activity_week_days(_read_csv_rows(CSV_PATH), sunday)
     highlight = day_label(datetime.now().date()) if w == 0 else None
     current_hours, current_prefix = 0.0, None
@@ -1973,7 +2040,7 @@ def activity_week_svg(secret_path):
         days, highlight_label=highlight,
         current_hours=current_hours, current_prefix=current_prefix,
         bar_start=DAY_BAR_START_X, title_label="ACTIVITÉS",
-        title_totals=True, title_sep=" ",
+        title_totals=True, title_sep=" ", future_labels=future_day_labels(monday),
     )
     return Response(svg, mimetype="image/svg+xml", headers={"Cache-Control": "no-store"})
 

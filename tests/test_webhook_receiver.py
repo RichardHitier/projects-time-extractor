@@ -273,14 +273,33 @@ def test_render_activity_week_svg_colors_today():
     assert 'stroke="#ffd43b" stroke-width="1.5"' in svg  # jour courant encadré en jaune
 
 
+def test_future_day_labels_covers_days_after_today():
+    monday = date(2026, 6, 29)  # semaine du 29/06 au 05/07
+    labels = webhook_receiver.future_day_labels(monday, today=date(2026, 7, 1))
+
+    assert labels == {"Jeudi 02/07", "Vendredi 03/07", "Samedi 04/07", "Dimanche 05/07"}
+    # semaine passée : plus rien à venir
+    assert webhook_receiver.future_day_labels(monday, today=date(2026, 7, 20)) == set()
+
+
+def test_render_week_svg_dims_future_days():
+    days = [("Jeudi 02/07", 0.0), ("Mercredi 01/07", 3.0)]
+
+    svg = webhook_receiver.render_week_svg(days, future_labels={"Jeudi 02/07"})
+
+    # le jour à venir a son propre fond de barre, le jour écoulé garde le sien
+    assert f'height="22" rx="5" fill="{webhook_receiver.FUTURE_COLORS["track"]}"' in svg
+    assert 'height="22" rx="5" fill="#2e2e2b"' in svg
+
+
 def test_billable_week_route_shows_full_week_and_colors_today(tmp_path):
     webhook_receiver.CSV_PATH = str(tmp_path / "pomofocus_webhook.csv")
 
     svg = webhook_receiver.app.test_client().get("/billable-week.svg").get_data(as_text=True)
 
     # semaine complète : 1 barre/jour lun..dim (hauteur 22 ; la barre d'en-tête
-    # partage la couleur #2e2e2b mais fait hauteur 18)
-    assert svg.count('height="22" rx="5" fill="#2e2e2b"') == 7
+    # est plus haute). La couleur varie : les jours à venir ont la leur.
+    assert svg.count('height="22" rx="5" fill=') == 7
     assert 'stroke="#ffd43b" stroke-width="1.5"' in svg   # w=0 → jour courant encadré en jaune
 
 
@@ -473,9 +492,10 @@ def test_recent_weeks_page_shifts_window_by_count_weeks(tmp_path):
     page1 = webhook_receiver.recent_weeks(today=today, count=12, page=1)
 
     assert len(page0) == len(page1) == 12
-    # page 0 starts at the current (partial) week: Monday..Wednesday = 3 days
+    # page 0 starts at the current week, shown whole (jours à venir compris)
     assert page0[0][0] == date(2026, 6, 29)
-    assert len(page0[0][2]) == 3
+    assert page0[0][1] == date(2026, 7, 5)
+    assert len(page0[0][2]) == 7
     # page 1 is shifted 12 weeks back and spans complete Monday..Sunday weeks
     assert page1[0][0] == date(2026, 6, 29) - timedelta(weeks=12)
     assert page1[0][1] == page1[0][0] + timedelta(days=6)
