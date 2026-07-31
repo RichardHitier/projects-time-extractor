@@ -302,6 +302,33 @@ les numéros/lettres sont des **ID stables** (références croisées « point 1 
   `webhook_receiver.py:HOURS_PER_DAY` (compteur euros de `/projects`). Un
   changement de valeur fausserait silencieusement les montants facturés.
 
+## Facturation — corrections hors dépôt
+
+Anomalies relevées le 2026-07-31 en croisant `suivi_chantiers.ods`,
+`IESA_LOGS.ods` et `SPEASY_LOGS.ods`. Analyse complète et raisonnement dans
+`FACTURATION.md` ; ces trois items demandent une action manuelle dans les
+fichiers d'administration, pas dans le code.
+
+- [ ] **Trancher le n° de la 3ᵉ facture speasy** — `FA20260629` dans
+  SPEASY_LOGS contre `FA20260619` daté du 19/06 dans la Synthèse, et
+  `derniere_facture: "20260619"` dans `projects-config.yml`. Dix jours d'écart.
+  Si le 29/06 est le bon, `/projects` sur-compte speasy de 1,32 j
+  (4,89 → 3,57 j). **Bloquant** : à trancher avant le chantier « commandes »,
+  puisque ça change le chiffre affiché aujourd'hui.
+
+- [ ] **Corriger la colonne `PUMA` de SPEASY_LOGS** — la référence de commande
+  s'incrémente ligne après ligne (2680L076888, 2681L…, 2682L…, jusqu'à
+  2691L076888), séquelle d'une recopie tirée à la souris. La bonne référence
+  est `2680L076888`, confirmée par la Synthèse. C'est une référence client.
+
+- [ ] **Mettre à jour la ligne `carangues` du tableau C de la Synthèse** — le
+  CSV a de l'activité en avril, juin et juillet 2026 (2,00 j au total), la
+  Synthèse ne lui connaît que `fev_26` (0,5625 j).
+
+Deux anomalies mineures, notées pour mémoire, sans action décidée :
+`IESA_LOGS` ligne 7 (module `iesa-dispatcher-studio` mais colonne `Projet` à
+`lees`) et ligne 36 (un `5,5` isolé dans la colonne `jours`).
+
 ## Divers
 
 - [x] [2026-07-04] versionner — v0.1.0 affichée en footer (/view + /weeks)
