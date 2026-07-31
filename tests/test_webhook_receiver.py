@@ -939,6 +939,54 @@ def test_project_amounts_multiplies_days_by_tjm(monkeypatch):
     ]
 
 
+def test_subproject_minutes_sum_to_the_project_total():
+    rows = [
+        {"date": "20260620", "project": "calipso_iesa", "task": "a", "minutes": "4"},
+        {"date": "20260620", "project": "calipso_iesa", "task": "b", "minutes": "4"},
+        {"date": "20260620", "project": "calipso_lees", "task": "a", "minutes": "4"},
+        {"date": "20260620", "project": "calipso", "task": "a", "minutes": "4"},
+    ]
+
+    for quantize in (False, True):
+        by_sub = webhook_receiver.project_minutes_by_subproject(
+            rows, "calipso", "20260619", quantize=quantize
+        )
+        # le projet nu (sans « _ ») est un sous-projet d'étiquette vide
+        assert set(by_sub) == {"iesa", "lees", ""}
+        assert sum(by_sub.values()) == webhook_receiver.project_minutes_since(
+            rows, "calipso", "20260619", quantize=quantize
+        )
+
+
+def test_project_subamounts_sorted_by_consumption_and_silent_when_alone():
+    subs = webhook_receiver.project_subamounts(
+        BILLING_ROWS, "calipso", 540, "20260619"
+    )
+
+    # 240 min chacun = 0,5 j → 270 € ; à égalité, ordre alphabétique
+    assert subs == [("iesa", 0.5, 270.0), ("lees", 0.5, 270.0)]
+    # speasy n'a que speasy_hapi : pas de détail, la ligne projet dit tout
+    assert webhook_receiver.project_subamounts(
+        BILLING_ROWS, "speasy", 490, "20260619"
+    ) == []
+
+
+def test_projects_page_details_subprojects_under_each_project(tmp_path, monkeypatch):
+    monkeypatch.setattr(webhook_receiver, "load_projects", _fake_projects)
+    csv_path = tmp_path / "webhook.csv"
+    _write_rows(csv_path, [
+        {**row, "startTime": "09:00", "endTime": "10:00"} for row in BILLING_ROWS
+    ])
+    monkeypatch.setattr(webhook_receiver, "CSV_PATH", str(csv_path))
+
+    page = webhook_receiver.app.test_client().get("/projects").get_data(as_text=True)
+
+    assert ">iesa</td>" in page and ">lees</td>" in page
+    assert page.count("270 €") == 2  # 540 € de calipso, moitié-moitié
+    assert ">hapi</td>" not in page  # seul sous-projet de speasy
+    assert "1 030 €" in page  # total inchangé
+
+
 def test_projects_page_lists_amounts_and_skips_untarifed(tmp_path, monkeypatch):
     monkeypatch.setattr(webhook_receiver, "load_projects", _fake_projects)
     csv_path = tmp_path / "webhook.csv"

@@ -38,7 +38,7 @@ CSV_COLUMNS = ["date", "project", "task", "minutes", "startTime", "endTime"]
 EXPORT_TYPES = {"finish", "pause"}
 SECRET = os.environ.get("WEBHOOK_SECRET", "").strip("/")
 PORT = int(os.environ.get("WEBHOOK_PORT", "5000"))
-APP_VERSION = "0.13.0"  # affiché en pied de page (miroir de pyproject.toml)
+APP_VERSION = "0.14.0"  # affiché en pied de page (miroir de pyproject.toml)
 
 BILLABLE_PROJECTS = {p.lower() for p in _config.get("BILLABLE_PROJECTS", [])}
 BILLABLE_MAX_HOURS = 4
@@ -947,10 +947,19 @@ def _project_billing_config():
     return billing
 
 
-def project_minutes_since(rows, prefix, since, quantize=False):
-    """Minutes du projet `prefix` postérieures au jour `since`, exclu. Avec
-    `quantize`, arrondit chaque (jour, projet, tâche) au quart d'heure supérieur
-    avant de sommer, comme billable_minutes()."""
+def _subproject(project):
+    """Sous-projet = ce qui suit le premier '_' ; vide s'il n'y en a pas."""
+    return (project or "").strip().lower().partition("_")[2]
+
+
+def project_minutes_by_subproject(rows, prefix, since, quantize=False):
+    """{sous-projet: minutes} du projet `prefix`, postérieures au jour `since`,
+    exclu. Avec `quantize`, arrondit chaque (jour, projet, tâche) au quart
+    d'heure supérieur avant de sommer, comme billable_minutes().
+
+    Chaque (jour, projet, tâche) appartient à un seul sous-projet : la somme des
+    valeurs est donc exactement le total de project_minutes_since(), arrondi
+    compris."""
     by_task = {}
     for row in rows:
         if _project_prefix(row.get("project")) != prefix:
@@ -961,9 +970,20 @@ def project_minutes_since(rows, prefix, since, quantize=False):
             continue
         key = (day, row.get("project"), row.get("task"))
         by_task[key] = by_task.get(key, 0) + int(row.get("minutes") or 0)
-    if quantize:
-        return sum(-(-m // 15) * 15 for m in by_task.values())
-    return sum(by_task.values())
+    totals = {}
+    for (_, project, _), minutes in by_task.items():
+        if quantize:
+            minutes = -(-minutes // 15) * 15
+        sub = _subproject(project)
+        totals[sub] = totals.get(sub, 0) + minutes
+    return totals
+
+
+def project_minutes_since(rows, prefix, since, quantize=False):
+    """Minutes du projet `prefix` postérieures au jour `since`, exclu."""
+    return sum(
+        project_minutes_by_subproject(rows, prefix, since, quantize=quantize).values()
+    )
 
 
 def project_amounts(rows, quantize=False):
@@ -977,6 +997,20 @@ def project_amounts(rows, quantize=False):
         days = minutes / 60 / HOURS_PER_DAY
         amounts.append((prefix, days, days * tjm, since))
     return amounts
+
+
+def project_subamounts(rows, prefix, tjm, since, quantize=False):
+    """(sous-projet, jours, montant_eur) par sous-projet de `prefix`, du plus
+    consommé au moins consommé. Vide quand le projet n'a qu'un sous-projet : la
+    ligne projet dit déjà tout, /projects n'affiche alors pas de détail."""
+    totals = project_minutes_by_subproject(rows, prefix, since, quantize=quantize)
+    if len(totals) < 2:
+        return []
+    subs = []
+    for sub, minutes in sorted(totals.items(), key=lambda kv: (-kv[1], kv[0])):
+        days = minutes / 60 / HOURS_PER_DAY
+        subs.append((sub, days, days * tjm))
+    return subs
 
 
 def billable_total(amounts):
@@ -1706,6 +1740,9 @@ PROJECTS_HTML = """<!doctype html>
   td.eur {{ color: #fff; font-weight: 700; }}
   td.date {{ color: #777; white-space: nowrap; }}
   td.empty {{ color: #777; font-size: .85rem; }}
+  tr.sub td {{ color: #888; font-size: .8rem; padding: .25rem .5rem;
+    border-bottom: 1px solid #1a1a1a; }}
+  tr.sub td.proj {{ padding-left: 1.6rem; }}
   .dot {{ display: inline-block; width: .6rem; height: .6rem; border-radius: 50%;
     margin-right: .5rem; vertical-align: baseline; }}
   tr.total td {{ border-bottom: 0; border-top: 1px solid #333; color: #999;
@@ -2082,16 +2119,31 @@ def projects_page(secret_path):
         return "not found\n", 404
     prefix = f"/{secret_path.strip('/')}" if secret_path.strip("/") else ""
     quantize = _quantize_enabled()
-    amounts = project_amounts(_read_csv_rows(CSV_PATH), quantize=quantize)
-    trs = "".join(
-        f'<tr><td class="proj">'
-        f'<span class="dot" style="background:{project_color(project)}"></span>'
-        f'{project}</td>'
-        f'<td class="num">{_format_days(days)}</td>'
-        f'<td class="date">{_format_ymd(since)}</td>'
-        f'<td class="num eur">{_format_eur(amount)}</td></tr>'
-        for project, days, amount, since in amounts
-    )
+    rows = _read_csv_rows(CSV_PATH)
+    amounts = project_amounts(rows, quantize=quantize)
+    billing = _project_billing_config()
+    trs = ""
+    for project, days, amount, since in amounts:
+        trs += (
+            f'<tr><td class="proj">'
+            f'<span class="dot" style="background:{project_color(project)}"></span>'
+            f'{project}</td>'
+            f'<td class="num">{_format_days(days)}</td>'
+            f'<td class="date">{_format_ymd(since)}</td>'
+            f'<td class="num eur">{_format_eur(amount)}</td></tr>'
+        )
+        tjm, _ = billing[project]
+        for sub, sub_days, sub_amount in project_subamounts(
+            rows, project, tjm, since, quantize=quantize
+        ):
+            # sous-projet vide = tâches saisies sur le projet nu, sans « _ »
+            label = html.escape(sub) if sub else "—"
+            trs += (
+                f'<tr class="sub"><td class="proj">{label}</td>'
+                f'<td class="num">{_format_days(sub_days)}</td>'
+                f'<td></td>'
+                f'<td class="num">{_format_eur(sub_amount)}</td></tr>'
+            )
     if amounts:
         trs += (
             f'<tr class="total"><td>total</td><td></td><td></td>'
