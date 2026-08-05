@@ -2,6 +2,11 @@
 
 Analyse du 2026-07-31. Point de départ du prochain gros chantier.
 
+> **Le chantier vit maintenant dans [`FACTURATION-CHANTIER.md`](FACTURATION-CHANTIER.md)** :
+> inventaire, liens, workflow manuel, décisions à trancher et découpage budgété.
+> Ce document-ci reste l'**analyse de départ**, datée et figée — une
+> reconstitution faite en lisant les fichiers, pas une spécification validée.
+
 Trois documents, trois étages :
 
 | Document | Rôle | Grain |
