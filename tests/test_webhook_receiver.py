@@ -136,9 +136,9 @@ def test_billable_minutes_filters_by_day_and_project_without_rounding():
     assert webhook_receiver.billable_minutes(rows, day="20260703") == 8 + 20 + 15
 
 
-def test_billable_minutes_quantize_rounds_each_task_up_to_quarter_hour():
+def test_billable_minutes_rounds_each_task_up_to_step():
     # Reproduit l'arrondi de l'export ODS : fusion par (projet, task) puis ceil
-    # au 1/4h de chaque tâche, séparément.
+    # au pas demandé de chaque tâche, séparément.
     rows = [
         # même tâche en deux blocs non contigus : fusion 10+10=20 -> ceil -> 30
         {"date": "20260703", "project": "speasy_supermag", "task": "dev", "minutes": "10"},
@@ -151,8 +151,10 @@ def test_billable_minutes_quantize_rounds_each_task_up_to_quarter_hour():
 
     # sans arrondi : somme brute inchangée
     assert webhook_receiver.billable_minutes(rows, "20260703") == 10 + 10 + 5
-    # avec arrondi : ceil par tâche
-    assert webhook_receiver.billable_minutes(rows, "20260703", quantize=True) == 30 + 15
+    # avec arrondi : ceil par tâche, au pas demandé
+    assert webhook_receiver.billable_minutes(rows, "20260703", step=15) == 30 + 15
+    assert webhook_receiver.billable_minutes(rows, "20260703", step=12) == 24 + 12
+    assert webhook_receiver.billable_minutes(rows, "20260703", step=6) == 24 + 6
 
 
 def test_billable_hours_reads_from_csv_path_for_given_day(tmp_path):
@@ -356,20 +358,36 @@ def test_live_week_charts_carry_the_total_in_the_title_not_the_header(tmp_path):
         assert 'font-size="14" font-weight="700"' not in svg  # nombre d'en-tête retiré
 
 
-def test_round_toggle_reflects_cookie(tmp_path):
+def _checked_rounds(html):
+    """Pas d'arrondi des cases cochées dans la page — une seule attendue, les
+    cases étant exclusives."""
+    return re.findall(r'<input type="checkbox" value="(\d+)" checked', html)
+
+
+def test_round_choice_reflects_cookie(tmp_path):
     webhook_receiver.CSV_PATH = str(tmp_path / "pomofocus_webhook.csv")
 
-    off_client = webhook_receiver.app.test_client()
+    # sans cookie : les cinq choix sont offerts du plus fin au plus grossier,
+    # « brut » coché et lui seul
     for path in ("/live", "/weeks"):
-        off = off_client.get(path).get_data(as_text=True)
-        assert "arrondi 1/4h" in off
-        assert '<input type="checkbox" onchange' in off  # décoché par défaut
+        page = webhook_receiver.app.test_client().get(path).get_data(as_text=True)
+        offered = re.findall(r'<input type="checkbox" value="(\d+)"', page)
+        assert offered == ["0", "6", "10", "12", "15"]
+        for _, label in webhook_receiver.ROUND_CHOICES:
+            assert f"> {label}</label>" in page
+        assert _checked_rounds(page) == ["0"]
 
-    on_client = webhook_receiver.app.test_client()
-    on_client.set_cookie("round", "1")
+    # un pas choisi : exactement une case cochée, la sienne
+    chosen = webhook_receiver.app.test_client()
+    chosen.set_cookie("round", "12")
     for path in ("/live", "/weeks"):
-        on = on_client.get(path).get_data(as_text=True)
-        assert '<input type="checkbox" checked onchange' in on
+        assert _checked_rounds(chosen.get(path).get_data(as_text=True)) == ["12"]
+
+    # cookie historique 0/1 : « 1 » vaut le pas de 15 min, pas brut
+    legacy = webhook_receiver.app.test_client()
+    legacy.set_cookie("round", "1")
+    for path in ("/live", "/weeks"):
+        assert _checked_rounds(legacy.get(path).get_data(as_text=True)) == ["15"]
 
 
 def test_weeks_page_has_unique_clip_ids(tmp_path):
@@ -592,7 +610,7 @@ def test_recent_week_totals_sums_a_whole_week_into_one_row(tmp_path):
     assert (weeks[1][3], weeks[1][4]) == (0, {})
 
 
-def test_recent_week_totals_quantizes_each_day_to_the_quarter_hour(tmp_path):
+def test_recent_week_totals_rounds_each_day_to_the_step(tmp_path):
     csv_path = tmp_path / "pomofocus_webhook.csv"
     _write_rows(csv_path, [
         {"date": "20260629", "project": "calipso_iesa", "task": "t",
@@ -604,7 +622,7 @@ def test_recent_week_totals_quantizes_each_day_to_the_quarter_hour(tmp_path):
     today = date(2026, 7, 1)
 
     raw = webhook_receiver.recent_week_totals(today=today, n=1)[0][3]
-    rounded = webhook_receiver.recent_week_totals(today=today, n=1, quantize=True)[0][3]
+    rounded = webhook_receiver.recent_week_totals(today=today, n=1, step=15)[0][3]
 
     assert raw == 25 / 60           # 5 + 20
     assert rounded == 45 / 60       # 15 + 30 : arrondi par jour, pas sur le total
@@ -911,7 +929,7 @@ def test_project_minutes_since_excludes_the_invoice_day_and_before():
     assert minutes == 480
 
 
-def test_project_minutes_since_quantizes_each_day_project_task():
+def test_project_minutes_since_rounds_each_day_project_task():
     rows = [
         {"date": "20260620", "project": "calipso_iesa", "task": "a", "minutes": "4"},
         {"date": "20260620", "project": "calipso_iesa", "task": "a", "minutes": "4"},
@@ -922,8 +940,12 @@ def test_project_minutes_since_quantizes_each_day_project_task():
     assert webhook_receiver.project_minutes_since(rows, "calipso", "20260619") == 16
     # (20/06, a) 8 min → 15 ; (20/06, b) 4 → 15 ; (21/06, a) 4 → 15
     assert webhook_receiver.project_minutes_since(
-        rows, "calipso", "20260619", quantize=True
+        rows, "calipso", "20260619", step=15
     ) == 45
+    # même découpage au pas de 6 : (20/06, a) 8 → 12 ; (20/06, b) 4 → 6 ; (21/06, a) 4 → 6
+    assert webhook_receiver.project_minutes_since(
+        rows, "calipso", "20260619", step=6
+    ) == 24
 
 
 def test_project_amounts_multiplies_days_by_tjm(monkeypatch):
@@ -947,14 +969,14 @@ def test_subproject_minutes_sum_to_the_project_total():
         {"date": "20260620", "project": "calipso", "task": "a", "minutes": "4"},
     ]
 
-    for quantize in (False, True):
+    for step in (0, 15, 12, 10, 6):
         by_sub = webhook_receiver.project_minutes_by_subproject(
-            rows, "calipso", "20260619", quantize=quantize
+            rows, "calipso", "20260619", step=step
         )
         # le projet nu (sans « _ ») est un sous-projet d'étiquette vide
         assert set(by_sub) == {"iesa", "lees", ""}
         assert sum(by_sub.values()) == webhook_receiver.project_minutes_since(
-            rows, "calipso", "20260619", quantize=quantize
+            rows, "calipso", "20260619", step=step
         )
 
 

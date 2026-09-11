@@ -38,12 +38,17 @@ CSV_COLUMNS = ["date", "project", "task", "minutes", "startTime", "endTime"]
 EXPORT_TYPES = {"finish", "pause"}
 SECRET = os.environ.get("WEBHOOK_SECRET", "").strip("/")
 PORT = int(os.environ.get("WEBHOOK_PORT", "5000"))
-APP_VERSION = "0.14.0"  # affiché en pied de page (miroir de pyproject.toml)
+APP_VERSION = "0.15.0"  # affiché en pied de page (miroir de pyproject.toml)
 
 BILLABLE_PROJECTS = {p.lower() for p in _config.get("BILLABLE_PROJECTS", [])}
 BILLABLE_MAX_HOURS = 4
 BILLABLE_WEEKS_SHOWN = 12  # /weeks : nombre de semaines les plus récentes affichées
 HOURS_PER_DAY = 8  # un jour facturé = 8 h, comme core.data.duration_d
+
+# Pas d'arrondi facturable proposés, en minutes (0 = brut, hors liste). Chaque
+# tâche est montée au multiple supérieur ; 15 est celui de l'export ODS.
+# L'ordre est celui d'affichage des cases, du plus fin au plus grossier.
+ROUND_STEPS = (6, 10, 12, 15)
 
 # /months : une ligne par semaine, N semaines par page (?n=), pagination par ?p=.
 # 200 semaines de recul maximum : les données commencent en sept. 2022, soit 201
@@ -285,11 +290,19 @@ def _row_is_billable(row):
     return project in BILLABLE_PROJECTS
 
 
-def billable_minutes(rows, day, quantize=False):
-    """Billable minutes for `day`. When `quantize`, reproduces the ODS export
-    rounding (`timer report --view ods`): group rows by (project, task), then
-    ceil each group up to the next quarter-hour (15 min) before summing. Without
-    it, returns the raw sum (grouping is transparent then)."""
+def _round_up(minutes, step):
+    """`minutes` rounded up to the next multiple of `step`; `step` 0 means raw."""
+    if not step:
+        return minutes
+    return -(-minutes // step) * step
+
+
+def billable_minutes(rows, day, step=0):
+    """Billable minutes for `day`. When `step`, reproduces the ODS export
+    rounding (`timer report --view ods`) at that granularity: group rows by
+    (project, task), then ceil each group up to the next multiple of `step`
+    minutes before summing. With `step` 0, returns the raw sum (grouping is
+    transparent then)."""
     by_task = {}
     for row in rows:
         if row.get("date") != day:
@@ -298,9 +311,7 @@ def billable_minutes(rows, day, quantize=False):
             continue
         key = (row.get("project"), row.get("task"))
         by_task[key] = by_task.get(key, 0) + int(row.get("minutes") or 0)
-    if quantize:
-        return sum(-(-m // 15) * 15 for m in by_task.values())
-    return sum(by_task.values())
+    return sum(_round_up(m, step) for m in by_task.values())
 
 
 def billable_hours(day=None):
@@ -349,13 +360,13 @@ def future_day_labels(monday, today=None):
     }
 
 
-def billable_hours_for_days(monday, last_day, rows, quantize=False):
+def billable_hours_for_days(monday, last_day, rows, step=0):
     """Billable hours per day from `last_day` down to `monday` (most recent
     first), as (day_label, hours) pairs."""
     days = []
     day = last_day
     while day >= monday:
-        hours = billable_minutes(rows, day.strftime("%Y%m%d"), quantize=quantize) / 60
+        hours = billable_minutes(rows, day.strftime("%Y%m%d"), step=step) / 60
         days.append((day_label(day), hours))
         day -= timedelta(days=1)
     return days
@@ -370,7 +381,7 @@ def billable_hours_for_week(today=None):
     return billable_hours_for_days(monday, today, _read_csv_rows(CSV_PATH))
 
 
-def recent_weeks(today=None, count=BILLABLE_WEEKS_SHOWN, page=0, quantize=False):
+def recent_weeks(today=None, count=BILLABLE_WEEKS_SHOWN, page=0, step=0):
     """The `count` most recent weeks, most recent first, as
     (monday, sunday, billable_days, activity_days) tuples — billable hours and
     per-project activity per day, most recent first. Every week spans
@@ -391,7 +402,7 @@ def recent_weeks(today=None, count=BILLABLE_WEEKS_SHOWN, page=0, quantize=False)
         billable, activity, day = [], [], last_day
         while day >= monday:
             key, label = day.strftime("%Y%m%d"), day_label(day)
-            billable.append((label, billable_minutes(rows, key, quantize=quantize) / 60))
+            billable.append((label, billable_minutes(rows, key, step=step) / 60))
             activity.append((label, activity_by_project(rows, key)))
             day -= timedelta(days=1)
         weeks.append((monday, sunday, billable, activity))
@@ -400,7 +411,7 @@ def recent_weeks(today=None, count=BILLABLE_WEEKS_SHOWN, page=0, quantize=False)
     return weeks
 
 
-def recent_week_totals(today=None, n=MONTH_WEEKS_SHOWN, page=0, quantize=False):
+def recent_week_totals(today=None, n=MONTH_WEEKS_SHOWN, page=0, step=0):
     """The `n` most recent weeks, most recent first, as
     (monday, sunday, label, billable_hours, {prefix: minutes}) tuples — one row
     per week instead of one per day (/months). The current week stops at `today`;
@@ -421,7 +432,7 @@ def recent_week_totals(today=None, n=MONTH_WEEKS_SHOWN, page=0, quantize=False):
         minutes, activity, day = 0, {}, monday
         while day <= last_day:
             key = day.strftime("%Y%m%d")
-            minutes += billable_minutes(rows, key, quantize=quantize)
+            minutes += billable_minutes(rows, key, step=step)
             for prefix, mins in activity_by_project(rows, key).items():
                 activity[prefix] = activity.get(prefix, 0) + mins
             day += timedelta(days=1)
@@ -952,10 +963,10 @@ def _subproject(project):
     return (project or "").strip().lower().partition("_")[2]
 
 
-def project_minutes_by_subproject(rows, prefix, since, quantize=False):
+def project_minutes_by_subproject(rows, prefix, since, step=0):
     """{sous-projet: minutes} du projet `prefix`, postérieures au jour `since`,
-    exclu. Avec `quantize`, arrondit chaque (jour, projet, tâche) au quart
-    d'heure supérieur avant de sommer, comme billable_minutes().
+    exclu. Avec `step`, arrondit chaque (jour, projet, tâche) au multiple de
+    `step` minutes supérieur avant de sommer, comme billable_minutes().
 
     Chaque (jour, projet, tâche) appartient à un seul sous-projet : la somme des
     valeurs est donc exactement le total de project_minutes_since(), arrondi
@@ -972,38 +983,36 @@ def project_minutes_by_subproject(rows, prefix, since, quantize=False):
         by_task[key] = by_task.get(key, 0) + int(row.get("minutes") or 0)
     totals = {}
     for (_, project, _), minutes in by_task.items():
-        if quantize:
-            minutes = -(-minutes // 15) * 15
         sub = _subproject(project)
-        totals[sub] = totals.get(sub, 0) + minutes
+        totals[sub] = totals.get(sub, 0) + _round_up(minutes, step)
     return totals
 
 
-def project_minutes_since(rows, prefix, since, quantize=False):
+def project_minutes_since(rows, prefix, since, step=0):
     """Minutes du projet `prefix` postérieures au jour `since`, exclu."""
     return sum(
-        project_minutes_by_subproject(rows, prefix, since, quantize=quantize).values()
+        project_minutes_by_subproject(rows, prefix, since, step=step).values()
     )
 
 
-def project_amounts(rows, quantize=False):
+def project_amounts(rows, step=0):
     """(préfixe, jours, montant_eur, derniere_facture) pour chaque projet tarifé,
     dans l'ordre de _ordered_projects()."""
     billing = _project_billing_config()
     amounts = []
     for prefix in _ordered_projects(billing):
         tjm, since = billing[prefix]
-        minutes = project_minutes_since(rows, prefix, since, quantize=quantize)
+        minutes = project_minutes_since(rows, prefix, since, step=step)
         days = minutes / 60 / HOURS_PER_DAY
         amounts.append((prefix, days, days * tjm, since))
     return amounts
 
 
-def project_subamounts(rows, prefix, tjm, since, quantize=False):
+def project_subamounts(rows, prefix, tjm, since, step=0):
     """(sous-projet, jours, montant_eur) par sous-projet de `prefix`, du plus
     consommé au moins consommé. Vide quand le projet n'a qu'un sous-projet : la
     ligne projet dit déjà tout, /projects n'affiche alors pas de détail."""
-    totals = project_minutes_by_subproject(rows, prefix, since, quantize=quantize)
+    totals = project_minutes_by_subproject(rows, prefix, since, step=step)
     if len(totals) < 2:
         return []
     subs = []
@@ -1347,16 +1356,33 @@ def _menu_bar(prefix, active):
     return f'<nav class="menubar">{links}</nav>'
 
 
-def _round_toggle_html(enabled):
-    """Checkbox toggling the 1/4h billable rounding. Stores its state in a
-    `round` cookie (path=/) so it carries across /live and /weeks, then reloads
-    to re-render the server-side charts with the new setting."""
-    checked = " checked" if enabled else ""
+ROUND_CHOICES = ((0, "brut"),) + tuple((s, f"{s}'") for s in ROUND_STEPS)
+
+
+def _round_choice_html(step):
+    """Cases exclusives choisissant le pas d'arrondi facturable (0 = brut).
+    L'état vit dans le cookie `round` (path=/) pour suivre d'une page à l'autre,
+    puis recharge afin que les graphes rendus côté serveur soient recalculés.
+
+    Des cases à cocher au comportement de boutons radio, avec retour à « brut » :
+    cocher une case décoche les autres, décocher la case active retombe sur
+    « brut ». Le jeu de cases est réglé à la main avant le rechargement, pour que
+    l'affichage soit juste dès le clic et non au retour du serveur."""
+    boxes = []
+    for value, label in ROUND_CHOICES:
+        checked = " checked" if value == step else ""
+        boxes.append(
+            f'<label><input type="checkbox" value="{value}"{checked} onchange="'
+            f"var v=this.checked?{value}:0;"
+            "this.closest('.roundtoggle').querySelectorAll('input')"
+            ".forEach(function(i){i.checked=i.value==v});"
+            "document.cookie='round='+v+';path=/;max-age=31536000';"
+            'location.reload()">'
+            f" {label}</label>"
+        )
     return (
-        '<label class="roundtoggle" title="Arrondir chaque tâche facturable au quart d\'heure supérieur (comme l\'export ODS)">'
-        '<input type="checkbox"' + checked + " "
-        "onchange=\"document.cookie='round='+(this.checked?1:0)+';path=/;max-age=31536000';location.reload()\">"
-        " arrondi 1/4h</label>"
+        '<div class="roundtoggle" title="Arrondir chaque tâche facturable au pas'
+        " choisi ; l'export ODS utilise 15'\">arrondi " + "".join(boxes) + "</div>"
     )
 
 
@@ -1421,6 +1447,7 @@ LIVE_HTML = """<!doctype html>
   .weeknav .week-label {{ color: #fff; font-weight: 700; text-transform: uppercase; font-size: .8rem; margin: 0 auto; }}
   .roundtoggle {{ display: inline-flex; align-items: center; gap: .4rem; color: #bbb;
     font-size: .8rem; text-transform: uppercase; margin-bottom: 1.5rem; cursor: pointer; }}
+  .roundtoggle label {{ display: inline-flex; align-items: center; gap: .15rem; cursor: pointer; }}
   .roundtoggle input {{ accent-color: #3987e5; cursor: pointer; }}
   /* posé à côté de l'interrupteur d'arrondi, dont le total dépend */
   .totalbox {{ display: inline-flex; align-items: center; gap: .4rem; margin-left: 1rem;
@@ -1434,7 +1461,7 @@ LIVE_HTML = """<!doctype html>
 <body>
 {menu}
 {nav}
-{round_toggle}
+{round_choice}
 <span class="totalbox">à facturer :
   <strong id="billable-total">{billable_total}</strong></span>
 
@@ -1554,6 +1581,7 @@ WEEKS_HTML = """<!doctype html>
     font-size: .8rem; text-align: center; margin: 0 auto; }}
   .roundtoggle {{ display: inline-flex; align-items: center; gap: .4rem; color: #bbb;
     font-size: .8rem; text-transform: uppercase; margin-bottom: 1.2rem; cursor: pointer; }}
+  .roundtoggle label {{ display: inline-flex; align-items: center; gap: .15rem; cursor: pointer; }}
   .roundtoggle input {{ accent-color: #3987e5; cursor: pointer; }}
   .ver {{ color: #666; font-size: .7rem; margin-top: 2rem; }}
 </style>
@@ -1561,7 +1589,7 @@ WEEKS_HTML = """<!doctype html>
 <body>
 {menu}
 {nav}
-{round_toggle}
+{round_choice}
 <div id="legend">{legend}</div>
 {blocks}
 {nav}
@@ -1597,6 +1625,7 @@ MONTH_HTML = """<!doctype html>
     font-size: .8rem; text-align: center; margin: 0 auto; background: none; padding: 0; }}
   .roundtoggle {{ display: inline-flex; align-items: center; gap: .4rem; color: #bbb;
     font-size: .8rem; text-transform: uppercase; margin-bottom: 1.2rem; cursor: pointer; }}
+  .roundtoggle label {{ display: inline-flex; align-items: center; gap: .15rem; cursor: pointer; }}
   .roundtoggle input {{ accent-color: #3987e5; cursor: pointer; }}
   .ver {{ color: #666; font-size: .7rem; margin-top: 2rem; }}
 </style>
@@ -1604,7 +1633,7 @@ MONTH_HTML = """<!doctype html>
 <body>
 {menu}
 {nav}
-{round_toggle}
+{round_choice}
 <div class="week-charts">{charts}</div>
 <div id="legend">{legend}</div>
 <footer class="ver">v{version}</footer>
@@ -1728,6 +1757,7 @@ PROJECTS_HTML = """<!doctype html>
   .menubar a.active {{ background: #3987e5; color: #fff; }}
   .roundtoggle {{ display: inline-flex; align-items: center; gap: .4rem; color: #bbb;
     font-size: .8rem; text-transform: uppercase; margin-bottom: 1.2rem; cursor: pointer; }}
+  .roundtoggle label {{ display: inline-flex; align-items: center; gap: .15rem; cursor: pointer; }}
   .roundtoggle input {{ accent-color: #3987e5; cursor: pointer; }}
   table {{ border-collapse: collapse; width: 100%; max-width: 40rem; }}
   th {{ text-align: left; color: #999; text-transform: uppercase; font-size: .7rem;
@@ -1753,7 +1783,7 @@ PROJECTS_HTML = """<!doctype html>
 <body>
 {menu}
 <h1>À facturer — cumul depuis la dernière facture</h1>
-{round_toggle}
+{round_choice}
 <table>
   <thead><tr><th>Projet</th><th class="num">Jours</th><th>Dernière facture</th>
   <th class="num">Montant</th></tr></thead>
@@ -1837,7 +1867,7 @@ def live(secret_path):
     wq = f"?w={weeks_back}"
     # rendu ici pour éviter le clignotement avant le premier poll() ; ensuite
     # c'est poll() qui le rafraîchit toutes les 3 s
-    amounts = project_amounts(_read_csv_rows(CSV_PATH), quantize=_quantize_enabled())
+    amounts = project_amounts(_read_csv_rows(CSV_PATH), step=_round_step())
 
     if show_today:
         current_box = '<div id="current-box" class="empty">aucune tâche en cours</div>'
@@ -1862,7 +1892,7 @@ def live(secret_path):
         legend_url=f"{prefix}/activity-legend.svg{wq}",
         menu=_menu_bar(prefix, "live"),
         nav=nav,
-        round_toggle=_round_toggle_html(_quantize_enabled()),
+        round_choice=_round_choice_html(_round_step()),
         billable_total=_format_eur(billable_total(amounts)),
         current_box=current_box,
         version=APP_VERSION,
@@ -1877,9 +1907,18 @@ def _int_arg(name):
         return 0
 
 
-def _quantize_enabled():
-    """Whether the 1/4h billable rounding is active, from the `round` cookie."""
-    return request.cookies.get("round") == "1"
+def _round_step():
+    """Pas d'arrondi facturable en minutes, depuis le cookie `round` ; 0 = brut.
+    Le cookie a longtemps valu 0/1 : un ancien « 1 » vaut donc 15 minutes, pour
+    que les navigateurs déjà réglés ne basculent pas en brut à la mise à jour."""
+    value = request.cookies.get("round", "")
+    if value == "1":
+        return 15
+    try:
+        step = int(value)
+    except ValueError:
+        return 0
+    return step if step in ROUND_STEPS else 0
 
 
 @app.get("/weeks", defaults={"secret_path": ""})
@@ -1889,9 +1928,9 @@ def weeks(secret_path):
         return "not found\n", 404
     prefix = f"/{secret_path.strip('/')}" if secret_path.strip("/") else ""
     page = _int_arg("p")
-    quantize = _quantize_enabled()
+    step = _round_step()
     blocks, prefixes = [], set()
-    for monday, sunday, billable_days, activity_days in recent_weeks(page=page, quantize=quantize):
+    for monday, sunday, billable_days, activity_days in recent_weeks(page=page, step=step):
         for _, totals in activity_days:
             prefixes.update(totals)
         # pas de titre ici : chaque section porte déjà « Semaine du 23 au 29 juin »
@@ -1927,7 +1966,7 @@ def weeks(secret_path):
     return WEEKS_HTML.format(
         menu=_menu_bar(prefix, "weeks"),
         nav=nav,
-        round_toggle=_round_toggle_html(quantize),
+        round_choice=_round_choice_html(step),
         legend=legend,
         blocks="\n".join(blocks),
         version=APP_VERSION,
@@ -1944,9 +1983,9 @@ def months(secret_path):
     n = max(MONTH_MIN_WEEKS, min(n, MONTH_MAX_WEEKS))
     # la fenêtre ne démarre jamais plus de MONTH_MAX_WEEKS semaines en arrière
     page = min(_int_arg("p"), MONTH_MAX_WEEKS // n)
-    quantize = _quantize_enabled()
+    step = _round_step()
 
-    weeks = recent_week_totals(n=n, page=page, quantize=quantize)
+    weeks = recent_week_totals(n=n, page=page, step=step)
     billable_rows = [(label, hours) for _, _, label, hours, _ in weeks]
     activity_rows = [(label, activity) for _, _, label, _, activity in weeks]
     prefixes = set()
@@ -2007,7 +2046,7 @@ def months(secret_path):
         window=_fr_window(weeks),
         menu=_menu_bar(prefix, "month"),
         nav=nav,
-        round_toggle=_round_toggle_html(quantize),
+        round_choice=_round_choice_html(step),
         charts=charts,
         legend=render_activity_legend_svg(_ordered_projects(prefixes)),
         version=APP_VERSION,
@@ -2031,7 +2070,7 @@ def billable_week_svg(secret_path):
     w = _int_arg("w")
     monday, sunday = current_week_bounds(week_anchor(w))
     day_hours = billable_hours_for_days(
-        monday, sunday, _read_csv_rows(CSV_PATH), quantize=_quantize_enabled()
+        monday, sunday, _read_csv_rows(CSV_PATH), step=_round_step()
     )
     highlight = day_label(datetime.now().date()) if w == 0 else None
     current_hours = 0.0
@@ -2118,9 +2157,9 @@ def projects_page(secret_path):
     if SECRET and secret_path.strip("/") != SECRET:
         return "not found\n", 404
     prefix = f"/{secret_path.strip('/')}" if secret_path.strip("/") else ""
-    quantize = _quantize_enabled()
+    step = _round_step()
     rows = _read_csv_rows(CSV_PATH)
-    amounts = project_amounts(rows, quantize=quantize)
+    amounts = project_amounts(rows, step=step)
     billing = _project_billing_config()
     trs = ""
     for project, days, amount, since in amounts:
@@ -2134,7 +2173,7 @@ def projects_page(secret_path):
         )
         tjm, _ = billing[project]
         for sub, sub_days, sub_amount in project_subamounts(
-            rows, project, tjm, since, quantize=quantize
+            rows, project, tjm, since, step=step
         ):
             # sous-projet vide = tâches saisies sur le projet nu, sans « _ »
             label = html.escape(sub) if sub else "—"
@@ -2157,7 +2196,7 @@ def projects_page(secret_path):
         )
     return PROJECTS_HTML.format(
         menu=_menu_bar(prefix, "projects"),
-        round_toggle=_round_toggle_html(quantize),
+        round_choice=_round_choice_html(step),
         rows=trs,
         version=APP_VERSION,
     )
@@ -2224,7 +2263,7 @@ def api_rows(secret_path):
     current = current_task_row() if weeks_back == 0 else None
     # le total est global (« depuis la dernière facture ») : il ne dépend ni du
     # jour affiché ni de la semaine demandée, seulement du cookie d'arrondi
-    amounts = project_amounts(all_rows, quantize=_quantize_enabled())
+    amounts = project_amounts(all_rows, step=_round_step())
     return jsonify({
         "rows": rows,
         "current": current,
