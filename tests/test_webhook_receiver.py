@@ -775,6 +775,23 @@ def test_project_color_skips_the_palette_greys():
     assert webhook_receiver.project_color("proj10") == "#dbdb8d"
 
 
+def test_legend_sits_right_below_round_choice_on_every_page(tmp_path):
+    webhook_receiver.CSV_PATH = str(tmp_path / "pomofocus_webhook.csv")
+    client = webhook_receiver.app.test_client()
+    pages = [
+        ("/weeks", 'class="week-charts"'),
+        ("/months", 'class="week-charts"'),
+        ("/live", 'class="charts-row"'),
+    ]
+    for path, charts in pages:
+        html = client.get(path).get_data(as_text=True)
+        assert (
+            html.index('class="roundtoggle"')
+            < html.index('id="legend"')
+            < html.index(charts)
+        ), path
+
+
 def test_week_chart_puts_the_name_left_and_the_date_right_against_the_bar():
     svg = webhook_receiver.render_week_svg(
         [("Vendredi 25/07", 1.0)], bar_start=webhook_receiver.DAY_BAR_START_X,

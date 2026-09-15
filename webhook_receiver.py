@@ -38,7 +38,7 @@ CSV_COLUMNS = ["date", "project", "task", "minutes", "startTime", "endTime"]
 EXPORT_TYPES = {"finish", "pause"}
 SECRET = os.environ.get("WEBHOOK_SECRET", "").strip("/")
 PORT = int(os.environ.get("WEBHOOK_PORT", "5000"))
-APP_VERSION = "0.16.0"  # affiché en pied de page (miroir de pyproject.toml)
+APP_VERSION = "0.17.0"  # affiché en pied de page (miroir de pyproject.toml)
 
 BILLABLE_PROJECTS = {p.lower() for p in _config.get("BILLABLE_PROJECTS", [])}
 BILLABLE_MAX_HOURS = 4
@@ -1437,9 +1437,7 @@ LIVE_HTML = """<!doctype html>
   .charts-row {{ display: flex; flex-wrap: wrap; gap: 1rem; margin-bottom: 1rem;
     align-items: flex-start; justify-content: center; }}
   .charts-row img {{ max-width: 100%; }}
-  /* légende alignée sous la colonne activité (largeur graphe 640 + gap 1rem) */
-  #legend {{ display: block; max-width: 100%; margin: .3rem 0 1.5rem calc(640px + 1rem); }}
-  @media (max-width: 1360px) {{ #legend {{ margin-left: 0; }} }}
+  #legend {{ display: block; max-width: 100%; margin: .2rem 0 1.8rem; }}
   a {{ color: #3987e5; text-decoration: none; }}
   .menubar {{ display: flex; gap: .6rem; margin-bottom: 1.5rem; }}
   .menubar a {{ background: #2e2e2b; padding: .4rem .9rem; border-radius: 999px;
@@ -1454,7 +1452,7 @@ LIVE_HTML = """<!doctype html>
   .weeknav svg {{ flex: none; }}
   .weeknav .week-label {{ color: #fff; font-weight: 700; text-transform: uppercase; font-size: .8rem; margin: 0 auto; }}
   .roundtoggle {{ display: inline-flex; align-items: center; gap: .4rem; color: #bbb;
-    font-size: .8rem; text-transform: uppercase; margin-bottom: 1.5rem; cursor: pointer; }}
+    font-size: .8rem; text-transform: uppercase; margin-bottom: 1.2rem; cursor: pointer; }}
   .roundtoggle label {{ display: inline-flex; align-items: center; gap: .15rem; cursor: pointer; }}
   .roundtoggle input {{ accent-color: #3987e5; cursor: pointer; }}
   /* posé à côté de l'interrupteur d'arrondi, dont le total dépend */
@@ -1472,13 +1470,12 @@ LIVE_HTML = """<!doctype html>
 {round_choice}
 <span class="totalbox">à facturer :
   <strong id="billable-total">{billable_total}</strong></span>
+<img id="legend" src="{legend_url}" alt="légende des projets">
 
 <div class="charts-row">
   <img id="week" src="{week_url}" alt="heures facturables par jour de la semaine">
   <img id="week-activity" src="{activity_week_url}" alt="activité de la semaine par projet">
 </div>
-
-<img id="legend" src="{legend_url}" alt="légende des projets">
 
 {current_box}
 
@@ -1644,8 +1641,8 @@ MONTH_HTML = """<!doctype html>
 {menu}
 {nav}
 {round_choice}
-<div class="week-charts">{charts}</div>
 <div id="legend">{legend}</div>
+<div class="week-charts">{charts}</div>
 <footer class="ver">v{version}</footer>
 </body>
 </html>
