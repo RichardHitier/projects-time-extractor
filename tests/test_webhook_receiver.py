@@ -262,17 +262,17 @@ def test_render_week_svg_colors_today():
         [("Dimanche", 0.0), ("Mercredi", 3.0), ("Lundi", 2.0)],
         highlight_label="Mercredi",
     )
-    assert 'stroke="#ffd43b" stroke-width="1.5"' in svg  # jour courant encadré en jaune
+    assert 'stroke="#ffffff" stroke-width="1.5"' in svg  # jour courant encadré en blanc
     assert 'fill="#c3c2b7">Lundi<' in svg                # autres jours inchangés
     plain = webhook_receiver.render_week_svg([("Mercredi", 3.0)])
-    assert "#ffd43b" not in plain
+    assert 'stroke="#ffffff" stroke-width="1.5"' not in plain
 
 
 def test_render_activity_week_svg_colors_today():
     svg = webhook_receiver.render_activity_week_svg(
         [("Mercredi", {"speasy": 60})], highlight_label="Mercredi"
     )
-    assert 'stroke="#ffd43b" stroke-width="1.5"' in svg  # jour courant encadré en jaune
+    assert 'stroke="#ffffff" stroke-width="1.5"' in svg  # jour courant encadré en blanc
 
 
 def test_future_day_labels_covers_days_after_today():
@@ -302,7 +302,7 @@ def test_billable_week_route_shows_full_week_and_colors_today(tmp_path):
     # semaine complète : 1 barre/jour lun..dim (hauteur 22 ; la barre d'en-tête
     # est plus haute). La couleur varie : les jours à venir ont la leur.
     assert svg.count('height="22" rx="5" fill=') == 7
-    assert 'stroke="#ffd43b" stroke-width="1.5"' in svg   # w=0 → jour courant encadré en jaune
+    assert 'stroke="#ffffff" stroke-width="1.5"' in svg   # w=0 → jour courant encadré en blanc
 
 
 def test_billable_week_svg_route_returns_svg(tmp_path):
@@ -753,8 +753,26 @@ def test_api_rows_past_week_reports_no_current_task(tmp_path):
         webhook_receiver.CURRENT_TASK = None
 
 
+def test_api_rows_current_task_carries_its_project_color(tmp_path):
+    webhook_receiver.CSV_PATH = str(tmp_path / "pomofocus_webhook.csv")
+    webhook_receiver.CURRENT_TASK = {
+        "date": "20260701", "project": "proj26_sub", "task": "t", "start_ms": 1,
+    }
+    client = webhook_receiver.app.test_client()
+    try:
+        assert client.get("/api/rows").get_json()["current"]["color"] == "#bcbd22"
+    finally:
+        webhook_receiver.CURRENT_TASK = None
+
+
 def test_day_label_carries_weekday_and_date():
     assert webhook_receiver.day_label(date(2026, 7, 25)) == "Samedi 25/07"
+
+
+def test_project_color_skips_the_palette_greys():
+    # proj26 / proj10 hash onto the tab20 grey slots 14 / 15
+    assert webhook_receiver.project_color("proj26") == "#bcbd22"
+    assert webhook_receiver.project_color("proj10") == "#dbdb8d"
 
 
 def test_week_chart_puts_the_name_left_and_the_date_right_against_the_bar():

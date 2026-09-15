@@ -38,7 +38,7 @@ CSV_COLUMNS = ["date", "project", "task", "minutes", "startTime", "endTime"]
 EXPORT_TYPES = {"finish", "pause"}
 SECRET = os.environ.get("WEBHOOK_SECRET", "").strip("/")
 PORT = int(os.environ.get("WEBHOOK_PORT", "5000"))
-APP_VERSION = "0.15.0"  # affiché en pied de page (miroir de pyproject.toml)
+APP_VERSION = "0.16.0"  # affiché en pied de page (miroir de pyproject.toml)
 
 BILLABLE_PROJECTS = {p.lower() for p in _config.get("BILLABLE_PROJECTS", [])}
 BILLABLE_MAX_HOURS = 4
@@ -713,9 +713,10 @@ def _month_labels_svg(groups, top, row_h, row_gap, x):
 
 
 def _hl_frame(x, y, w, h, rx=4):
-    """Yellow outline used to flag the current day's label/hours/bar."""
+    """White outline used to flag the current day's label/hours/bar (white, not
+    yellow: yellow is speasy's project color, used by the running-task box)."""
     return (f'<rect x="{x:.1f}" y="{y:.1f}" width="{w:.1f}" height="{h:.1f}" '
-            f'rx="{rx}" fill="none" stroke="#ffd43b" stroke-width="1.5"/>')
+            f'rx="{rx}" fill="none" stroke="#ffffff" stroke-width="1.5"/>')
 
 
 def _hatch_pattern(pattern_id, color):
@@ -919,12 +920,19 @@ def _project_prefix(project):
     return (project or "").split("_", 1)[0].strip().lower()
 
 
+# tab20 greys (slots 14, 15) are reserved for the "no running task" state.
+# tab20 pairs a dark and a light shade: jumping 2 slots keeps the shade.
+_PALETTE_GREY_INDICES = (14, 15)
+
+
 def project_color(prefix):
     """Same rule as core.plots._project_color_map: config color when defined,
-    else a stable md5 hash into the tab20+tab20b palette."""
+    else a stable md5 hash into the tab20+tab20b palette, grey slots skipped."""
     if prefix in _PROJECT_CONFIG_COLORS:
         return _PROJECT_CONFIG_COLORS[prefix]
     idx = int(hashlib.md5(prefix.encode()).hexdigest(), 16) % len(ACTIVITY_PALETTE)
+    if idx in _PALETTE_GREY_INDICES:
+        idx += 2
     return ACTIVITY_PALETTE[idx]
 
 
@@ -1513,10 +1521,12 @@ async function poll() {{
   if (box) {{
     if (data.current) {{
       box.className = "";
-      box.innerHTML = `<span class="dot"></span>${{data.current.project}} — ${{data.current.task}}` +
+      box.style.borderColor = data.current.color;
+      box.innerHTML = `<span class="dot" style="background:${{data.current.color}}"></span>${{data.current.project}} — ${{data.current.task}}` +
         `<table><tbody><tr>${{rowHtml(data.current)}}</tr></tbody></table>`;
     }} else {{
       box.className = "empty";
+      box.style.borderColor = "";
       box.textContent = "aucune tâche en cours";
     }}
   }}
@@ -2261,6 +2271,8 @@ def api_rows(secret_path):
     rows = [r for r in all_rows if r["date"] == today]
     rows.sort(key=lambda r: r["startTime"], reverse=True)
     current = current_task_row() if weeks_back == 0 else None
+    if current:
+        current["color"] = project_color(_project_prefix(current["project"]))
     # le total est global (« depuis la dernière facture ») : il ne dépend ni du
     # jour affiché ni de la semaine demandée, seulement du cookie d'arrondi
     amounts = project_amounts(all_rows, step=_round_step())
