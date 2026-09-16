@@ -500,8 +500,8 @@ def render_billable_svg(hours, max_hours=BILLABLE_MAX_HOURS):
     for h in range(1, max_hours):
         tick_x = bar_x + bar_w * h / max_hours
         ticks.append(
-            f'<line x1="{tick_x:.1f}" y1="{bar_y - 4}" x2="{tick_x:.1f}" '
-            f'y2="{bar_y + bar_h + 4}" stroke="#383835" stroke-width="1" opacity=".6"/>'
+            f'<line x1="{tick_x:.1f}" y1="{bar_y}" x2="{tick_x:.1f}" '
+            f'y2="{bar_y + bar_h}" stroke="#5a5a56" stroke-width="1" opacity=".8"/>'
         )
 
     fill_rect = ""
@@ -635,9 +635,9 @@ def _week_header_bar(total_hours, max_hours, value_x, bar_end_x=None, label_x=20
     # `divisions` intervalles égaux : traits internes séparant les graduations
     # (5 intervalles → tous les 4h sur /20h ; tous les 8h sur /40h)
     ticks = "".join(
-        f'<line x1="{bar_x + bar_w * i / divisions:.1f}" y1="{y - 4}" '
-        f'x2="{bar_x + bar_w * i / divisions:.1f}" y2="{y + height + 4}" '
-        f'stroke="#383835" stroke-width="1" opacity=".6"/>'
+        f'<line x1="{bar_x + bar_w * i / divisions:.1f}" y1="{y}" '
+        f'x2="{bar_x + bar_w * i / divisions:.1f}" y2="{y + height}" '
+        f'stroke="#5a5a56" stroke-width="1" opacity=".8"/>'
         for i in range(1, divisions)
     )
     value_text = ""
