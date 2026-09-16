@@ -20,7 +20,7 @@ import hashlib
 import html
 import json
 import os
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from urllib.parse import quote
 
 from flask import Flask, Response, jsonify, redirect, request
@@ -38,7 +38,7 @@ CSV_COLUMNS = ["date", "project", "task", "minutes", "startTime", "endTime"]
 EXPORT_TYPES = {"finish", "pause"}
 SECRET = os.environ.get("WEBHOOK_SECRET", "").strip("/")
 PORT = int(os.environ.get("WEBHOOK_PORT", "5000"))
-APP_VERSION = "0.17.0"  # affiché en pied de page (miroir de pyproject.toml)
+APP_VERSION = "0.18.0"  # affiché en pied de page (miroir de pyproject.toml)
 
 BILLABLE_PROJECTS = {p.lower() for p in _config.get("BILLABLE_PROJECTS", [])}
 BILLABLE_MAX_HOURS = 4
@@ -522,6 +522,65 @@ def render_billable_svg(hours, max_hours=BILLABLE_MAX_HOURS):
 
 
 BILLABLE_WEEK_MAX_HOURS = 20
+
+YEAR_WEEKS_FULL = 52        # /years : vue « 52 semaines », une vraie semaine calendaire par carré
+YEAR_WEEKS_OBJECTIVE = 40   # /years : vue « 40 semaines », jauge d'objectif, un carré = 20h
+YEAR_OBJECTIVE_HOURS = YEAR_WEEKS_OBJECTIVE * BILLABLE_WEEK_MAX_HOURS  # 800h
+
+
+def fiscal_year_bounds(today=None, offset=0):
+    """(année de départ, lundi de départ) de l'année fiscale (1er septembre ->
+    31 août) contenant `today`, décalée de `offset` années (0 = en cours,
+    -1 = précédente...). Le lundi de départ est celui de la semaine du 1er
+    septembre, pas le 1er septembre lui-même."""
+    if today is None:
+        today = datetime.now().date()
+    start_year = today.year if today.month >= 9 else today.year - 1
+    start_year += offset
+    sept1 = date(start_year, 9, 1)
+    start_monday = sept1 - timedelta(days=sept1.weekday())
+    return start_year, start_monday
+
+
+def fiscal_year_week_hours(start_monday, weeks=YEAR_WEEKS_FULL, step=0, today=None):
+    """`weeks` semaines consécutives (lundi..dimanche) à partir de
+    `start_monday`, comme (lundi, dimanche, heures_facturables) — dans l'ordre
+    chronologique. Une semaine dont le dimanche est après `today` s'arrête à
+    `today` (semaine en cours ou future), comme recent_week_totals."""
+    if today is None:
+        today = datetime.now().date()
+    rows = _read_csv_rows(CSV_PATH)
+    result = []
+    monday = start_monday
+    for _ in range(weeks):
+        sunday = monday + timedelta(days=6)
+        last_day = min(sunday, today)
+        minutes, day = 0, monday
+        while day <= last_day:
+            minutes += billable_minutes(rows, day.strftime("%Y%m%d"), step=step)
+            day += timedelta(days=1)
+        result.append((monday, sunday, minutes / 60))
+        monday += timedelta(days=7)
+    return result
+
+
+def year_week_fractions(weeks_hours, threshold=BILLABLE_WEEK_MAX_HOURS):
+    """Vue 52 semaines : une fraction (0..1) par semaine réelle, la part de
+    `threshold` heures faite cette semaine-là."""
+    return [max(0.0, min(1.0, hours / threshold)) for hours in weeks_hours]
+
+
+def year_objective_fractions(total_hours, count=YEAR_WEEKS_OBJECTIVE, threshold=BILLABLE_WEEK_MAX_HOURS):
+    """Vue 40 semaines : jauge d'objectif. Chaque carré vaut `threshold` heures
+    et se remplit dans l'ordre par le cumul de l'année, peu importe la
+    répartition réelle entre les semaines — `count` x `threshold` = l'objectif
+    annuel (40 x 20h = 800h)."""
+    fractions, remaining = [], total_hours
+    for _ in range(count):
+        fractions.append(max(0.0, min(1.0, remaining / threshold)))
+        remaining -= threshold
+    return fractions
+
 
 # Colonne des heures (chiffres à droite des barres) : alignée à droite sur cette
 # abscisse, la même dans les deux graphes de semaine (largeur 640, marge 20) —
@@ -1204,6 +1263,57 @@ def render_activity_week_svg(days, max_hours=ACTIVITY_MAX_HOURS, uid="", highlig
 </svg>"""
 
 
+def render_year_grid_svg(fractions, cols, labels=None, current_index=None, uid=""):
+    """Grille de carrés (/years) : un carré par entrée de `fractions` (0..1),
+    rempli en hauteur proportionnelle (ancré en bas) dans le même bleu
+    (`#3987e5`), qu'il représente une vraie semaine (vue 52) ou un cran de
+    l'objectif (vue 40). Chaque carré porte son numéro (1..N) au-dessus.
+    `current_index` cercle le carré courant d'un liseré blanc (vue 52
+    seulement). `uid` évite les collisions d'id de clipPath si plusieurs
+    grilles cohabitent sur une même page."""
+    cell, gap, num_h = 34, 7, 16
+    rows = -(-len(fractions) // cols) if fractions else 0
+    width = cols * (cell + gap) - gap
+    height = max(1, rows * (cell + gap + num_h) - gap)
+    rx = cell * 0.28
+
+    parts = []
+    for i, frac in enumerate(fractions):
+        col, row = i % cols, i // cols
+        x = col * (cell + gap)
+        y = row * (cell + gap + num_h) + num_h
+        title = f"<title>{labels[i]}</title>" if labels else ""
+        parts.append(
+            f'<text x="{x + cell / 2:.1f}" y="{y - 4}" text-anchor="middle" '
+            f'font-family="system-ui, sans-serif" font-size="10" fill="#666">{i + 1}</text>'
+        )
+        parts.append(
+            f'<rect x="{x}" y="{y}" width="{cell}" height="{cell}" rx="{rx:.1f}" '
+            f'fill="#2e2e2b">{title}</rect>'
+        )
+        frac = max(0.0, min(1.0, frac))
+        if frac > 0:
+            clip_id = f"yg{uid}-{i}"
+            fh = cell * frac
+            fy = y + (cell - fh)
+            parts.append(
+                f'<clipPath id="{clip_id}"><rect x="{x}" y="{y}" width="{cell}" '
+                f'height="{cell}" rx="{rx:.1f}"/></clipPath>'
+                f'<rect x="{x}" y="{fy:.2f}" width="{cell}" height="{fh:.2f}" '
+                f'fill="#3987e5" clip-path="url(#{clip_id})"/>'
+            )
+        if current_index == i:
+            parts.append(
+                f'<rect x="{x}" y="{y}" width="{cell}" height="{cell}" rx="{rx:.1f}" '
+                f'fill="none" stroke="#ffffff" stroke-width="2"/>'
+            )
+
+    return (
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" '
+        f'viewBox="0 0 {width} {height}">{"".join(parts)}</svg>'
+    )
+
+
 def render_activity_legend_svg(prefixes):
     """Horizontal legend (swatch + project name) in the given order, wrapping
     past the two-chart width."""
@@ -1344,13 +1454,14 @@ def render_swimlane_svg(days):
 
 
 def _menu_bar(prefix, active):
-    """Shared top navigation across /live, /weeks, /months, /swimlane, /rows and
-    /projects. `active` is one of 'live' | 'weeks' | 'month' | 'swimlane' |
-    'rows' | 'projects' and gets the highlighted pill."""
+    """Shared top navigation across /live, /weeks, /months, /years, /swimlane,
+    /rows and /projects. `active` is one of 'live' | 'weeks' | 'month' |
+    'years' | 'swimlane' | 'rows' | 'projects' and gets the highlighted pill."""
     items = [
         ("live", "Live", f"{prefix}/live"),
         ("weeks", "Semaines", f"{prefix}/weeks"),
         ("month", "Mois", f"{prefix}/months"),
+        ("years", "Années", f"{prefix}/years"),
         ("swimlane", "Swimlane", f"{prefix}/swimlane"),
         ("rows", "Lignes", f"{prefix}/rows"),
         ("projects", "Projets", f"{prefix}/projects"),
@@ -1600,6 +1711,77 @@ WEEKS_HTML = """<!doctype html>
 <div id="legend">{legend}</div>
 {blocks}
 {nav}
+<footer class="ver">v{version}</footer>
+</body>
+</html>
+"""
+
+
+YEARS_HTML = """<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Année {year_label}</title>
+<style>
+  body {{ font-family: system-ui, sans-serif; margin: 2rem; background: #111; color: #eee; }}
+  a {{ color: #3987e5; text-decoration: none; }}
+  .menubar {{ display: flex; gap: .6rem; margin-bottom: 1.5rem; flex-wrap: wrap; }}
+  .menubar a {{ background: #2e2e2b; padding: .4rem .9rem; border-radius: 999px;
+    text-transform: uppercase; font-size: .8rem; color: #bbb; transition: background .15s ease; }}
+  .menubar a:hover {{ background: #3c3c37; }}
+  .menubar a.active {{ background: #3987e5; color: #fff; }}
+  .weeknav {{ display: flex; align-items: center; justify-content: center; gap: .6rem;
+    flex-wrap: wrap; margin: 0 0 .9rem; }}
+  .weeknav a, .weeknav .disabled {{ display: inline-flex; align-items: center; background: #2e2e2b;
+    padding: .35rem .8rem; border-radius: 999px; transition: background .15s ease; font-size: .78rem; }}
+  .weeknav a:hover {{ background: #3c3c37; }}
+  .weeknav .disabled {{ color: #555; }}
+  .weeknav .nav-title {{ color: #fff; font-weight: 700; text-transform: uppercase;
+    font-size: .8rem; text-align: center; min-width: 16ch; }}
+  .modetoggle {{ display: flex; justify-content: flex-start; align-items: center; gap: .4rem;
+    margin-bottom: 1.5rem; flex-wrap: wrap; }}
+  .modetoggle a {{ padding: .3rem .8rem; border-radius: 999px; font-size: .75rem; color: #bbb;
+    background: #2e2e2b; }}
+  .modetoggle a.active {{ background: #3987e5; color: #fff; }}
+  .modetoggle .hint {{ color: #666; font-size: .72rem; }}
+  .layout-row {{ display: flex; align-items: flex-start; gap: 1.6rem; flex-wrap: wrap; margin-bottom: 1.1rem; }}
+  .grid-col {{ display: flex; flex-direction: column; gap: .6rem; flex: none; }}
+  .grid-col svg {{ display: block; max-width: 100%; height: auto; }}
+  .progress-wrap {{ width: 100%; }}
+  .progress-track {{ background: #2e2e2b; border-radius: 999px; height: 11px; overflow: hidden; }}
+  .progress-fill {{ background: #3987e5; height: 100%; border-radius: 999px; }}
+  .progress-label {{ display: flex; justify-content: space-between; font-size: .72rem; color: #bbb; margin-top: .35rem; }}
+  .progress-label strong {{ color: #fff; font-variant-numeric: tabular-nums; }}
+  .stats-col {{ display: flex; flex-direction: column; gap: .55rem; padding-top: .4rem; min-width: 150px; }}
+  .stats-col .row {{ display: flex; flex-direction: column; }}
+  .stats-col .label {{ color: #666; font-size: .68rem; text-transform: uppercase; letter-spacing: .04em; }}
+  .stats-col .value {{ color: #fff; font-size: 1.05rem; font-weight: 700; font-variant-numeric: tabular-nums; }}
+  .stats-col .value small {{ color: #999; font-size: .65rem; font-weight: 500; }}
+  .legend {{ display: flex; gap: .9rem; flex-wrap: wrap; margin-top: .9rem; font-size: .75rem; color: #999; }}
+  .legend .sw {{ width: 9px; height: 9px; border-radius: 2px; display: inline-block; margin-right: .35em; }}
+  .legend .sw.cur {{ border: 2px solid #fff; background: transparent; width: 5px; height: 5px; }}
+  .ver {{ color: #666; font-size: .7rem; margin-top: 2rem; }}
+</style>
+</head>
+<body>
+{menu}
+<div class="weeknav">{nav}</div>
+<div class="modetoggle">{mode_toggle}</div>
+<div class="layout-row">
+  <div class="grid-col">
+    {grid}
+    <div class="progress-wrap">
+      <div class="progress-track"><div class="progress-fill" style="width:{pct}%"></div></div>
+      <div class="progress-label"><span>{hours} / {objective}h</span><strong>{pct}&nbsp;%</strong></div>
+    </div>
+  </div>
+  <div class="stats-col">
+    <div class="row"><span class="label">Semaines pleines</span><span class="value">{full} / {count}</span></div>
+    <div class="row"><span class="label">Heures cumulées</span><span class="value">{hours} <small>/ {objective}h</small></span></div>
+    <div class="row"><span class="label">Jours facturables</span><span class="value">{days} / {objective_days}</span></div>
+  </div>
+</div>
+<div class="legend">{legend}</div>
 <footer class="ver">v{version}</footer>
 </body>
 </html>
@@ -1914,6 +2096,15 @@ def _int_arg(name):
         return 0
 
 
+def _signed_int_arg(name):
+    """Query param `name` as an int, 0 if missing or invalid — negative values
+    allowed (/years : reculer d'années, contrairement à _int_arg)."""
+    try:
+        return int(request.args.get(name, 0))
+    except (TypeError, ValueError):
+        return 0
+
+
 def _round_step():
     """Pas d'arrondi facturable en minutes, depuis le cookie `round` ; 0 = brut.
     Le cookie a longtemps valu 0/1 : un ancien « 1 » vaut donc 15 minutes, pour
@@ -2056,6 +2247,100 @@ def months(secret_path):
         round_choice=_round_choice_html(step),
         charts=charts,
         legend=render_activity_legend_svg(_ordered_projects(prefixes)),
+        version=APP_VERSION,
+    )
+
+
+@app.get("/years", defaults={"secret_path": ""})
+@app.get("/<path:secret_path>/years")
+def years(secret_path):
+    if SECRET and secret_path.strip("/") != SECRET:
+        return "not found\n", 404
+    prefix = f"/{secret_path.strip('/')}" if secret_path.strip("/") else ""
+    offset = _signed_int_arg("y")
+    mode = _int_arg("n") or YEAR_WEEKS_OBJECTIVE
+    mode = mode if mode == YEAR_WEEKS_FULL else YEAR_WEEKS_OBJECTIVE
+    step = _round_step()
+
+    today = datetime.now().date()
+    start_year, start_monday = fiscal_year_bounds(today, offset=offset)
+    current_start_year, _ = fiscal_year_bounds(today)
+    is_current_year = start_year == current_start_year
+
+    weeks = fiscal_year_week_hours(start_monday, weeks=YEAR_WEEKS_FULL, step=step, today=today)
+    total_hours = sum(hours for _, _, hours in weeks)
+
+    current_index = None
+    if is_current_year and mode == YEAR_WEEKS_FULL:
+        for i, (monday, sunday, _) in enumerate(weeks):
+            if monday <= today <= sunday:
+                current_index = i
+                break
+
+    if mode == YEAR_WEEKS_FULL:
+        cols = 13
+        fractions = year_week_fractions([hours for _, _, hours in weeks])
+        labels = [f"S{i + 1} : {_format_hm(hours)}" for i, (_, _, hours) in enumerate(weeks)]
+    else:
+        cols = 8
+        fractions = year_objective_fractions(total_hours)
+        labels = [f"Carré {i + 1} : {round(f * 100)}%" for i, f in enumerate(fractions)]
+
+    grid = render_year_grid_svg(fractions, cols, labels=labels, current_index=current_index)
+    full = sum(1 for f in fractions if f >= 1)
+
+    prev_year = (
+        f'<a href="{prefix}/years?y={offset - 1}&n={mode}">{_CHEVRON_LEFT}{start_year - 1}-{start_year}</a>'
+    )
+    next_year = (
+        f'<span class="disabled">{start_year + 1}-{start_year + 2}{_CHEVRON_RIGHT}</span>'
+        if is_current_year
+        else f'<a href="{prefix}/years?y={offset + 1}&n={mode}">{start_year + 1}-{start_year + 2}{_CHEVRON_RIGHT}</a>'
+    )
+    year_label = f"{start_year}-{start_year + 1}"
+    nav = f'{prev_year}<span class="nav-title">Année {year_label}</span>{next_year}'
+
+    def mode_link(value, text):
+        cls = " class=\"active\"" if mode == value else ""
+        return f'<a href="{prefix}/years?y={offset}&n={value}"{cls}>{text}</a>'
+
+    mode_toggle = (
+        f'{mode_link(YEAR_WEEKS_OBJECTIVE, "40 semaines")}'
+        f'{mode_link(YEAR_WEEKS_FULL, "52 semaines")}'
+        f'<span class="hint">'
+        f'{"chaque carré = 20h, objectif 800h" if mode == YEAR_WEEKS_OBJECTIVE else "heures réelles, une semaine calendaire par carré"}'
+        f'</span>'
+    )
+
+    if mode == YEAR_WEEKS_OBJECTIVE:
+        legend = (
+            '<span><span class="sw" style="background:#2e2e2b"></span>vide</span>'
+            '<span><span class="sw" style="background:linear-gradient(90deg,#3987e5 50%,#2e2e2b 50%)"></span>carré partiel (reste &lt; 20h)</span>'
+            '<span><span class="sw" style="background:#3987e5"></span>carré plein (20h)</span>'
+        )
+    else:
+        legend = (
+            '<span><span class="sw" style="background:#2e2e2b"></span>0 h</span>'
+            '<span><span class="sw" style="background:linear-gradient(90deg,#3987e5 50%,#2e2e2b 50%)"></span>1–19 h</span>'
+            '<span><span class="sw" style="background:#3987e5"></span>&#8805; 20 h</span>'
+            '<span><span class="sw cur"></span>semaine en cours</span>'
+        )
+
+    pct = min(100, round(100 * total_hours / YEAR_OBJECTIVE_HOURS)) if YEAR_OBJECTIVE_HOURS else 0
+    return YEARS_HTML.format(
+        year_label=year_label,
+        menu=_menu_bar(prefix, "years"),
+        nav=nav,
+        mode_toggle=mode_toggle,
+        grid=grid,
+        full=full,
+        count=len(fractions),
+        hours=_format_hm(total_hours),
+        objective=YEAR_OBJECTIVE_HOURS,
+        days=round(total_hours / HOURS_PER_DAY),
+        objective_days=round(YEAR_OBJECTIVE_HOURS / HOURS_PER_DAY),
+        pct=pct,
+        legend=legend,
         version=APP_VERSION,
     )
 

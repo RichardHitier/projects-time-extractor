@@ -1096,3 +1096,87 @@ def test_billable_total_on_live_follows_the_rounding_cookie(tmp_path, monkeypatc
     client.set_cookie("round", "1")
     # 15 min = 0,03125 j × 540 € = 16,875 € → 17 €
     assert client.get("/api/rows").get_json()["billable_total"] == "17 €"
+
+
+def test_fiscal_year_bounds_starts_on_the_monday_of_september_1st():
+    # 2026-09-16 est dans l'année fiscale qui a démarré le 2026-09-01 (mardi) ;
+    # le lundi de départ est donc le 2026-08-31.
+    start_year, start_monday = webhook_receiver.fiscal_year_bounds(date(2026, 9, 16))
+    assert (start_year, start_monday) == (2026, date(2026, 8, 31))
+
+    # avant le 1er septembre : on est encore dans l'année fiscale précédente
+    start_year, start_monday = webhook_receiver.fiscal_year_bounds(date(2026, 3, 1))
+    assert (start_year, start_monday) == (2025, date(2025, 9, 1))
+
+
+def test_fiscal_year_bounds_offset_shifts_by_whole_years():
+    start_year, _ = webhook_receiver.fiscal_year_bounds(date(2026, 9, 16), offset=-1)
+    assert start_year == 2025
+
+
+def test_fiscal_year_week_hours_sums_a_whole_week_chronologically(tmp_path):
+    csv_path = tmp_path / "pomofocus_webhook.csv"
+    _write_rows(csv_path, [
+        {"date": "20260901", "project": "calipso_iesa", "task": "t",
+         "minutes": "60", "startTime": "10:00", "endTime": "11:00"},
+        {"date": "20260902", "project": "speasy_core", "task": "t",
+         "minutes": "90", "startTime": "10:00", "endTime": "11:30"},
+    ])
+    webhook_receiver.CSV_PATH = str(csv_path)
+
+    weeks = webhook_receiver.fiscal_year_week_hours(
+        date(2026, 8, 31), weeks=2, today=date(2026, 9, 30)
+    )
+
+    assert len(weeks) == 2
+    assert weeks[0] == (date(2026, 8, 31), date(2026, 9, 6), 2.5)  # 60 + 90 min
+    assert weeks[1][0] == date(2026, 9, 7)  # chronologique, pas le plus récent d'abord
+
+
+def test_year_week_fractions_clamp_to_the_weekly_threshold():
+    fractions = webhook_receiver.year_week_fractions([0, 10, 20, 30])
+    assert fractions == [0.0, 0.5, 1.0, 1.0]
+
+
+def test_year_objective_fractions_fill_squares_in_order_regardless_of_distribution():
+    # 170h, seuil 20h : 8 carrés pleins puis un carré à 50 %, le reste vide —
+    # peu importe comment ces 170h se répartissent réellement dans l'année.
+    fractions = webhook_receiver.year_objective_fractions(170, count=10)
+    assert fractions == [1.0] * 8 + [0.5] + [0.0]
+
+
+def test_year_objective_fractions_cap_at_the_objective():
+    fractions = webhook_receiver.year_objective_fractions(9999, count=5)
+    assert fractions == [1.0] * 5
+
+
+def test_years_page_defaults_to_the_40_weeks_objective_gauge(tmp_path):
+    webhook_receiver.CSV_PATH = str(tmp_path / "pomofocus_webhook.csv")
+    client = webhook_receiver.app.test_client()
+
+    page = client.get("/years").get_data(as_text=True)
+
+    assert "40 semaines" in page
+    assert "objectif 800h" in page
+    assert f"/ {webhook_receiver.YEAR_OBJECTIVE_HOURS}h" in page
+
+
+def test_years_page_52_mode_shows_one_square_per_calendar_week(tmp_path):
+    webhook_receiver.CSV_PATH = str(tmp_path / "pomofocus_webhook.csv")
+    client = webhook_receiver.app.test_client()
+
+    page = client.get("/years?n=52").get_data(as_text=True)
+
+    assert page.count("<rect") >= webhook_receiver.YEAR_WEEKS_FULL
+    assert "semaine en cours" in page
+
+
+def test_years_page_next_year_link_is_disabled_on_the_current_fiscal_year(tmp_path):
+    webhook_receiver.CSV_PATH = str(tmp_path / "pomofocus_webhook.csv")
+    client = webhook_receiver.app.test_client()
+
+    page = client.get("/years").get_data(as_text=True)
+
+    assert '<span class="disabled">' in page
+    assert 'href="/years?y=-1&n=40">' in page       # navigation : seul le lien "précédent"
+    assert 'href="/years?y=1&n=40">' not in page     # pas de lien "suivant" sur l'année en cours
