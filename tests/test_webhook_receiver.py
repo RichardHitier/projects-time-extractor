@@ -38,6 +38,54 @@ def test_payload_to_csv_row_exports_pomofocus_like_row():
     }
 
 
+def test_current_task_survives_process_restart(tmp_path, monkeypatch):
+    webhook_receiver.CURRENT_TASK_PATH = str(tmp_path / "current_task.json")
+    monkeypatch.setattr(webhook_receiver, "CURRENT_TASK", None)
+
+    webhook_receiver._update_current_task({
+        "round": "pomodoro",
+        "type": "start",
+        "session_start": 1711962000000,
+        "project": "calipso",
+        "task": "#42 auth: tests",
+    })
+
+    # Simule un redémarrage du process : l'état en mémoire est perdu, seul
+    # le fichier de persistance survit.
+    monkeypatch.setattr(webhook_receiver, "CURRENT_TASK", None)
+    restored = webhook_receiver._load_current_task()
+
+    assert restored == {
+        "date": "20240401",
+        "project": "calipso",
+        "task": "#42 auth: tests",
+        "start_ms": 1711962000000,
+    }
+
+
+def test_current_task_file_removed_once_task_ends(tmp_path, monkeypatch):
+    webhook_receiver.CURRENT_TASK_PATH = str(tmp_path / "current_task.json")
+    monkeypatch.setattr(webhook_receiver, "CURRENT_TASK", None)
+
+    webhook_receiver._update_current_task({
+        "round": "pomodoro",
+        "type": "start",
+        "session_start": 1711962000000,
+        "project": "calipso",
+        "task": "#42 auth: tests",
+    })
+    webhook_receiver._update_current_task({
+        "round": "pomodoro",
+        "type": "finish",
+        "session_start": 1711962000000,
+        "session_end": 1711963500000,
+        "project": "calipso",
+        "task": "#42 auth: tests",
+    })
+
+    assert webhook_receiver._load_current_task() is None
+
+
 def test_upsert_csv_row_keeps_latest_end_time(tmp_path):
     csv_path = tmp_path / "pomofocus_webhook.csv"
 

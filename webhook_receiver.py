@@ -30,6 +30,7 @@ from config import load_config, load_projects
 _config = load_config()
 DATA_DIR = _config["DATA_DIR"]
 LOG_PATH = os.path.join(DATA_DIR, "webhook_log.jsonl")
+CURRENT_TASK_PATH = os.path.join(DATA_DIR, "current_task.json")
 CSV_PATH = os.environ.get(
     "POMOFOCUS_WEBHOOK_CSV",
     os.path.join(DATA_DIR, "pomofocus_webhook.csv"),
@@ -38,7 +39,7 @@ CSV_COLUMNS = ["date", "project", "task", "minutes", "startTime", "endTime"]
 EXPORT_TYPES = {"finish", "pause"}
 SECRET = os.environ.get("WEBHOOK_SECRET", "").strip("/")
 PORT = int(os.environ.get("WEBHOOK_PORT", "5000"))
-APP_VERSION = "0.18.0"  # affiché en pied de page (miroir de pyproject.toml)
+APP_VERSION = "0.19.0"  # affiché en pied de page (miroir de pyproject.toml)
 
 BILLABLE_PROJECTS = {p.lower() for p in _config.get("BILLABLE_PROJECTS", [])}
 BILLABLE_MAX_HOURS = 4
@@ -75,7 +76,7 @@ app = Flask(__name__)
 
 # Tâche en cours (trame "start" pas encore suivie de "pause"/"finish").
 # Process gunicorn à un seul worker (-w 1) : pas de souci de cohérence entre workers.
-CURRENT_TASK = None
+# Persistée dans CURRENT_TASK_PATH pour survivre à un redémarrage du process.
 
 
 def _from_epoch_ms(value):
@@ -248,6 +249,28 @@ def _write_event(event):
         f.write(line + "\n")
 
 
+def _save_current_task():
+    if CURRENT_TASK is None:
+        if os.path.exists(CURRENT_TASK_PATH):
+            os.remove(CURRENT_TASK_PATH)
+        return
+    with open(CURRENT_TASK_PATH, "w", encoding="utf-8") as f:
+        json.dump(CURRENT_TASK, f)
+
+
+def _load_current_task():
+    if not os.path.exists(CURRENT_TASK_PATH):
+        return None
+    try:
+        with open(CURRENT_TASK_PATH, encoding="utf-8") as f:
+            return json.load(f)
+    except (json.JSONDecodeError, OSError):
+        return None
+
+
+CURRENT_TASK = _load_current_task()
+
+
 def _update_current_task(payload):
     global CURRENT_TASK
     if not isinstance(payload, dict) or payload.get("round") != "pomodoro":
@@ -265,8 +288,10 @@ def _update_current_task(payload):
             "task": payload.get("task", ""),
             "start_ms": session_start,
         }
+        _save_current_task()
     elif event_type in EXPORT_TYPES:
         CURRENT_TASK = None
+        _save_current_task()
 
 
 def current_task_row():
