@@ -1417,7 +1417,7 @@ def render_swimlane_svg(days):
     """Gantt-style swimlane: one row per day (most recent first), colored bars
     positioned by hour of day (6h→24h), same dark theme as the activity charts.
     Reuses project_color so colors match /activity."""
-    width = 960
+    width = 1020
     label_x, bar_x, bar_w = 20, 100, 840
     hmin, hmax = SWIMLANE_HOUR_MIN, SWIMLANE_HOUR_MAX
     span = hmax - hmin
@@ -1439,6 +1439,12 @@ def render_swimlane_svg(days):
         tracks.append(
             f'<text x="{label_x}" y="{y + row_h - 7}" font-family="monospace" '
             f'font-size="12" fill="{label_fill}">{label}</text>'
+        )
+        total_minutes = sum(minutes for _, _, minutes, _ in sessions)
+        total_h, total_m = divmod(total_minutes, 60)
+        tracks.append(
+            f'<text x="{bar_x + bar_w + 12}" y="{y + row_h - 7}" font-family="monospace" '
+            f'font-size="12" fill="{label_fill}">{total_h}:{total_m:02d}</text>'
         )
         for start_h, end_h, minutes, prefix in sessions:
             x0, x1 = hx(start_h), hx(end_h)
