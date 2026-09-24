@@ -200,14 +200,14 @@ def cmd_eighty_bars(args):
         print(f"View '{args.view}' not yet implemented")
 
 
-def cmd_sync(args):
-    print("=== pomo-merge ===")
-    cmd_pomo_merge(argparse.Namespace())
+def cmd_ods_sync(args):
+    print("=== web-sync ===")
+    cmd_web_sync(argparse.Namespace())
 
-    print("\n=== report --view ods ===")
+    print("\n=== report --view ods --input web ===")
     cmd_report(argparse.Namespace(
         view="ods", month=None, since=None, days=7,
-        project=None, all_projects=False, quantize=False, input="pomofocus",
+        project=None, all_projects=False, quantize=False, input="web",
     ))
 
     print("\n=== eighty-hours --write-ods ===")
@@ -222,7 +222,7 @@ def cmd_web_sync(args):
         with urllib.request.urlopen(WEBHOOK_CSV_URL, timeout=30) as resp:
             data = resp.read()
     except urllib.error.URLError as exc:
-        raise SystemExit(f"web_sync failed: {WEBHOOK_CSV_URL}: {exc}")
+        raise SystemExit(f"web-sync failed: {WEBHOOK_CSV_URL}: {exc}")
     with open(dest, "wb") as f:
         f.write(data)
     n_lines = max(data.count(b"\n") - 1, 0)  # minus header
@@ -351,11 +351,13 @@ def build_parser():
     p_eighty_bars.add_argument("--show", action="store_true")
     p_eighty_bars.set_defaults(func=cmd_eighty_bars)
 
-    p_sync = sub.add_parser("sync", help="pomo-merge + report ods + eighty-hours ods")
-    p_sync.set_defaults(func=cmd_sync)
+    p_ods_sync = sub.add_parser(
+        "ods-sync", help="web-sync + report ods (webhook CSV) + eighty-hours ods"
+    )
+    p_ods_sync.set_defaults(func=cmd_ods_sync)
 
     p_web_sync = sub.add_parser(
-        "web_sync", help="Download webhook CSV → webhook-data/pomofocus_webhook.csv"
+        "web-sync", help="Download webhook CSV → webhook-data/pomofocus_webhook.csv"
     )
     p_web_sync.set_defaults(func=cmd_web_sync)
 

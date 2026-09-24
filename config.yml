@@ -9,7 +9,7 @@ WEBPROD_FILENAME: "web_productivity.json"
 PARQUET_FILENAME: "histories.parquet"
 ODS_FILENAME: "suivi_chantiers.ods"
 
-# Webhook-captured Pomofocus CSV (downloaded by `timer web_sync`, read by
+# Webhook-captured Pomofocus CSV (downloaded by `timer web-sync`, read by
 # `timer report --input web`). Lives in its own dir, separate from DATA/.
 WEBHOOK_DATA_DIR: "webhook-data"
 WEBHOOK_POMOFOCUS_FILENAME: "pomofocus_webhook.csv"

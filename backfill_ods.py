@@ -19,8 +19,8 @@ Deux garde-fous contre les doublons :
   - un jour déjà présent dans le CSV n'est jamais touché — donc ré-exécutable,
     et pas de double comptage avec les jours que le webhook connaît déjà.
 
-Séquence (le CSV local n'est qu'un miroir de la prod, cf. `timer web_sync`) :
-    timer web_sync                                  # pull du CSV de prod
+Séquence (le CSV local n'est qu'un miroir de la prod, cf. `timer web-sync`) :
+    timer web-sync                                  # pull du CSV de prod
     python backfill_ods.py --dry-run                # contrôle
     python backfill_ods.py                          # sauvegarde .bak-<ts>
     python backfill_ods.py --source archive

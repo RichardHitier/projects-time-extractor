@@ -24,7 +24,7 @@ elle démarre.
 | Document | Où il vit | Qui l'écrit | Grain | Source de vérité de |
 |---|---|---|---|---|
 | **Bon de commande client** (PUMA) | chez le client / `administratif_projet/` | client | jours | la **commande** : référence, capital de jours, TJM |
-| **`pomofocus_webhook.csv`** | serveur `timer.co-libri.org`, copie locale `webhook-data/` (`timer web_sync`) | le timer (webhook Pomofocus) | session, agrégé au 1/4 h | le temps **mesuré** |
+| **`pomofocus_webhook.csv`** | serveur `timer.co-libri.org`, copie locale `webhook-data/` (`timer web-sync`) | le timer (webhook Pomofocus) | session, agrégé au 1/4 h | le temps **mesuré** |
 | **`projects-config.yml`** | dépôt `time_tracking` | moi, à la main | projet | `tjm`, `derniere_facture`, couleurs, `git_dirs` |
 | **`/projects`** (webhook_receiver) | vue calculée, rien sur disque | l'outil | 1/4 h | rien — c'est une **vue** de CSV + YAML |
 | **`suivi_chantiers.ods`** feuille `Synthèse` | racine du dépôt (non suivi) | moi, à la main (+ `timer report --view ods`, `timer eighty-hours --write-ods`) | jour / mois | la **synthèse comptable** : commandes, registre des factures, exécuté mensuel |
@@ -132,7 +132,7 @@ mis à jour `*_LOGS`, la facture et la `Synthèse`.
 
 | Brique existante | Ce qu'elle couvre |
 |---|---|
-| `timer web_sync` | récupère le CSV du serveur |
+| `timer web-sync` | récupère le CSV du serveur |
 | `/projects` | jours + € mesurés depuis `derniere_facture`, détail par sous-projet, arrondi 1/4 h |
 | `/weeks`, `/months`, `/live` | suivi de charge, pas facturation |
 | `timer report --view ods` | écrit l'exécuté mensuel dans `suivi_chantiers.ods` |
