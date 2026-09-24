@@ -18,7 +18,7 @@ calipso:
   - /home/richard/01DEV/CalipsoProject/.git
   pom_project: CALIPSO
   color: "#4169E1"
-  export_name: calipso_b
+  export_name: calipso_c
   tjm: 540
   derniere_facture: "20260619"
   superprod_projects:

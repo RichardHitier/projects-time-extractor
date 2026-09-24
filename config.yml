@@ -30,6 +30,7 @@ BILLABLE_PROJECTS:
 - "calipso"
 - "calipso_a"
 - "calipso_b"
+- "calipso_c"
 - "bht"
 - "heliopropa"
 - "iut"
