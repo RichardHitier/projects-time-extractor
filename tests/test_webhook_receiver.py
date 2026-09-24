@@ -1198,25 +1198,25 @@ def test_year_objective_fractions_cap_at_the_objective():
     assert fractions == [1.0] * 5
 
 
-def test_years_page_defaults_to_the_40_weeks_objective_gauge(tmp_path):
+def test_years_page_shows_both_40_and_52_grids(tmp_path):
     webhook_receiver.CSV_PATH = str(tmp_path / "pomofocus_webhook.csv")
     client = webhook_receiver.app.test_client()
 
     page = client.get("/years").get_data(as_text=True)
 
-    assert "40 semaines" in page
+    assert "40 semaines" in page and "52 semaines" in page
     assert "objectif 800h" in page
     assert f"/ {webhook_receiver.YEAR_OBJECTIVE_HOURS}h" in page
-
-
-def test_years_page_52_mode_shows_one_square_per_calendar_week(tmp_path):
-    webhook_receiver.CSV_PATH = str(tmp_path / "pomofocus_webhook.csv")
-    client = webhook_receiver.app.test_client()
-
-    page = client.get("/years?n=52").get_data(as_text=True)
-
-    assert page.count("<rect") >= webhook_receiver.YEAR_WEEKS_FULL
     assert "semaine en cours" in page
+    assert page.count("<rect") >= webhook_receiver.YEAR_WEEKS_OBJECTIVE + webhook_receiver.YEAR_WEEKS_FULL
+
+
+def test_year_grid_uses_given_numbers_above_squares():
+    svg = webhook_receiver.render_year_grid_svg([0.0, 0.0, 0.0], 3, numbers=[52, 1, 2])
+
+    assert ">52</text>" in svg
+    assert ">1</text>" in svg and ">2</text>" in svg
+    assert ">3</text>" not in svg
 
 
 def test_years_page_next_year_link_is_disabled_on_the_current_fiscal_year(tmp_path):
@@ -1226,5 +1226,5 @@ def test_years_page_next_year_link_is_disabled_on_the_current_fiscal_year(tmp_pa
     page = client.get("/years").get_data(as_text=True)
 
     assert '<span class="disabled">' in page
-    assert 'href="/years?y=-1&n=40">' in page       # navigation : seul le lien "précédent"
-    assert 'href="/years?y=1&n=40">' not in page     # pas de lien "suivant" sur l'année en cours
+    assert 'href="/years?y=-1">' in page       # navigation : seul le lien "précédent"
+    assert 'href="/years?y=1">' not in page     # pas de lien "suivant" sur l'année en cours

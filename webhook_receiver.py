@@ -1288,11 +1288,12 @@ def render_activity_week_svg(days, max_hours=ACTIVITY_MAX_HOURS, uid="", highlig
 </svg>"""
 
 
-def render_year_grid_svg(fractions, cols, labels=None, current_index=None, uid=""):
+def render_year_grid_svg(fractions, cols, labels=None, current_index=None, uid="", numbers=None):
     """Grille de carrés (/years) : un carré par entrée de `fractions` (0..1),
     rempli en hauteur proportionnelle (ancré en bas) dans le même bleu
     (`#3987e5`), qu'il représente une vraie semaine (vue 52) ou un cran de
-    l'objectif (vue 40). Chaque carré porte son numéro (1..N) au-dessus.
+    l'objectif (vue 40). Chaque carré porte au-dessus son numéro, pris dans
+    `numbers` si fourni (numéros de semaine ISO en vue 52), sinon 1..N.
     `current_index` cercle le carré courant d'un liseré blanc (vue 52
     seulement). `uid` évite les collisions d'id de clipPath si plusieurs
     grilles cohabitent sur une même page."""
@@ -1310,7 +1311,7 @@ def render_year_grid_svg(fractions, cols, labels=None, current_index=None, uid="
         title = f"<title>{labels[i]}</title>" if labels else ""
         parts.append(
             f'<text x="{x + cell / 2:.1f}" y="{y - 4}" text-anchor="middle" '
-            f'font-family="system-ui, sans-serif" font-size="10" fill="#666">{i + 1}</text>'
+            f'font-family="system-ui, sans-serif" font-size="10" fill="#666">{numbers[i] if numbers else i + 1}</text>'
         )
         parts.append(
             f'<rect x="{x}" y="{y}" width="{cell}" height="{cell}" rx="{rx:.1f}" '
@@ -1783,12 +1784,9 @@ YEARS_HTML = """<!doctype html>
   .weeknav .disabled {{ color: #555; }}
   .weeknav .nav-title {{ color: #fff; font-weight: 700; text-transform: uppercase;
     font-size: .8rem; text-align: center; min-width: 16ch; }}
-  .modetoggle {{ display: flex; justify-content: flex-start; align-items: center; gap: .4rem;
-    margin-bottom: 1.5rem; flex-wrap: wrap; }}
-  .modetoggle a {{ padding: .3rem .8rem; border-radius: 999px; font-size: .75rem; color: #bbb;
-    background: #2e2e2b; }}
-  .modetoggle a.active {{ background: #3987e5; color: #fff; }}
-  .modetoggle .hint {{ color: #666; font-size: .72rem; }}
+  .section-title {{ display: flex; align-items: baseline; gap: .6rem; margin: 1.5rem 0 .8rem; }}
+  .section-title h2 {{ margin: 0; font-size: .85rem; text-transform: uppercase; letter-spacing: .04em; color: #fff; }}
+  .section-title .hint {{ color: #666; font-size: .72rem; }}
   .layout-row {{ display: flex; align-items: flex-start; gap: 1.6rem; flex-wrap: wrap; margin-bottom: 1.1rem; }}
   .grid-col {{ display: flex; flex-direction: column; gap: .6rem; flex: none; }}
   .grid-col svg {{ display: block; max-width: 100%; height: auto; }}
@@ -1811,22 +1809,29 @@ YEARS_HTML = """<!doctype html>
 <body>
 {menu}
 <div class="weeknav">{nav}</div>
-<div class="modetoggle">{mode_toggle}</div>
+<div class="section-title"><h2>40 semaines</h2><span class="hint">chaque carré = 20h, objectif {objective}h</span></div>
 <div class="layout-row">
   <div class="grid-col">
-    {grid}
+    {grid40}
+  </div>
+  <div class="stats-col">
+    <div class="row"><span class="label">Carrés pleins</span><span class="value">{full40} / {count40}</span></div>
+    <div class="row"><span class="label">Heures cumulées</span><span class="value">{hours} <small>/ {objective}h</small></span></div>
+    <div class="row"><span class="label">Jours facturables</span><span class="value">{days} / {objective_days}</span></div>
+  </div>
+</div>
+<div class="legend">{legend40}</div>
+<div class="section-title"><h2>52 semaines</h2><span class="hint">heures réelles, une semaine calendaire par carré</span></div>
+<div class="layout-row">
+  <div class="grid-col">
+    {grid52}
     <div class="progress-wrap">
       <div class="progress-track"><div class="progress-fill" style="width:{pct}%"></div></div>
       <div class="progress-label"><span>{hours} / {objective}h</span><strong>{pct}&nbsp;%</strong></div>
     </div>
   </div>
-  <div class="stats-col">
-    <div class="row"><span class="label">Semaines pleines</span><span class="value">{full} / {count}</span></div>
-    <div class="row"><span class="label">Heures cumulées</span><span class="value">{hours} <small>/ {objective}h</small></span></div>
-    <div class="row"><span class="label">Jours facturables</span><span class="value">{days} / {objective_days}</span></div>
-  </div>
 </div>
-<div class="legend">{legend}</div>
+<div class="legend">{legend52}</div>
 <footer class="ver">v{version}</footer>
 </body>
 </html>
@@ -2303,8 +2308,6 @@ def years(secret_path):
         return "not found\n", 404
     prefix = f"/{secret_path.strip('/')}" if secret_path.strip("/") else ""
     offset = _signed_int_arg("y")
-    mode = _int_arg("n") or YEAR_WEEKS_OBJECTIVE
-    mode = mode if mode == YEAR_WEEKS_FULL else YEAR_WEEKS_OBJECTIVE
     step = _round_step()
 
     today = datetime.now().date()
@@ -2316,76 +2319,63 @@ def years(secret_path):
     total_hours = sum(hours for _, _, hours in weeks)
 
     current_index = None
-    if is_current_year and mode == YEAR_WEEKS_FULL:
+    if is_current_year:
         for i, (monday, sunday, _) in enumerate(weeks):
             if monday <= today <= sunday:
                 current_index = i
                 break
 
-    if mode == YEAR_WEEKS_FULL:
-        cols = 13
-        fractions = year_week_fractions([hours for _, _, hours in weeks])
-        labels = [f"S{i + 1} : {_format_hm(hours)}" for i, (_, _, hours) in enumerate(weeks)]
-    else:
-        cols = 8
-        fractions = year_objective_fractions(total_hours)
-        labels = [f"Carré {i + 1} : {round(f * 100)}%" for i, f in enumerate(fractions)]
+    fractions40 = year_objective_fractions(total_hours)
+    labels40 = [f"Carré {i + 1} : {round(f * 100)}%" for i, f in enumerate(fractions40)]
+    grid40 = render_year_grid_svg(fractions40, 8, labels=labels40, uid="40")
 
-    grid = render_year_grid_svg(fractions, cols, labels=labels, current_index=current_index)
-    full = sum(1 for f in fractions if f >= 1)
+    fractions52 = year_week_fractions([hours for _, _, hours in weeks])
+    # Vrais numéros de semaine ISO (36, 37... 52, [53,] 1, 2...), l'année fiscale commençant en septembre.
+    iso_weeks52 = [monday.isocalendar()[1] for monday, _, _ in weeks]
+    labels52 = [f"S{n} : {_format_hm(hours)}" for n, (_, _, hours) in zip(iso_weeks52, weeks)]
+    grid52 = render_year_grid_svg(
+        fractions52, 13, labels=labels52, current_index=current_index, uid="52", numbers=iso_weeks52
+    )
 
     prev_year = (
-        f'<a href="{prefix}/years?y={offset - 1}&n={mode}">{_CHEVRON_LEFT}{start_year - 1}-{start_year}</a>'
+        f'<a href="{prefix}/years?y={offset - 1}">{_CHEVRON_LEFT}{start_year - 1}-{start_year}</a>'
     )
     next_year = (
         f'<span class="disabled">{start_year + 1}-{start_year + 2}{_CHEVRON_RIGHT}</span>'
         if is_current_year
-        else f'<a href="{prefix}/years?y={offset + 1}&n={mode}">{start_year + 1}-{start_year + 2}{_CHEVRON_RIGHT}</a>'
+        else f'<a href="{prefix}/years?y={offset + 1}">{start_year + 1}-{start_year + 2}{_CHEVRON_RIGHT}</a>'
     )
     year_label = f"{start_year}-{start_year + 1}"
     nav = f'{prev_year}<span class="nav-title">Année {year_label}</span>{next_year}'
 
-    def mode_link(value, text):
-        cls = " class=\"active\"" if mode == value else ""
-        return f'<a href="{prefix}/years?y={offset}&n={value}"{cls}>{text}</a>'
-
-    mode_toggle = (
-        f'{mode_link(YEAR_WEEKS_OBJECTIVE, "40 semaines")}'
-        f'{mode_link(YEAR_WEEKS_FULL, "52 semaines")}'
-        f'<span class="hint">'
-        f'{"chaque carré = 20h, objectif 800h" if mode == YEAR_WEEKS_OBJECTIVE else "heures réelles, une semaine calendaire par carré"}'
-        f'</span>'
+    legend40 = (
+        '<span><span class="sw" style="background:#2e2e2b"></span>vide</span>'
+        '<span><span class="sw" style="background:linear-gradient(90deg,#3987e5 50%,#2e2e2b 50%)"></span>carré partiel (reste &lt; 20h)</span>'
+        '<span><span class="sw" style="background:#3987e5"></span>carré plein (20h)</span>'
     )
-
-    if mode == YEAR_WEEKS_OBJECTIVE:
-        legend = (
-            '<span><span class="sw" style="background:#2e2e2b"></span>vide</span>'
-            '<span><span class="sw" style="background:linear-gradient(90deg,#3987e5 50%,#2e2e2b 50%)"></span>carré partiel (reste &lt; 20h)</span>'
-            '<span><span class="sw" style="background:#3987e5"></span>carré plein (20h)</span>'
-        )
-    else:
-        legend = (
-            '<span><span class="sw" style="background:#2e2e2b"></span>0 h</span>'
-            '<span><span class="sw" style="background:linear-gradient(90deg,#3987e5 50%,#2e2e2b 50%)"></span>1–19 h</span>'
-            '<span><span class="sw" style="background:#3987e5"></span>&#8805; 20 h</span>'
-            '<span><span class="sw cur"></span>semaine en cours</span>'
-        )
+    legend52 = (
+        '<span><span class="sw" style="background:#2e2e2b"></span>0 h</span>'
+        '<span><span class="sw" style="background:linear-gradient(90deg,#3987e5 50%,#2e2e2b 50%)"></span>1–19 h</span>'
+        '<span><span class="sw" style="background:#3987e5"></span>&#8805; 20 h</span>'
+        '<span><span class="sw cur"></span>semaine en cours</span>'
+    )
 
     pct = min(100, round(100 * total_hours / YEAR_OBJECTIVE_HOURS)) if YEAR_OBJECTIVE_HOURS else 0
     return YEARS_HTML.format(
         year_label=year_label,
         menu=_menu_bar(prefix, "years"),
         nav=nav,
-        mode_toggle=mode_toggle,
-        grid=grid,
-        full=full,
-        count=len(fractions),
+        grid40=grid40,
+        full40=sum(1 for f in fractions40 if f >= 1),
+        count40=len(fractions40),
+        legend40=legend40,
+        grid52=grid52,
+        legend52=legend52,
         hours=_format_hm(total_hours),
         objective=YEAR_OBJECTIVE_HOURS,
         days=round(total_hours / HOURS_PER_DAY),
         objective_days=round(YEAR_OBJECTIVE_HOURS / HOURS_PER_DAY),
         pct=pct,
-        legend=legend,
         version=APP_VERSION,
     )
 
