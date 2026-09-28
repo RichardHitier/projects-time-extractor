@@ -39,7 +39,7 @@ CSV_COLUMNS = ["date", "project", "task", "minutes", "startTime", "endTime"]
 EXPORT_TYPES = {"finish", "pause"}
 SECRET = os.environ.get("WEBHOOK_SECRET", "").strip("/")
 PORT = int(os.environ.get("WEBHOOK_PORT", "5000"))
-APP_VERSION = "0.19.0"  # affiché en pied de page (miroir de pyproject.toml)
+APP_VERSION = "0.22.0"  # affiché en pied de page (miroir de pyproject.toml)
 
 BILLABLE_PROJECTS = {p.lower() for p in _config.get("BILLABLE_PROJECTS", [])}
 BILLABLE_MAX_HOURS = 4
@@ -213,6 +213,28 @@ def update_csv_row(key, project, task, start, end, csv_path=None):
             }
             _write_csv_rows(merge_contiguous_sessions(rows), csv_path)
             return rows[index]
+
+    raise RowEditError("ligne introuvable (modifiée entre-temps ?)")
+
+
+def delete_csv_row(key, csv_path=None):
+    """Remove the row identified by `key` (date, startTime, project, task).
+    Raises RowEditError without writing if the row does not exist."""
+    if csv_path is None:
+        csv_path = CSV_PATH
+
+    rows = _read_csv_rows(csv_path)
+    for index, existing in enumerate(rows):
+        existing_key = (
+            existing["date"],
+            existing["startTime"],
+            existing["project"],
+            existing["task"],
+        )
+        if existing_key == tuple(key):
+            removed = rows.pop(index)
+            _write_csv_rows(rows, csv_path)
+            return removed
 
     raise RowEditError("ligne introuvable (modifiée entre-temps ?)")
 
@@ -1946,6 +1968,7 @@ ROWS_HTML = """<!doctype html>
   button {{ background: #2e2e2b; border: 0; border-radius: 999px; color: #bbb; cursor: pointer;
     padding: .35rem .9rem; font-size: .75rem; text-transform: uppercase; transition: background .15s ease; }}
   button:hover {{ background: #3987e5; color: #fff; }}
+  button.delete:hover {{ background: #3d2020; color: #e58787; }}
   .ver {{ color: #666; font-size: .7rem; margin-top: 2rem; }}
 </style>
 </head>
@@ -2059,7 +2082,9 @@ def _rows_markup(rows):
             f'<td><input form="{uid}" class="time" name="startTime" value="{cell["startTime"]}"></td>'
             f'<td><input form="{uid}" class="time" name="endTime" value="{cell["endTime"]}"></td>'
             f'<td class="dur" id="dur-{uid}">{cell["minutes"]} min</td>'
-            f'<td><button form="{uid}" type="submit">Enregistrer</button></td>'
+            f'<td><button form="{uid}" type="submit">Enregistrer</button> '
+            f'<button form="{uid}" type="submit" name="action" value="delete" class="delete"'
+            f" onclick=\"return confirm('Supprimer cette ligne ?')\">Supprimer</button></td>"
             f"</tr>"
         )
     return "\n".join(forms), "\n".join(trs)
@@ -2470,7 +2495,10 @@ def activity_legend_svg(secret_path):
 def _rows_flash():
     """Bandeau ok/erreur, passé par la query string au retour du POST (l'app
     n'a pas de SECRET_KEY, donc pas de flash Flask)."""
-    if request.args.get("ok"):
+    ok = request.args.get("ok")
+    if ok == "deleted":
+        return '<p class="flash ok">Ligne supprimée.</p>'
+    if ok:
         return '<p class="flash ok">Ligne enregistrée.</p>'
     err = request.args.get("err")
     if err:
@@ -2565,6 +2593,9 @@ def rows_edit(secret_path):
         form.get("key_task", ""),
     )
     try:
+        if form.get("action") == "delete":
+            delete_csv_row(key)
+            return redirect(f"{prefix}/rows?ok=deleted")
         update_csv_row(
             key,
             form.get("project", "").strip(),

@@ -956,6 +956,30 @@ def test_update_csv_row_rejects_end_before_start_without_writing(tmp_path):
     assert read_rows(csv_path) == [ROW]
 
 
+def test_delete_csv_row_removes_only_the_matching_row(tmp_path):
+    csv_path = tmp_path / "pomofocus_webhook.csv"
+    other = {**ROW, "startTime": "14:00", "endTime": "15:00", "minutes": "60"}
+    _write_rows(csv_path, [ROW, other])
+
+    webhook_receiver.delete_csv_row(
+        ("20260701", "09:00", "calipso", "vieux nom"), csv_path
+    )
+
+    assert read_rows(csv_path) == [other]
+
+
+def test_delete_csv_row_unknown_key_raises_and_writes_nothing(tmp_path):
+    csv_path = tmp_path / "pomofocus_webhook.csv"
+    _write_rows(csv_path, [ROW])
+
+    with pytest.raises(webhook_receiver.RowEditError):
+        webhook_receiver.delete_csv_row(
+            ("20260701", "09:00", "calipso", "autre"), csv_path
+        )
+
+    assert read_rows(csv_path) == [ROW]
+
+
 def test_rows_page_lists_rows_and_post_applies_the_edit(tmp_path):
     csv_path = tmp_path / "pomofocus_webhook.csv"
     _write_rows(csv_path, [ROW])
@@ -978,6 +1002,29 @@ def test_rows_page_lists_rows_and_post_applies_the_edit(tmp_path):
         "date": "20260701", "project": "speasy", "task": "#12 revue",
         "minutes": "45", "startTime": "09:15", "endTime": "10:00",
     }]
+
+
+def test_rows_post_delete_removes_the_row(tmp_path):
+    csv_path = tmp_path / "pomofocus_webhook.csv"
+    _write_rows(csv_path, [ROW])
+    webhook_receiver.CSV_PATH = str(csv_path)
+    client = webhook_receiver.app.test_client()
+
+    assert "Supprimer" in client.get("/rows").get_data(as_text=True)
+
+    response = client.post("/rows", data={
+        "key_date": "20260701", "key_startTime": "09:00",
+        "key_project": "calipso", "key_task": "vieux nom",
+        "project": "calipso", "task": "vieux nom",
+        "startTime": "09:00", "endTime": "09:25",
+        "action": "delete",
+    })
+
+    assert response.status_code == 302
+    assert response.headers["Location"] == "/rows?ok=deleted"
+    assert read_rows(csv_path) == []
+    page = client.get("/rows?ok=deleted").get_data(as_text=True)
+    assert "Ligne supprimée." in page
 
 
 # --- compteur euros (/projects) -------------------------------------------
