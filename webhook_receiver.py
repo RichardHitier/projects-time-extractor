@@ -47,7 +47,7 @@ CSV_COLUMNS = ["date", "project", "task", "minutes", "startTime", "endTime"]
 EXPORT_TYPES = {"finish", "pause"}
 SECRET = os.environ.get("WEBHOOK_SECRET", "").strip("/")
 PORT = int(os.environ.get("WEBHOOK_PORT", "5000"))
-APP_VERSION = "0.27.0"  # affiché en pied de page (miroir de pyproject.toml)
+APP_VERSION = "0.28.0"  # affiché en pied de page (miroir de pyproject.toml)
 
 BILLABLE_PROJECTS = {p.lower() for p in _config.get("BILLABLE_PROJECTS", [])}
 BILLABLE_MAX_HOURS = 4
@@ -2222,6 +2222,67 @@ SUIVI_SYNTHESE_HTML = """<!doctype html>
 </html>
 """
 
+SUIVI_FACTURES_HTML = """<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Suivi — factures</title>
+<style>
+  body {{ font-family: system-ui, sans-serif; margin: 2rem; background: #111; color: #eee; }}
+  a {{ color: #3987e5; text-decoration: none; }}
+  .menubar {{ display: flex; gap: .6rem; margin-bottom: 1.5rem; flex-wrap: wrap; }}
+  .menubar a {{ background: #2e2e2b; padding: .4rem .9rem; border-radius: 999px;
+    text-transform: uppercase; font-size: .8rem; color: #bbb; transition: background .15s ease; }}
+  .menubar a:hover {{ background: #3c3c37; }}
+  .menubar a.active {{ background: #3987e5; color: #fff; }}
+  .tabs {{ display: flex; gap: .4rem; margin: 0 0 1.2rem; }}
+  .tabs a {{ padding: .3rem .8rem; border-radius: 999px; font-size: .75rem; color: #bbb;
+    background: #2e2e2b; }}
+  .tabs a.active {{ background: #3987e5; color: #fff; }}
+  h2 {{ color: #999; font-weight: normal; text-transform: uppercase; font-size: .7rem;
+    letter-spacing: .04em; margin: 0 0 .5rem; }}
+  .scroll {{ overflow-x: auto; margin-bottom: 2.2rem; }}
+  table {{ border-collapse: collapse; }}
+  th {{ text-align: right; color: #999; text-transform: uppercase; font-size: .7rem;
+    font-weight: normal; padding: .4rem .55rem; border-bottom: 1px solid #333; white-space: nowrap; }}
+  th.txt {{ text-align: left; }}
+  td {{ padding: .4rem .55rem; border-bottom: 1px solid #222; font-size: .85rem; white-space: nowrap; }}
+  td.num {{ text-align: right; font-variant-numeric: tabular-nums; }}
+  td.date {{ color: #bbb; font-variant-numeric: tabular-nums; }}
+  td.id {{ color: #999; font-size: .8rem; }}
+  td.eur {{ color: #fff; font-weight: 700; }}
+  td.todo {{ color: #e0b050; font-style: italic; }}
+  tr.total td {{ border-bottom: 0; border-top: 1px solid #333; color: #fff; font-weight: 700; }}
+  .dot {{ display: inline-block; width: .6rem; height: .6rem; border-radius: 50%;
+    margin-right: .5rem; vertical-align: baseline; }}
+  .ver {{ color: #666; font-size: .7rem; margin-top: 2rem; }}
+</style>
+</head>
+<body>
+{menu}
+{tabs}
+<h2>Registre des factures</h2>
+<div class="scroll">
+<table>
+  <thead><tr><th class="txt">Émise le</th><th class="txt">N°</th><th class="txt">Commande</th>
+  <th>Jours</th><th>TJM</th><th>HT</th><th>TVA</th><th>TTC</th>
+  <th class="txt">Payée le</th><th class="txt">Trim. TVA</th><th class="txt">Déclarée le</th></tr></thead>
+  <tbody>{rows}</tbody>
+</table>
+</div>
+<h2>TVA par trimestre (encaissements)</h2>
+<div class="scroll">
+<table>
+  <thead><tr><th class="txt">Trimestre</th><th>Factures</th><th>HT encaissé</th>
+  <th>TVA</th><th class="txt">Déclarée le</th></tr></thead>
+  <tbody>{quarters}</tbody>
+</table>
+</div>
+<footer class="ver">v{version}</footer>
+</body>
+</html>
+"""
+
 _FR_MONTHS_SHORT = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.",
                     "août", "sept.", "oct.", "nov.", "déc."]
 
@@ -2229,7 +2290,8 @@ _FR_MONTHS_SHORT = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.",
 def _suivi_tabs(prefix, active):
     """Onglets Mois / Synthèse des pages /suivi."""
     items = (("mois", "Mois", f"{prefix}/suivi"),
-             ("synthese", "Synthèse", f"{prefix}/suivi/synthese"))
+             ("synthese", "Synthèse", f"{prefix}/suivi/synthese"),
+             ("factures", "Factures", f"{prefix}/suivi/factures"))
     links = "".join(
         f'<a href="{href}" class="active">{text}</a>' if key == active
         else f'<a href="{href}">{text}</a>'
@@ -2899,6 +2961,76 @@ def suivi_synthese_page(secret_path):
         commandes=cmd_trs,
         month_headers=headers,
         rows=trs,
+        version=APP_VERSION,
+    )
+
+
+@app.get("/suivi/factures", defaults={"secret_path": ""})
+@app.get("/<path:secret_path>/suivi/factures")
+def suivi_factures_page(secret_path):
+    """Tableau B de la Synthèse de l'ODS : registre des factures (émission,
+    paiement, TVA par trimestre d'encaissement)."""
+    if SECRET and secret_path.strip("/") != SECRET:
+        return "not found\n", 404
+    prefix = f"/{secret_path.strip('/')}" if secret_path.strip("/") else ""
+    facturation = suivi.load_facturation(FACTURATION_PATH)
+    register = suivi.invoice_register(
+        facturation.get("factures") or [],
+        facturation.get("commandes") or [],
+        facturation.get("tva_declarations") or {},
+    )
+
+    def ymd(day):
+        """2026-08-05 → 05/08/2026."""
+        return f"{day[8:10]}/{day[5:7]}/{day[:4]}" if len(day) == 10 else day
+
+    def eur(value, cls="num"):
+        return f'<td class="{cls}">{_format_eur(value)}</td>'
+
+    trs = "".join(
+        f'<tr><td class="date">{ymd(f["date"])}</td><td class="id">{html.escape(f["id"])}</td>'
+        f'<td>{_suivi_dot(f["commande"])}{html.escape(f["commande"])}</td>'
+        f'<td class="num">{suivi.format_jours(f["jours"])}</td>{eur(f["tjm"])}'
+        f'{eur(f["ht"], "num eur")}{eur(f["tva"])}{eur(f["ttc"])}'
+        + (f'<td class="date">{ymd(f["payee"])}</td>' if f["payee"]
+           else '<td class="todo">impayée</td>')
+        + f'<td class="date">{f["trimestre"]}</td>'
+        + (f'<td class="date">{ymd(f["declaree"])}</td>' if f["declaree"]
+           else ('<td class="todo">à déclarer</td>' if f["trimestre"] else "<td></td>"))
+        + "</tr>"
+        for f in register
+    )
+    if register:
+        trs += (
+            '<tr class="total"><td>Total</td><td></td><td></td>'
+            f'<td class="num">{suivi.format_jours(sum(f["jours"] for f in register))}</td><td></td>'
+            f'{eur(sum(f["ht"] for f in register))}{eur(sum(f["tva"] for f in register))}'
+            f'{eur(sum(f["ttc"] for f in register))}<td></td><td></td><td></td></tr>'
+        )
+    else:
+        trs = '<tr><td colspan="11">aucune facture — ajouter <code>factures</code> dans facturation.yml</td></tr>'
+
+    quarters = {}
+    for f in register:
+        if f["trimestre"]:
+            q = quarters.setdefault(f["trimestre"], {"n": 0, "ht": 0.0, "tva": 0.0, "declaree": f["declaree"]})
+            q["n"] += 1
+            q["ht"] += f["ht"]
+            q["tva"] += f["tva"]
+    quarter_trs = "".join(
+        f'<tr><td class="date">{quarter}</td><td class="num">{q["n"]}</td>'
+        f'{eur(q["ht"])}{eur(q["tva"], "num eur")}'
+        + (f'<td class="date">{ymd(q["declaree"])}</td>' if q["declaree"]
+           else '<td class="todo">à déclarer</td>')
+        + "</tr>"
+        for quarter, q in sorted(quarters.items(), reverse=True)
+    ) or '<tr><td colspan="5">aucune facture payée</td></tr>'
+
+    return SUIVI_FACTURES_HTML.format(
+        menu=_menu_bar(prefix, "suivi"),
+        tabs=_suivi_tabs(prefix, "factures"),
+        rows=trs,
+        quarters=quarter_trs,
         version=APP_VERSION,
     )
 

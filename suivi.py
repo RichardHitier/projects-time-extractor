@@ -181,3 +181,45 @@ def commande_summary(commandes, factures, executed):
             "reste_a_realiser": devis - done,
         })
     return summary
+
+
+TVA_RATE = 0.20
+
+
+def tva_quarter(day):
+    """Trimestre de TVA d'une date 'YYYY-MM-DD' : '2026-08-11' → '2026T3'."""
+    return f"{day[:4]}T{(int(day[5:7]) - 1) // 3 + 1}"
+
+
+def invoice_register(factures, commandes, tva_declarations):
+    """Tableau B de la Synthèse de l'ODS : une ligne par facture, par date
+    d'émission. HT = jours × TJM de la commande, TVA 20 %, TTC.
+
+    TVA sur les encaissements : une facture payée tombe dans le trimestre de
+    son paiement (`trimestre`), déclaré à la date de `tva_declarations` (vide
+    tant que le trimestre n'est pas déclaré). Une facture impayée n'a ni
+    trimestre ni déclaration.
+    """
+    tjms = {c["nom"]: float(c.get("tjm") or 0) for c in commandes}
+    register = []
+    by_date = sorted(factures, key=lambda f: (str(f["date"]), str(f["id"])))
+    for facture in by_date:
+        days = float(facture["jours"])
+        tjm = tjms.get(facture["commande"], 0)
+        ht = days * tjm
+        paid = str(facture.get("payee") or "")
+        quarter = tva_quarter(paid) if paid else ""
+        register.append({
+            "id": str(facture["id"]),
+            "date": str(facture["date"]),
+            "commande": facture["commande"],
+            "jours": days,
+            "tjm": tjm,
+            "ht": ht,
+            "tva": ht * TVA_RATE,
+            "ttc": ht * (1 + TVA_RATE),
+            "payee": paid,
+            "trimestre": quarter,
+            "declaree": str((tva_declarations or {}).get(quarter) or ""),
+        })
+    return register
