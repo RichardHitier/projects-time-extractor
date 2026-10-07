@@ -86,7 +86,51 @@ def test_suivi_page_shows_the_month_by_commande(tmp_path):
     page = client.get("/suivi?m=202512").get_data(as_text=True)
 
     assert "décembre 2025" in page
-    assert "calipso_a</td><td class=\"num\">0,5</td>" in page
-    assert "calipso_b</td><td class=\"num\">1</td>" in page
+    assert "calipso_a</td><td class=\"ref\"></td><td class=\"num\">0,5</td>" in page
+    assert "calipso_b</td><td class=\"ref\"></td><td class=\"num\">1</td>" in page
     assert 'href="/suivi?m=202511"' in page
     assert 'href="/suivi"' in page   # entrée de menu
+
+
+def test_months_between_goes_from_newest_to_oldest():
+    assert suivi.months_between("202511", "202602") == ["202602", "202601", "202512", "202511"]
+    assert suivi.first_month(COMMANDES, "209901") == "202510"
+    assert suivi.first_month([], "209901") == "209901"
+
+
+def test_monthly_totals_match_the_month_sheets():
+    rows = [
+        row("20251204", "calipso_iesa", "a", 60),
+        row("20251205", "calipso_iesa", "b", 50),    # → 60 min
+        row("20260105", "calipso_lees", "c", 120),
+        row("20260105", "speasy", "d", 30),
+    ]
+    table = suivi.monthly_totals(rows, ["202601", "202512"], COMMANDES, ["calipso", "speasy"])
+    assert table == {
+        "calipso_a": {"202512": 60 / 480},
+        "calipso_b": {"202512": 60 / 480, "202601": 120 / 480},
+        "speasy": {"202601": 30 / 480},
+    }
+
+
+def test_suivi_synthese_page_links_each_cell_to_its_month(tmp_path):
+    csv_path = tmp_path / "pomofocus_webhook.csv"
+    with open(csv_path, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=webhook_receiver.CSV_COLUMNS)
+        writer.writeheader()
+        writer.writerow(row("20251205", "calipso_iesa", "x", 480))
+    yml = tmp_path / "facturation.yml"
+    yml.write_text(
+        "commandes:\n"
+        "  - {nom: calipso_b, projet: calipso, debut: '2025-12-05'}\n",
+        encoding="utf-8",
+    )
+    webhook_receiver.CSV_PATH = str(csv_path)
+    webhook_receiver.FACTURATION_PATH = str(yml)
+    client = webhook_receiver.app.test_client()
+
+    page = client.get("/suivi/synthese").get_data(as_text=True)
+
+    assert "<th>déc. 25</th>" in page
+    assert '<a href="/suivi?m=202512">1</a>' in page
+    assert 'href="/suivi/synthese" class="active">Synthèse' in page

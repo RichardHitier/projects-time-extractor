@@ -101,3 +101,31 @@ def shift_month(yyyymm, delta):
     """'202609', -1 → '202608' ; '202612', +1 → '202701'."""
     index = int(yyyymm[:4]) * 12 + int(yyyymm[4:]) - 1 + delta
     return f"{index // 12}{index % 12 + 1:02d}"
+
+
+def months_between(first, last):
+    """Mois de `first` à `last` inclus (YYYYMM), du plus récent au plus ancien,
+    comme les colonnes du tableau C de l'ODS."""
+    months, month = [], last
+    while month >= first:
+        months.append(month)
+        month = shift_month(month, -1)
+    return months
+
+
+def first_month(commandes, default):
+    """Mois de début de la plus ancienne commande (YYYYMM), `default` sans
+    commande."""
+    debuts = [c["debut"].replace("-", "")[:6] for c in commandes]
+    return min(debuts) if debuts else default
+
+
+def monthly_totals(rows, months, commandes, projects):
+    """{commande: {mois: jours}} pour chaque mois de `months` : les totaux par
+    commande de month_lines(), donc exactement ceux de la feuille du mois."""
+    table = {}
+    for month in months:
+        lines = month_lines(rows, month, commandes, projects)
+        for name, days in totals_by_commande(lines).items():
+            table.setdefault(name, {})[month] = days
+    return dict(sorted(table.items()))

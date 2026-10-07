@@ -47,7 +47,7 @@ CSV_COLUMNS = ["date", "project", "task", "minutes", "startTime", "endTime"]
 EXPORT_TYPES = {"finish", "pause"}
 SECRET = os.environ.get("WEBHOOK_SECRET", "").strip("/")
 PORT = int(os.environ.get("WEBHOOK_PORT", "5000"))
-APP_VERSION = "0.24.0"  # affiché en pied de page (miroir de pyproject.toml)
+APP_VERSION = "0.25.0"  # affiché en pied de page (miroir de pyproject.toml)
 
 BILLABLE_PROJECTS = {p.lower() for p in _config.get("BILLABLE_PROJECTS", [])}
 BILLABLE_MAX_HOURS = 4
@@ -2125,16 +2125,22 @@ SUIVI_HTML = """<!doctype html>
   tr.total td {{ border-bottom: 0; border-top: 1px solid #333; color: #fff; font-weight: 700; }}
   .dot {{ display: inline-block; width: .6rem; height: .6rem; border-radius: 50%;
     margin-right: .5rem; vertical-align: baseline; }}
-  .totals {{ max-width: 24rem; }}
+  .totals {{ max-width: 32rem; }}
+  .tabs {{ display: flex; gap: .4rem; margin: 0 0 1.2rem; }}
+  .tabs a {{ padding: .3rem .8rem; border-radius: 999px; font-size: .75rem; color: #bbb;
+    background: #2e2e2b; }}
+  .tabs a.active {{ background: #3987e5; color: #fff; }}
+  td.ref {{ color: #777; font-size: .78rem; font-variant-numeric: tabular-nums; }}
   .ver {{ color: #666; font-size: .7rem; margin-top: 2rem; }}
 </style>
 </head>
 <body>
 {menu}
+{tabs}
 <div class="weeknav">{nav}</div>
 <h2>Total par commande</h2>
 <table class="totals">
-  <thead><tr><th>Commande</th><th class="num">Jours</th></tr></thead>
+  <thead><tr><th>Commande</th><th>Réf.</th><th class="num">Jours</th></tr></thead>
   <tbody>{totals}</tbody>
 </table>
 <h2>Lignes</h2>
@@ -2147,6 +2153,75 @@ SUIVI_HTML = """<!doctype html>
 </body>
 </html>
 """
+
+
+SUIVI_SYNTHESE_HTML = """<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Suivi — synthèse par mois</title>
+<style>
+  body {{ font-family: system-ui, sans-serif; margin: 2rem; background: #111; color: #eee; }}
+  a {{ color: #3987e5; text-decoration: none; }}
+  .menubar {{ display: flex; gap: .6rem; margin-bottom: 1.5rem; flex-wrap: wrap; }}
+  .menubar a {{ background: #2e2e2b; padding: .4rem .9rem; border-radius: 999px;
+    text-transform: uppercase; font-size: .8rem; color: #bbb; transition: background .15s ease; }}
+  .menubar a:hover {{ background: #3c3c37; }}
+  .menubar a.active {{ background: #3987e5; color: #fff; }}
+  .tabs {{ display: flex; gap: .4rem; margin: 0 0 1.2rem; }}
+  .tabs a {{ padding: .3rem .8rem; border-radius: 999px; font-size: .75rem; color: #bbb;
+    background: #2e2e2b; }}
+  .tabs a.active {{ background: #3987e5; color: #fff; }}
+  h2 {{ color: #999; font-weight: normal; text-transform: uppercase; font-size: .7rem;
+    letter-spacing: .04em; margin: 0 0 .5rem; }}
+  .scroll {{ overflow-x: auto; }}
+  table {{ border-collapse: collapse; }}
+  th {{ text-align: right; color: #999; text-transform: uppercase; font-size: .7rem;
+    font-weight: normal; padding: .4rem .55rem; border-bottom: 1px solid #333; white-space: nowrap; }}
+  th.cmd {{ text-align: left; }}
+  td {{ padding: .4rem .55rem; border-bottom: 1px solid #222; font-size: .85rem; }}
+  td.cmd {{ white-space: nowrap; }}
+  td.num {{ text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }}
+  td.num a {{ color: #ddd; }}
+  td.num a:hover {{ color: #3987e5; }}
+  td.tot, th.tot {{ color: #fff; font-weight: 700; border-right: 1px solid #333; }}
+  tr.total td {{ border-bottom: 0; border-top: 1px solid #333; color: #fff; font-weight: 700; }}
+  tr.total td.num a {{ color: #fff; }}
+  td.empty {{ color: #777; }}
+  .dot {{ display: inline-block; width: .6rem; height: .6rem; border-radius: 50%;
+    margin-right: .5rem; vertical-align: baseline; }}
+  .ver {{ color: #666; font-size: .7rem; margin-top: 2rem; }}
+</style>
+</head>
+<body>
+{menu}
+{tabs}
+<h2>Jours exécutés par commande et par mois</h2>
+<div class="scroll">
+<table>
+  <thead><tr><th class="cmd">Commande</th><th class="tot">Total</th>{month_headers}</tr></thead>
+  <tbody>{rows}</tbody>
+</table>
+</div>
+<footer class="ver">v{version}</footer>
+</body>
+</html>
+"""
+
+_FR_MONTHS_SHORT = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.",
+                    "août", "sept.", "oct.", "nov.", "déc."]
+
+
+def _suivi_tabs(prefix, active):
+    """Onglets Mois / Synthèse des pages /suivi."""
+    items = (("mois", "Mois", f"{prefix}/suivi"),
+             ("synthese", "Synthèse", f"{prefix}/suivi/synthese"))
+    links = "".join(
+        f'<a href="{href}" class="active">{text}</a>' if key == active
+        else f'<a href="{href}">{text}</a>'
+        for key, text, href in items
+    )
+    return f'<div class="tabs">{links}</div>'
 
 
 def _suivi_dot(commande):
@@ -2688,18 +2763,20 @@ def suivi_page(secret_path):
     )
     nav = f'{prev_link}<span class="nav-title">{month_name(month)}</span>{next_link}'
 
+    refs = {c["nom"]: str(c.get("ref") or "") for c in commandes}
     total_trs = "".join(
         f'<tr><td class="cmd">{_suivi_dot(name)}{html.escape(name)}</td>'
+        f'<td class="ref">{html.escape(refs.get(name, ""))}</td>'
         f'<td class="num">{suivi.format_jours(days)}</td></tr>'
         for name, days in totals.items()
     )
     if totals:
         total_trs += (
-            f'<tr class="total"><td>Total</td>'
+            f'<tr class="total"><td>Total</td><td></td>'
             f'<td class="num">{suivi.format_jours(sum(totals.values()))}</td></tr>'
         )
     else:
-        total_trs = '<tr><td class="empty" colspan="2">aucune séance ce mois-ci</td></tr>'
+        total_trs = '<tr><td class="empty" colspan="3">aucune séance ce mois-ci</td></tr>'
 
     line_trs = "".join(
         f'<tr><td class="date">{_format_ymd(line["date"])}</td>'
@@ -2713,9 +2790,60 @@ def suivi_page(secret_path):
     return SUIVI_HTML.format(
         month_label=month_name(month),
         menu=_menu_bar(prefix, "suivi"),
+        tabs=_suivi_tabs(prefix, "mois"),
         nav=nav,
         totals=total_trs,
         lines=line_trs,
+        version=APP_VERSION,
+    )
+
+
+@app.get("/suivi/synthese", defaults={"secret_path": ""})
+@app.get("/<path:secret_path>/suivi/synthese")
+def suivi_synthese_page(secret_path):
+    """Tableau C de la Synthèse de l'ODS : jours par commande et par mois, de
+    la première commande au mois en cours, le plus récent à gauche."""
+    if SECRET and secret_path.strip("/") != SECRET:
+        return "not found\n", 404
+    prefix = f"/{secret_path.strip('/')}" if secret_path.strip("/") else ""
+    current = datetime.now().strftime("%Y%m")
+    commandes = suivi.load_facturation(FACTURATION_PATH).get("commandes") or []
+    months = suivi.months_between(suivi.first_month(commandes, current), current)
+    table = suivi.monthly_totals(_read_csv_rows(CSV_PATH), months, commandes, EXPORT_PROJECTS)
+
+    def month_cell(month, days, cls="num"):
+        if not days:
+            return f'<td class="{cls}"></td>'
+        link = f'<a href="{prefix}/suivi?m={month}">{suivi.format_jours(days)}</a>'
+        return f'<td class="{cls}">{link}</td>'
+
+    headers = "".join(
+        f'<th>{_FR_MONTHS_SHORT[int(m[4:]) - 1]} {m[2:4]}</th>' for m in months
+    )
+    trs = ""
+    for name, by_month in table.items():
+        trs += (
+            f'<tr><td class="cmd">{_suivi_dot(name)}{html.escape(name)}</td>'
+            f'<td class="num tot">{suivi.format_jours(sum(by_month.values()))}</td>'
+            + "".join(month_cell(m, by_month.get(m, 0)) for m in months)
+            + "</tr>"
+        )
+    if table:
+        month_sums = {m: sum(by_month.get(m, 0) for by_month in table.values()) for m in months}
+        trs += (
+            f'<tr class="total"><td>Total</td>'
+            f'<td class="num tot">{suivi.format_jours(sum(month_sums.values()))}</td>'
+            + "".join(month_cell(m, month_sums[m]) for m in months)
+            + "</tr>"
+        )
+    else:
+        trs = f'<tr><td class="empty" colspan="{len(months) + 2}">aucune séance</td></tr>'
+
+    return SUIVI_SYNTHESE_HTML.format(
+        menu=_menu_bar(prefix, "suivi"),
+        tabs=_suivi_tabs(prefix, "synthese"),
+        month_headers=headers,
+        rows=trs,
         version=APP_VERSION,
     )
 
