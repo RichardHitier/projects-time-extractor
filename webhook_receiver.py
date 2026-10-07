@@ -39,7 +39,7 @@ CSV_COLUMNS = ["date", "project", "task", "minutes", "startTime", "endTime"]
 EXPORT_TYPES = {"finish", "pause"}
 SECRET = os.environ.get("WEBHOOK_SECRET", "").strip("/")
 PORT = int(os.environ.get("WEBHOOK_PORT", "5000"))
-APP_VERSION = "0.22.0"  # affiché en pied de page (miroir de pyproject.toml)
+APP_VERSION = "0.23.0"  # affiché en pied de page (miroir de pyproject.toml)
 
 BILLABLE_PROJECTS = {p.lower() for p in _config.get("BILLABLE_PROJECTS", [])}
 BILLABLE_MAX_HOURS = 4
@@ -680,13 +680,34 @@ def _week_header_bar(total_hours, max_hours, value_x, bar_end_x=None, label_x=20
             f'height="{height - 6}" rx="{corner_radius}" fill="#d9a441"/>'
         )
     # `divisions` intervalles égaux : traits internes séparant les graduations
-    # (5 intervalles → tous les 4h sur /20h ; tous les 8h sur /40h)
+    # (5 intervalles → tous les 4h sur /20h ; tous les 7h sur /35h)
     ticks = "".join(
         f'<line x1="{bar_x + bar_w * i / divisions:.1f}" y1="{y}" '
         f'x2="{bar_x + bar_w * i / divisions:.1f}" y2="{y + height}" '
         f'stroke="#5a5a56" stroke-width="1" opacity=".8"/>'
         for i in range(1, divisions)
     )
+    # Libellés de répartition : heures faites dans le remplissage (texte foncé),
+    # heures restantes dans le fond (texte clair). Omis si la zone est trop
+    # étroite pour contenir le texte.
+    split_labels = ""
+    label_min_w = 44
+    label_attrs = (
+        f'y="{y + height // 2 + 5}" text-anchor="middle" '
+        f'font-family="system-ui, sans-serif" font-size="13" font-weight="700"'
+    )
+    if fill_w >= label_min_w:
+        split_labels += (
+            f'<text x="{bar_x + 3 + fill_w / 2:.1f}" {label_attrs} '
+            f'fill="#1a1a19">{_format_hm(total_hours)}</text>'
+        )
+    remaining = max(0, max_hours - total_hours)
+    rest_w = bar_w - 6 - fill_w
+    if remaining > 0 and rest_w >= label_min_w:
+        split_labels += (
+            f'<text x="{bar_x + 3 + fill_w + rest_w / 2:.1f}" {label_attrs} '
+            f'fill="#c3c2b7">{_format_hm(remaining)}</text>'
+        )
     value_text = ""
     if show_value:
         value_text = (
@@ -699,6 +720,7 @@ def _week_header_bar(total_hours, max_hours, value_x, bar_end_x=None, label_x=20
   {fill_rect}
   {overflow_rect}
   {ticks}
+  {split_labels}
   {value_text}'''
 
 
@@ -991,7 +1013,7 @@ def render_week_svg(day_hours, max_hours=BILLABLE_MAX_HOURS, week_max_hours=BILL
 
 # ── Activité par projet (couleurs identiques à `timer day-bars`) ──────────────
 ACTIVITY_MAX_HOURS = 8
-ACTIVITY_WEEK_MAX_HOURS = 40
+ACTIVITY_WEEK_MAX_HOURS = 35
 
 # tab20 + tab20b (40 couleurs), figées depuis matplotlib pour rester identiques à
 # core.plots._project_color_map sans embarquer matplotlib dans le conteneur.
@@ -2265,7 +2287,7 @@ def months(secret_path):
     for _, activity in activity_rows:
         prefixes.update(activity)
     # Une ligne = une semaine : les maxima passent du jour (4h/8h) à la semaine
-    # (20h/40h). Pas de barre de total ici (show_header=False) : la page compare
+    # (20h/35h). Pas de barre de total ici (show_header=False) : la page compare
     # les semaines entre elles, le cumul sur N semaines n'apporte rien.
     month_groups = month_row_groups([monday for monday, _, _, _, _ in weeks])
     charts = render_week_svg(

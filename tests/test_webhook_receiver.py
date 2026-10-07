@@ -401,7 +401,7 @@ def test_live_week_charts_carry_the_total_in_the_title_not_the_header(tmp_path):
     activity = client.get("/activity-week.svg").get_data(as_text=True)
 
     assert re.search(r'text-anchor="middle"[^>]*>FACTURABLE 0:05 / 20h</text>', billable)
-    assert re.search(r'text-anchor="middle"[^>]*>ACTIVITÉS 0:05 / 40h</text>', activity)
+    assert re.search(r'text-anchor="middle"[^>]*>ACTIVITÉS 0:05 / 35h</text>', activity)
     for svg in (billable, activity):
         assert 'font-size="14" font-weight="700"' not in svg  # nombre d'en-tête retiré
 
@@ -687,7 +687,7 @@ def test_month_page_renders_one_row_per_week(tmp_path):
     assert len(set(labels)) == 3       # les mêmes 3 semaines des deux côtés
     # les maxima passent du jour à la semaine, et le total d'en-tête à N semaines
     assert "FACTURABLE — 3 SEMAINES : 0:00 / 60h" in page
-    assert "ACTIVITÉ — 3 SEMAINES : 0:00 / 120h" in page
+    assert "ACTIVITÉ — 3 SEMAINES : 0:00 / 105h" in page
 
 
 def test_month_page_defaults_and_clamps_the_week_count(tmp_path):
@@ -720,7 +720,7 @@ def test_week_charts_show_a_visible_title_not_only_a_tooltip(tmp_path):
         r'<text x="320" y="18" text-anchor="middle"[^>]*>SEMAINE : 2:00 / 20h</text>', svg
     )
     assert re.search(
-        r'<text x="320" y="18" text-anchor="middle"[^>]*>ACTIVITÉ SEMAINE : 1:00 / 40h</text>',
+        r'<text x="320" y="18" text-anchor="middle"[^>]*>ACTIVITÉ SEMAINE : 1:00 / 35h</text>',
         activity,
     )
     # les deux graphes se font face : même hauteur, sinon ils se désalignent
