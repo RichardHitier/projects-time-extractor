@@ -47,7 +47,7 @@ CSV_COLUMNS = ["date", "project", "task", "minutes", "startTime", "endTime"]
 EXPORT_TYPES = {"finish", "pause"}
 SECRET = os.environ.get("WEBHOOK_SECRET", "").strip("/")
 PORT = int(os.environ.get("WEBHOOK_PORT", "5000"))
-APP_VERSION = "0.25.0"  # affiché en pied de page (miroir de pyproject.toml)
+APP_VERSION = "0.26.0"  # affiché en pied de page (miroir de pyproject.toml)
 
 BILLABLE_PROJECTS = {p.lower() for p in _config.get("BILLABLE_PROJECTS", [])}
 BILLABLE_MAX_HOURS = 4
@@ -2122,6 +2122,7 @@ SUIVI_HTML = """<!doctype html>
   td.sub {{ color: #bbb; }}
   td.num {{ text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }}
   td.empty {{ color: #777; }}
+  tr.adj td {{ color: #e0b050; font-style: italic; border-top: 1px dashed #444; }}
   tr.total td {{ border-bottom: 0; border-top: 1px solid #333; color: #fff; font-weight: 700; }}
   .dot {{ display: inline-block; width: .6rem; height: .6rem; border-radius: 50%;
     margin-right: .5rem; vertical-align: baseline; }}
@@ -2744,9 +2745,12 @@ def suivi_page(secret_path):
         month = current
     month = min(month, current)
 
-    commandes = suivi.load_facturation(FACTURATION_PATH).get("commandes") or []
+    facturation = suivi.load_facturation(FACTURATION_PATH)
+    commandes = facturation.get("commandes") or []
     rows = _read_csv_rows(CSV_PATH)
-    lines = suivi.month_lines(rows, month, commandes, EXPORT_PROJECTS)
+    lines = suivi.month_lines(
+        rows, month, commandes, EXPORT_PROJECTS, facturation.get("ajustements") or []
+    )
     totals = suivi.totals_by_commande(lines)
 
     def month_name(yyyymm):
@@ -2779,7 +2783,8 @@ def suivi_page(secret_path):
         total_trs = '<tr><td class="empty" colspan="3">aucune séance ce mois-ci</td></tr>'
 
     line_trs = "".join(
-        f'<tr><td class="date">{_format_ymd(line["date"])}</td>'
+        ('<tr class="adj">' if line["ajustement"] else "<tr>")
+        + f'<td class="date">{_format_ymd(line["date"]) or "—"}</td>'
         f'<td class="cmd">{_suivi_dot(line["commande"])}{html.escape(line["commande"])}</td>'
         f'<td class="sub">{html.escape(line["sous_projet"])}</td>'
         f'<td>{html.escape(line["description"])}</td>'
@@ -2807,9 +2812,13 @@ def suivi_synthese_page(secret_path):
         return "not found\n", 404
     prefix = f"/{secret_path.strip('/')}" if secret_path.strip("/") else ""
     current = datetime.now().strftime("%Y%m")
-    commandes = suivi.load_facturation(FACTURATION_PATH).get("commandes") or []
+    facturation = suivi.load_facturation(FACTURATION_PATH)
+    commandes = facturation.get("commandes") or []
     months = suivi.months_between(suivi.first_month(commandes, current), current)
-    table = suivi.monthly_totals(_read_csv_rows(CSV_PATH), months, commandes, EXPORT_PROJECTS)
+    table = suivi.monthly_totals(
+        _read_csv_rows(CSV_PATH), months, commandes, EXPORT_PROJECTS,
+        facturation.get("ajustements") or [],
+    )
 
     def month_cell(month, days, cls="num"):
         if not days:

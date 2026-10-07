@@ -42,7 +42,7 @@ def _clean(value):
     return re.sub(r"\s+", " ", (value or "").strip().strip('"'))
 
 
-def month_lines(rows, yyyymm, commandes, projects):
+def month_lines(rows, yyyymm, commandes, projects, ajustements=()):
     """Lignes de la feuille du mois `yyyymm` (ex. '202609'), comme
     `timer report --view ods` les écrivait dans suivi_chantiers.ods.
 
@@ -51,8 +51,12 @@ def month_lines(rows, yyyymm, commandes, projects):
     quart d'heure supérieur, converties en jours de 8 h. Chaque ligne porte la
     commande du jour (commande_for). Triées par date puis commande.
 
-    Renvoie des dicts : date (YYYYMMDD), commande, sous_projet, description,
-    jours.
+    Les `ajustements` du mois (facturation.yml : mois, commande, jours, motif)
+    s'ajoutent en fin de feuille, sans date : ils alignent les jours retenus
+    pour la facturation sur l'ODS sans toucher aux séances du CSV.
+
+    Renvoie des dicts : date (YYYYMMDD, vide pour un ajustement), commande,
+    sous_projet, description, jours, ajustement (bool).
     """
     wanted = {p.lower() for p in projects}
     groups = {}
@@ -75,9 +79,21 @@ def month_lines(rows, yyyymm, commandes, projects):
             "sous_projet": sub,
             "description": task,
             "jours": rounded / MINUTES_PER_DAY,
+            "ajustement": False,
         })
     lines.sort(key=lambda line: (line["date"], line["commande"],
                                  line["sous_projet"], line["description"]))
+    for adjustment in ajustements:
+        if str(adjustment["mois"]) != yyyymm:
+            continue
+        lines.append({
+            "date": "",
+            "commande": adjustment["commande"],
+            "sous_projet": "",
+            "description": f"ajustement : {adjustment.get('motif') or ''}",
+            "jours": float(adjustment["jours"]),
+            "ajustement": True,
+        })
     return lines
 
 
@@ -120,12 +136,13 @@ def first_month(commandes, default):
     return min(debuts) if debuts else default
 
 
-def monthly_totals(rows, months, commandes, projects):
+def monthly_totals(rows, months, commandes, projects, ajustements=()):
     """{commande: {mois: jours}} pour chaque mois de `months` : les totaux par
-    commande de month_lines(), donc exactement ceux de la feuille du mois."""
+    commande de month_lines(), ajustements compris, donc exactement ceux de la
+    feuille du mois."""
     table = {}
     for month in months:
-        lines = month_lines(rows, month, commandes, projects)
+        lines = month_lines(rows, month, commandes, projects, ajustements)
         for name, days in totals_by_commande(lines).items():
             table.setdefault(name, {})[month] = days
     return dict(sorted(table.items()))

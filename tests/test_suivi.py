@@ -134,3 +134,45 @@ def test_suivi_synthese_page_links_each_cell_to_its_month(tmp_path):
     assert "<th>déc. 25</th>" in page
     assert '<a href="/suivi?m=202512">1</a>' in page
     assert 'href="/suivi/synthese" class="active">Synthèse' in page
+
+
+def test_month_lines_appends_the_month_adjustments_last():
+    rows = [row("20260302", "speasy", "codec", 480)]
+    ajustements = [
+        {"mois": "202603", "commande": "speasy", "jours": -0.25, "motif": "saisie manuelle ODS"},
+        {"mois": "202604", "commande": "speasy", "jours": 1, "motif": "autre mois"},
+    ]
+    lines = suivi.month_lines(rows, "202603", COMMANDES, ["speasy"], ajustements)
+    assert [(line["date"], line["jours"], line["ajustement"]) for line in lines] == [
+        ("20260302", 1.0, False),
+        ("", -0.25, True),
+    ]
+    assert lines[-1]["description"] == "ajustement : saisie manuelle ODS"
+    assert suivi.totals_by_commande(lines) == {"speasy": 0.75}
+    table = suivi.monthly_totals(rows, ["202604", "202603"], COMMANDES, ["speasy"], ajustements)
+    assert table == {"speasy": {"202603": 0.75, "202604": 1.0}}
+
+
+def test_suivi_page_shows_adjustments_as_dated_dash_lines(tmp_path):
+    csv_path = tmp_path / "pomofocus_webhook.csv"
+    with open(csv_path, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=webhook_receiver.CSV_COLUMNS)
+        writer.writeheader()
+        writer.writerow(row("20260302", "speasy", "codec", 480))
+    yml = tmp_path / "facturation.yml"
+    yml.write_text(
+        "commandes:\n"
+        "  - {nom: speasy, projet: speasy, debut: '2025-10-01'}\n"
+        "ajustements:\n"
+        "  - {mois: '202603', commande: speasy, jours: -0.25, motif: saisie manuelle ODS}\n",
+        encoding="utf-8",
+    )
+    webhook_receiver.CSV_PATH = str(csv_path)
+    webhook_receiver.FACTURATION_PATH = str(yml)
+    client = webhook_receiver.app.test_client()
+
+    page = client.get("/suivi?m=202603").get_data(as_text=True)
+
+    assert '<tr class="adj"><td class="date">—</td>' in page
+    assert "ajustement : saisie manuelle ODS" in page
+    assert 'speasy</td><td class="ref"></td><td class="num">0,75</td>' in page
