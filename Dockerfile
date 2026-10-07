@@ -14,7 +14,7 @@ COPY requirements-webhook.txt .
 RUN pip install --no-cache-dir -r requirements-webhook.txt
 
 # Seuls les fichiers nécessaires au récepteur.
-COPY webhook_receiver.py config.py config.yml projects-config.yml ./
+COPY webhook_receiver.py suivi.py config.py config.yml projects-config.yml ./
 
 EXPOSE 5000
 

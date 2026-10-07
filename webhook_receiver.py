@@ -25,6 +25,7 @@ from urllib.parse import quote
 
 from flask import Flask, Response, jsonify, redirect, request
 
+import suivi
 from config import load_config, load_projects
 
 _config = load_config()
@@ -35,11 +36,18 @@ CSV_PATH = os.environ.get(
     "POMOFOCUS_WEBHOOK_CSV",
     os.path.join(DATA_DIR, "pomofocus_webhook.csv"),
 )
+# Commandes et factures (/suivi), à côté du CSV dans le volume de données :
+# éditable en prod sans reconstruire l'image.
+FACTURATION_PATH = os.environ.get(
+    "FACTURATION_YML",
+    os.path.join(DATA_DIR, "facturation.yml"),
+)
+EXPORT_PROJECTS = _config.get("EXPORT_PROJECTS", [])
 CSV_COLUMNS = ["date", "project", "task", "minutes", "startTime", "endTime"]
 EXPORT_TYPES = {"finish", "pause"}
 SECRET = os.environ.get("WEBHOOK_SECRET", "").strip("/")
 PORT = int(os.environ.get("WEBHOOK_PORT", "5000"))
-APP_VERSION = "0.23.0"  # affiché en pied de page (miroir de pyproject.toml)
+APP_VERSION = "0.24.0"  # affiché en pied de page (miroir de pyproject.toml)
 
 BILLABLE_PROJECTS = {p.lower() for p in _config.get("BILLABLE_PROJECTS", [])}
 BILLABLE_MAX_HOURS = 4
@@ -1545,8 +1553,9 @@ def render_swimlane_svg(days):
 
 def _menu_bar(prefix, active):
     """Shared top navigation across /live, /weeks, /months, /years, /swimlane,
-    /rows and /projects. `active` is one of 'live' | 'weeks' | 'month' |
-    'years' | 'swimlane' | 'rows' | 'projects' and gets the highlighted pill."""
+    /rows, /projects and /suivi. `active` is one of 'live' | 'weeks' | 'month'
+    | 'years' | 'swimlane' | 'rows' | 'projects' | 'suivi' and gets the
+    highlighted pill."""
     items = [
         ("live", "Live", f"{prefix}/live"),
         ("weeks", "Semaines", f"{prefix}/weeks"),
@@ -1555,6 +1564,7 @@ def _menu_bar(prefix, active):
         ("swimlane", "Swimlane", f"{prefix}/swimlane"),
         ("rows", "Lignes", f"{prefix}/rows"),
         ("projects", "Projets", f"{prefix}/projects"),
+        ("suivi", "Suivi", f"{prefix}/suivi"),
     ]
     links = "".join(
         f'<a href="{href}" class="active">{text}</a>'
@@ -2079,6 +2089,72 @@ PROJECTS_HTML = """<!doctype html>
 """
 
 
+SUIVI_HTML = """<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Suivi — {month_label}</title>
+<style>
+  body {{ font-family: system-ui, sans-serif; margin: 2rem; background: #111; color: #eee; }}
+  a {{ color: #3987e5; text-decoration: none; }}
+  .menubar {{ display: flex; gap: .6rem; margin-bottom: 1.5rem; flex-wrap: wrap; }}
+  .menubar a {{ background: #2e2e2b; padding: .4rem .9rem; border-radius: 999px;
+    text-transform: uppercase; font-size: .8rem; color: #bbb; transition: background .15s ease; }}
+  .menubar a:hover {{ background: #3c3c37; }}
+  .menubar a.active {{ background: #3987e5; color: #fff; }}
+  .weeknav {{ display: flex; align-items: center; justify-content: center; gap: .6rem;
+    flex-wrap: wrap; margin: 0 0 1.4rem; max-width: 56rem; }}
+  .weeknav a, .weeknav .disabled {{ display: inline-flex; align-items: center; background: #2e2e2b;
+    padding: .35rem .8rem; border-radius: 999px; transition: background .15s ease; font-size: .78rem; }}
+  .weeknav a:hover {{ background: #3c3c37; }}
+  .weeknav .disabled {{ color: #555; }}
+  .weeknav .nav-title {{ color: #fff; font-weight: 700; text-transform: uppercase;
+    font-size: .8rem; text-align: center; min-width: 16ch; }}
+  h2 {{ color: #999; font-weight: normal; text-transform: uppercase; font-size: .7rem;
+    letter-spacing: .04em; margin: 1.8rem 0 .5rem; }}
+  table {{ border-collapse: collapse; width: 100%; max-width: 56rem; }}
+  th {{ text-align: left; color: #999; text-transform: uppercase; font-size: .7rem;
+    font-weight: normal; padding: .4rem .5rem; border-bottom: 1px solid #333; }}
+  th.num {{ text-align: right; }}
+  td {{ padding: .35rem .5rem; border-bottom: 1px solid #222; font-size: .85rem; }}
+  td.date {{ color: #999; white-space: nowrap; font-variant-numeric: tabular-nums; }}
+  td.cmd {{ white-space: nowrap; }}
+  td.sub {{ color: #bbb; }}
+  td.num {{ text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }}
+  td.empty {{ color: #777; }}
+  tr.total td {{ border-bottom: 0; border-top: 1px solid #333; color: #fff; font-weight: 700; }}
+  .dot {{ display: inline-block; width: .6rem; height: .6rem; border-radius: 50%;
+    margin-right: .5rem; vertical-align: baseline; }}
+  .totals {{ max-width: 24rem; }}
+  .ver {{ color: #666; font-size: .7rem; margin-top: 2rem; }}
+</style>
+</head>
+<body>
+{menu}
+<div class="weeknav">{nav}</div>
+<h2>Total par commande</h2>
+<table class="totals">
+  <thead><tr><th>Commande</th><th class="num">Jours</th></tr></thead>
+  <tbody>{totals}</tbody>
+</table>
+<h2>Lignes</h2>
+<table>
+  <thead><tr><th>Date</th><th>Commande</th><th>Ss-projet</th><th>Description</th>
+  <th class="num">Jours</th></tr></thead>
+  <tbody>{lines}</tbody>
+</table>
+<footer class="ver">v{version}</footer>
+</body>
+</html>
+"""
+
+
+def _suivi_dot(commande):
+    """Pastille de la couleur du projet de la commande (calipso_b → calipso)."""
+    color = project_color(_project_prefix(commande))
+    return f'<span class="dot" style="background:{color}"></span>'
+
+
 def _rows_markup(rows):
     """(forms, trs) — une ligne de table = un <form> POST. Le <form> lui-même
     vit hors de la table (un <form> dans un <tr> est du HTML invalide) et porte
@@ -2575,6 +2651,71 @@ def projects_page(secret_path):
         menu=_menu_bar(prefix, "projects"),
         round_choice=_round_choice_html(step),
         rows=trs,
+        version=APP_VERSION,
+    )
+
+
+@app.get("/suivi", defaults={"secret_path": ""})
+@app.get("/<path:secret_path>/suivi")
+def suivi_page(secret_path):
+    """Feuille d'un mois comme dans suivi_chantiers.ods, calculée en direct
+    depuis le CSV (?m=YYYYMM, défaut : mois en cours)."""
+    if SECRET and secret_path.strip("/") != SECRET:
+        return "not found\n", 404
+    prefix = f"/{secret_path.strip('/')}" if secret_path.strip("/") else ""
+    current = datetime.now().strftime("%Y%m")
+    month = request.args.get("m", "")
+    if not (len(month) == 6 and month.isdigit() and 1 <= int(month[4:]) <= 12):
+        month = current
+    month = min(month, current)
+
+    commandes = suivi.load_facturation(FACTURATION_PATH).get("commandes") or []
+    rows = _read_csv_rows(CSV_PATH)
+    lines = suivi.month_lines(rows, month, commandes, EXPORT_PROJECTS)
+    totals = suivi.totals_by_commande(lines)
+
+    def month_name(yyyymm):
+        return f"{_FR_MONTHS[int(yyyymm[4:]) - 1]} {yyyymm[:4]}"
+
+    previous, following = suivi.shift_month(month, -1), suivi.shift_month(month, 1)
+    prev_link = (
+        f'<a href="{prefix}/suivi?m={previous}">{_CHEVRON_LEFT}{month_name(previous)}</a>'
+    )
+    next_link = (
+        f'<span class="disabled">{month_name(following)}{_CHEVRON_RIGHT}</span>'
+        if month == current
+        else f'<a href="{prefix}/suivi?m={following}">{month_name(following)}{_CHEVRON_RIGHT}</a>'
+    )
+    nav = f'{prev_link}<span class="nav-title">{month_name(month)}</span>{next_link}'
+
+    total_trs = "".join(
+        f'<tr><td class="cmd">{_suivi_dot(name)}{html.escape(name)}</td>'
+        f'<td class="num">{suivi.format_jours(days)}</td></tr>'
+        for name, days in totals.items()
+    )
+    if totals:
+        total_trs += (
+            f'<tr class="total"><td>Total</td>'
+            f'<td class="num">{suivi.format_jours(sum(totals.values()))}</td></tr>'
+        )
+    else:
+        total_trs = '<tr><td class="empty" colspan="2">aucune séance ce mois-ci</td></tr>'
+
+    line_trs = "".join(
+        f'<tr><td class="date">{_format_ymd(line["date"])}</td>'
+        f'<td class="cmd">{_suivi_dot(line["commande"])}{html.escape(line["commande"])}</td>'
+        f'<td class="sub">{html.escape(line["sous_projet"])}</td>'
+        f'<td>{html.escape(line["description"])}</td>'
+        f'<td class="num">{suivi.format_jours(line["jours"])}</td></tr>'
+        for line in lines
+    ) or '<tr><td class="empty" colspan="5">aucune séance ce mois-ci</td></tr>'
+
+    return SUIVI_HTML.format(
+        month_label=month_name(month),
+        menu=_menu_bar(prefix, "suivi"),
+        nav=nav,
+        totals=total_trs,
+        lines=line_trs,
         version=APP_VERSION,
     )
 

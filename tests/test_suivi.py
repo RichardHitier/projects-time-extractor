@@ -1,0 +1,92 @@
+import csv
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+import suivi
+import webhook_receiver
+
+COMMANDES = [
+    {"nom": "calipso_a", "projet": "calipso", "debut": "2025-10-01"},
+    {"nom": "calipso_b", "projet": "calipso", "debut": "2025-12-05"},
+    {"nom": "speasy", "projet": "speasy", "debut": "2025-10-01"},
+]
+
+
+def row(day, project, task, minutes):
+    return {"date": day, "project": project, "task": task, "minutes": str(minutes),
+            "startTime": "", "endTime": ""}
+
+
+def test_commande_for_picks_the_last_started_commande():
+    assert suivi.commande_for("calipso_iesa", "20251204", COMMANDES) == "calipso_a"
+    assert suivi.commande_for("calipso_iesa", "20251205", COMMANDES) == "calipso_b"
+    assert suivi.commande_for("calipso", "20260301", COMMANDES) == "calipso_b"
+
+
+def test_commande_for_falls_back_to_the_project_prefix():
+    assert suivi.commande_for("colibri_admin", "20260101", COMMANDES) == "colibri"
+    # séance antérieure à la première commande du projet
+    assert suivi.commande_for("calipso_iesa", "20240101", COMMANDES) == "calipso"
+
+
+def test_load_facturation_missing_file_is_empty(tmp_path):
+    assert suivi.load_facturation(tmp_path / "nope.yml") == {}
+
+
+def test_month_lines_groups_by_task_and_rounds_up_to_the_quarter_hour():
+    rows = [
+        row("20251205", "calipso_iesa", "fix", 20),
+        row("20251205", "calipso_iesa", "fix", 20),   # même tâche : 40 → 45 min
+        row("20251205", "calipso_lees", "fix", 1),    # 1 → 15 min
+        row("20251205", "perso", "sport", 60),        # hors projets exportés
+        row("20251105", "speasy", "codec", 60),       # autre mois
+    ]
+    lines = suivi.month_lines(rows, "202512", COMMANDES, ["calipso", "speasy"])
+    assert [(line["commande"], line["sous_projet"], line["jours"]) for line in lines] == [
+        ("calipso_b", "iesa", 45 / 480),
+        ("calipso_b", "lees", 15 / 480),
+    ]
+
+
+def test_totals_by_commande_and_format_jours():
+    lines = [{"commande": "speasy", "jours": 0.5},
+             {"commande": "calipso_b", "jours": 0.03125},
+             {"commande": "speasy", "jours": 0.5}]
+    assert suivi.totals_by_commande(lines) == {"calipso_b": 0.03125, "speasy": 1.0}
+    assert suivi.format_jours(0.03125) == "0,03125"
+    assert suivi.format_jours(9.0) == "9"
+    assert suivi.format_jours(3.5) == "3,5"
+
+
+def test_shift_month_crosses_years():
+    assert suivi.shift_month("202601", -1) == "202512"
+    assert suivi.shift_month("202612", 1) == "202701"
+
+
+def test_suivi_page_shows_the_month_by_commande(tmp_path):
+    csv_path = tmp_path / "pomofocus_webhook.csv"
+    with open(csv_path, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=webhook_receiver.CSV_COLUMNS)
+        writer.writeheader()
+        writer.writerow(row("20251204", "calipso_iesa", "avant", 240))
+        writer.writerow(row("20251205", "calipso_iesa", "après", 480))
+    yml = tmp_path / "facturation.yml"
+    yml.write_text(
+        "commandes:\n"
+        "  - {nom: calipso_a, projet: calipso, debut: '2025-10-01'}\n"
+        "  - {nom: calipso_b, projet: calipso, debut: '2025-12-05'}\n",
+        encoding="utf-8",
+    )
+    webhook_receiver.CSV_PATH = str(csv_path)
+    webhook_receiver.FACTURATION_PATH = str(yml)
+    client = webhook_receiver.app.test_client()
+
+    page = client.get("/suivi?m=202512").get_data(as_text=True)
+
+    assert "décembre 2025" in page
+    assert "calipso_a</td><td class=\"num\">0,5</td>" in page
+    assert "calipso_b</td><td class=\"num\">1</td>" in page
+    assert 'href="/suivi?m=202511"' in page
+    assert 'href="/suivi"' in page   # entrée de menu
