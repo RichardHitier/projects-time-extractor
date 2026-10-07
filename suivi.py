@@ -186,19 +186,14 @@ def commande_summary(commandes, factures, executed):
 TVA_RATE = 0.20
 
 
-def tva_quarter(day):
-    """Trimestre de TVA d'une date 'YYYY-MM-DD' : '2026-08-11' → '2026T3'."""
-    return f"{day[:4]}T{(int(day[5:7]) - 1) // 3 + 1}"
-
-
 def invoice_register(factures, commandes, tva_declarations):
     """Tableau B de la Synthèse de l'ODS : une ligne par facture, par date
     d'émission. HT = jours × TJM de la commande, TVA 20 %, TTC.
 
-    TVA sur les encaissements : une facture payée tombe dans le trimestre de
-    son paiement (`trimestre`), déclaré à la date de `tva_declarations` (vide
-    tant que le trimestre n'est pas déclaré). Une facture impayée n'a ni
-    trimestre ni déclaration.
+    TVA sur les encaissements : le trimestre de déclaration d'une facture est
+    choisi à la main (`tva` dans facturation.yml, ex. '3T26'), sa date de
+    déclaration lue dans `tva_declarations`. Sans `tva`, la facture n'est pas
+    encore rattachée à une déclaration.
     """
     tjms = {c["nom"]: float(c.get("tjm") or 0) for c in commandes}
     register = []
@@ -208,7 +203,7 @@ def invoice_register(factures, commandes, tva_declarations):
         tjm = tjms.get(facture["commande"], 0)
         ht = days * tjm
         paid = str(facture.get("payee") or "")
-        quarter = tva_quarter(paid) if paid else ""
+        quarter = str(facture.get("tva") or "")
         register.append({
             "id": str(facture["id"]),
             "date": str(facture["date"]),

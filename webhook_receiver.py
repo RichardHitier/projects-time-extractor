@@ -47,7 +47,7 @@ CSV_COLUMNS = ["date", "project", "task", "minutes", "startTime", "endTime"]
 EXPORT_TYPES = {"finish", "pause"}
 SECRET = os.environ.get("WEBHOOK_SECRET", "").strip("/")
 PORT = int(os.environ.get("WEBHOOK_PORT", "5000"))
-APP_VERSION = "0.28.0"  # affiché en pied de page (miroir de pyproject.toml)
+APP_VERSION = "0.28.1"  # affiché en pied de page (miroir de pyproject.toml)
 
 BILLABLE_PROJECTS = {p.lower() for p in _config.get("BILLABLE_PROJECTS", [])}
 BILLABLE_MAX_HOURS = 4
@@ -2996,7 +2996,7 @@ def suivi_factures_page(secret_path):
            else '<td class="todo">impayée</td>')
         + f'<td class="date">{f["trimestre"]}</td>'
         + (f'<td class="date">{ymd(f["declaree"])}</td>' if f["declaree"]
-           else ('<td class="todo">à déclarer</td>' if f["trimestre"] else "<td></td>"))
+           else ('<td class="todo">à déclarer</td>' if f["payee"] else "<td></td>"))
         + "</tr>"
         for f in register
     )
@@ -3023,7 +3023,9 @@ def suivi_factures_page(secret_path):
         + (f'<td class="date">{ymd(q["declaree"])}</td>' if q["declaree"]
            else '<td class="todo">à déclarer</td>')
         + "</tr>"
-        for quarter, q in sorted(quarters.items(), reverse=True)
+        for quarter, q in sorted(
+            quarters.items(), key=lambda item: (item[0][2:], item[0][:1]), reverse=True
+        )
     ) or '<tr><td colspan="5">aucune facture payée</td></tr>'
 
     return SUIVI_FACTURES_HTML.format(

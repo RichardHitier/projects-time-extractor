@@ -227,20 +227,20 @@ def test_suivi_synthese_page_shows_the_commandes_table(tmp_path):
             '<td class="num eur">500 €</td><td class="num">8</td>') in page
 
 
-def test_invoice_register_computes_amounts_and_tva_quarter():
+def test_invoice_register_uses_the_chosen_tva_quarter():
     commandes = [{"nom": "speasy", "projet": "speasy", "tjm": 490, "debut": "2025-10-01"}]
     factures = [
         {"id": "F2", "date": "2026-08-05", "commande": "speasy", "jours": 4, "payee": None},
+        # payée en février, déclarée au 2e trimestre : c'est mon choix, pas un calcul
         {"id": "F1", "date": "2026-01-29", "commande": "speasy", "jours": 9,
-         "payee": "2026-04-21"},
+         "payee": "2026-02-23", "tva": "2T26"},
     ]
-    register = suivi.invoice_register(factures, commandes, {"2026T2": "2026-06-30"})
+    register = suivi.invoice_register(factures, commandes, {"2T26": "2026-06-30"})
     first, second = register
     assert (first["id"], first["ht"], first["tva"], first["ttc"]) == ("F1", 4410, 882, 5292)
-    assert (first["trimestre"], first["declaree"]) == ("2026T2", "2026-06-30")
+    assert (first["trimestre"], first["declaree"]) == ("2T26", "2026-06-30")
     assert (second["id"], second["payee"], second["trimestre"], second["declaree"]) == (
         "F2", "", "", "")
-    assert suivi.tva_quarter("2025-12-16") == "2025T4"
 
 
 def test_suivi_factures_page_flags_unpaid_and_undeclared(tmp_path):
@@ -249,8 +249,10 @@ def test_suivi_factures_page_flags_unpaid_and_undeclared(tmp_path):
         "commandes:\n"
         "  - {nom: speasy, projet: speasy, tjm: 500, debut: '2025-10-01'}\n"
         "factures:\n"
-        "  - {id: F1, date: '2026-07-01', commande: speasy, jours: 2, payee: '2026-07-10'}\n"
-        "  - {id: F2, date: '2026-08-01', commande: speasy, jours: 1}\n",
+        "  - {id: F1, date: '2026-07-01', commande: speasy, jours: 2, payee: '2026-07-10',"
+        " tva: 3T26}\n"
+        "  - {id: F2, date: '2026-08-01', commande: speasy, jours: 1, payee: '2026-08-10'}\n"
+        "  - {id: F3, date: '2026-09-01', commande: speasy, jours: 1}\n",
         encoding="utf-8",
     )
     webhook_receiver.FACTURATION_PATH = str(yml)
@@ -259,7 +261,8 @@ def test_suivi_factures_page_flags_unpaid_and_undeclared(tmp_path):
     page = client.get("/suivi/factures").get_data(as_text=True)
 
     assert "<h2>Registre des factures</h2>" in page
-    assert '<td class="todo">impayée</td>' in page
-    assert '<td class="date">2026T3</td><td class="todo">à déclarer</td>' in page
+    assert '<td class="todo">impayée</td>' in page                       # F3
+    assert '<td class="date">3T26</td><td class="todo">à déclarer</td>' in page  # F1
+    assert '<td class="date"></td><td class="todo">à déclarer</td>' in page      # F2
     assert '<td class="num eur">1 000 €</td>' in page   # HT de F1
     assert 'href="/suivi/factures" class="active">Factures' in page
