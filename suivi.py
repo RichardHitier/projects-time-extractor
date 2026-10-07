@@ -146,3 +146,38 @@ def monthly_totals(rows, months, commandes, projects, ajustements=()):
         for name, days in totals_by_commande(lines).items():
             table.setdefault(name, {})[month] = days
     return dict(sorted(table.items()))
+
+
+def commande_summary(commandes, factures, executed):
+    """Tableau A de la Synthèse de l'ODS : une ligne par commande, dans l'ordre
+    de facturation.yml. `executed` = {commande: jours exécutés} (ajustements
+    compris, cf. monthly_totals).
+
+    Facturé = somme des jours des factures de la commande ; reste à facturer =
+    exécuté − facturé (négatif si facturé d'avance) ; reste à réaliser = devis
+    − exécuté (négatif si dépassement de commande).
+    """
+    billed = {}
+    for facture in factures:
+        name = facture["commande"]
+        billed[name] = billed.get(name, 0) + float(facture["jours"])
+    summary = []
+    for commande in commandes:
+        name = commande["nom"]
+        tjm = float(commande.get("tjm") or 0)
+        devis = float(commande.get("devis") or 0)
+        done = executed.get(name, 0)
+        to_bill = done - billed.get(name, 0)
+        summary.append({
+            "nom": name,
+            "ref": str(commande.get("ref") or ""),
+            "tjm": tjm,
+            "devis": devis,
+            "devis_ht": devis * tjm,
+            "execute": done,
+            "facture": billed.get(name, 0),
+            "reste_a_facturer": to_bill,
+            "reste_a_facturer_ht": to_bill * tjm,
+            "reste_a_realiser": devis - done,
+        })
+    return summary

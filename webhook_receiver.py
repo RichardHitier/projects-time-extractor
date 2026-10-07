@@ -47,7 +47,7 @@ CSV_COLUMNS = ["date", "project", "task", "minutes", "startTime", "endTime"]
 EXPORT_TYPES = {"finish", "pause"}
 SECRET = os.environ.get("WEBHOOK_SECRET", "").strip("/")
 PORT = int(os.environ.get("WEBHOOK_PORT", "5000"))
-APP_VERSION = "0.26.0"  # affiché en pied de page (miroir de pyproject.toml)
+APP_VERSION = "0.27.0"  # affiché en pied de page (miroir de pyproject.toml)
 
 BILLABLE_PROJECTS = {p.lower() for p in _config.get("BILLABLE_PROJECTS", [])}
 BILLABLE_MAX_HOURS = 4
@@ -2189,6 +2189,10 @@ SUIVI_SYNTHESE_HTML = """<!doctype html>
   tr.total td {{ border-bottom: 0; border-top: 1px solid #333; color: #fff; font-weight: 700; }}
   tr.total td.num a {{ color: #fff; }}
   td.empty {{ color: #777; }}
+  td.ref {{ color: #777; font-size: .78rem; }}
+  td.neg {{ color: #e0b050; }}
+  td.eur {{ color: #fff; font-weight: 700; }}
+  table.cmds {{ margin-bottom: 2.2rem; }}
   .dot {{ display: inline-block; width: .6rem; height: .6rem; border-radius: 50%;
     margin-right: .5rem; vertical-align: baseline; }}
   .ver {{ color: #666; font-size: .7rem; margin-top: 2rem; }}
@@ -2197,6 +2201,15 @@ SUIVI_SYNTHESE_HTML = """<!doctype html>
 <body>
 {menu}
 {tabs}
+<h2>Commandes</h2>
+<div class="scroll">
+<table class="cmds">
+  <thead><tr><th class="cmd">Commande</th><th class="cmd">Réf.</th><th>TJM</th>
+  <th>Devis</th><th>Devis HT</th><th>Exécuté</th><th>Facturé</th>
+  <th>Reste à facturer</th><th>HT</th><th>Reste à réaliser</th></tr></thead>
+  <tbody>{commandes}</tbody>
+</table>
+</div>
 <h2>Jours exécutés par commande et par mois</h2>
 <div class="scroll">
 <table>
@@ -2848,9 +2861,42 @@ def suivi_synthese_page(secret_path):
     else:
         trs = f'<tr><td class="empty" colspan="{len(months) + 2}">aucune séance</td></tr>'
 
+    executed = {name: sum(by_month.values()) for name, by_month in table.items()}
+    summary = suivi.commande_summary(
+        commandes, facturation.get("factures") or [], executed
+    )
+
+    def num(value, eur=False):
+        cls = "num neg" if value < -1e-9 else "num"
+        text = _format_eur(value) if eur else suivi.format_jours(round(value, 5))
+        return f'<td class="{cls}{" eur" if eur else ""}">{text}</td>'
+
+    cmd_trs = "".join(
+        f'<tr><td class="cmd">{_suivi_dot(c["nom"])}{html.escape(c["nom"])}</td>'
+        f'<td class="ref">{html.escape(c["ref"])}</td>'
+        f'<td class="num">{_format_eur(c["tjm"])}</td>'
+        f'{num(c["devis"])}<td class="num">{_format_eur(c["devis_ht"])}</td>'
+        f'{num(c["execute"])}{num(c["facture"])}'
+        f'{num(c["reste_a_facturer"])}{num(c["reste_a_facturer_ht"], eur=True)}'
+        f'{num(c["reste_a_realiser"])}</tr>'
+        for c in summary
+    )
+    if summary:
+        cmd_trs += (
+            '<tr class="total"><td>Total</td><td></td><td></td><td></td><td></td>'
+            '<td></td><td></td><td></td>'
+            f'{num(sum(c["reste_a_facturer_ht"] for c in summary), eur=True)}<td></td></tr>'
+        )
+    else:
+        cmd_trs = (
+            '<tr><td class="empty" colspan="10">aucune commande — ajouter '
+            '<code>commandes</code> dans facturation.yml</td></tr>'
+        )
+
     return SUIVI_SYNTHESE_HTML.format(
         menu=_menu_bar(prefix, "suivi"),
         tabs=_suivi_tabs(prefix, "synthese"),
+        commandes=cmd_trs,
         month_headers=headers,
         rows=trs,
         version=APP_VERSION,

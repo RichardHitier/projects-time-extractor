@@ -176,3 +176,52 @@ def test_suivi_page_shows_adjustments_as_dated_dash_lines(tmp_path):
     assert '<tr class="adj"><td class="date">—</td>' in page
     assert "ajustement : saisie manuelle ODS" in page
     assert 'speasy</td><td class="ref"></td><td class="num">0,75</td>' in page
+
+
+def test_commande_summary_computes_billed_and_remaining_days():
+    commandes = [
+        {"nom": "calipso_b", "projet": "calipso", "ref": "R1", "tjm": 540, "devis": 20,
+         "debut": "2025-12-05"},
+        {"nom": "speasy", "projet": "speasy", "tjm": 490, "devis": 60, "debut": "2025-10-01"},
+    ]
+    factures = [
+        {"commande": "calipso_b", "jours": 18},
+        {"commande": "calipso_b", "jours": 2},
+        {"commande": "speasy", "jours": 4},
+    ]
+    summary = suivi.commande_summary(commandes, factures, {"calipso_b": 19.5, "speasy": 5})
+    b, s = summary
+    assert (b["nom"], b["ref"], b["facture"]) == ("calipso_b", "R1", 20)
+    assert b["reste_a_facturer"] == -0.5          # facturé d'avance
+    assert b["reste_a_facturer_ht"] == -270
+    assert b["reste_a_realiser"] == 0.5
+    assert b["devis_ht"] == 10800
+    assert (s["reste_a_facturer"], s["reste_a_facturer_ht"]) == (1, 490)
+    assert s["reste_a_realiser"] == 55
+
+
+def test_suivi_synthese_page_shows_the_commandes_table(tmp_path):
+    csv_path = tmp_path / "pomofocus_webhook.csv"
+    with open(csv_path, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=webhook_receiver.CSV_COLUMNS)
+        writer.writeheader()
+        writer.writerow(row("20251205", "speasy", "x", 960))   # 2 j
+    yml = tmp_path / "facturation.yml"
+    yml.write_text(
+        "commandes:\n"
+        "  - {nom: speasy, projet: speasy, ref: R9, tjm: 500, devis: 10, debut: '2025-10-01'}\n"
+        "factures:\n"
+        "  - {id: F1, date: '2025-12-20', commande: speasy, jours: 1}\n",
+        encoding="utf-8",
+    )
+    webhook_receiver.CSV_PATH = str(csv_path)
+    webhook_receiver.FACTURATION_PATH = str(yml)
+    client = webhook_receiver.app.test_client()
+
+    page = client.get("/suivi/synthese").get_data(as_text=True)
+
+    assert "<h2>Commandes</h2>" in page
+    assert '<td class="ref">R9</td>' in page
+    # exécuté 2, facturé 1, reste 1 j = 500 €, reste à réaliser 8
+    assert ('<td class="num">2</td><td class="num">1</td><td class="num">1</td>'
+            '<td class="num eur">500 €</td><td class="num">8</td>') in page
