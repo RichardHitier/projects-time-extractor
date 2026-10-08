@@ -49,7 +49,7 @@ CSV_COLUMNS = ["date", "project", "task", "minutes", "startTime", "endTime"]
 EXPORT_TYPES = {"finish", "pause"}
 SECRET = os.environ.get("WEBHOOK_SECRET", "").strip("/")
 PORT = int(os.environ.get("WEBHOOK_PORT", "5000"))
-APP_VERSION = "0.30.0"  # affiché en pied de page (miroir de pyproject.toml)
+APP_VERSION = "0.31.0"  # affiché en pied de page (miroir de pyproject.toml)
 
 BILLABLE_PROJECTS = {p.lower() for p in _config.get("BILLABLE_PROJECTS", [])}
 BILLABLE_MAX_HOURS = 4
@@ -2284,15 +2284,63 @@ SUIVI_FACTURES_HTML = """<!doctype html>
 </html>
 """
 
+SUIVI_LOTS_HTML = """<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Suivi — lots</title>
+<style>
+  body {{ font-family: system-ui, sans-serif; margin: 2rem; background: #111; color: #eee; }}
+  a {{ color: #3987e5; text-decoration: none; }}
+  .menubar {{ display: flex; gap: .6rem; margin-bottom: 1.5rem; flex-wrap: wrap; }}
+  .menubar a {{ background: #2e2e2b; padding: .4rem .9rem; border-radius: 999px;
+    text-transform: uppercase; font-size: .8rem; color: #bbb; transition: background .15s ease; }}
+  .menubar a:hover {{ background: #3c3c37; }}
+  .menubar a.active {{ background: #3987e5; color: #fff; }}
+  .tabs {{ display: flex; gap: .4rem; margin: 0 0 1.2rem; }}
+  .tabs a {{ padding: .3rem .8rem; border-radius: 999px; font-size: .75rem; color: #bbb;
+    background: #2e2e2b; }}
+  .tabs a.active {{ background: #3987e5; color: #fff; }}
+  h2 {{ color: #999; font-weight: normal; text-transform: uppercase; font-size: .7rem;
+    letter-spacing: .04em; margin: 0 0 .5rem; }}
+  .scroll {{ overflow-x: auto; margin-bottom: 2.2rem; }}
+  table {{ border-collapse: collapse; }}
+  th {{ text-align: right; color: #999; text-transform: uppercase; font-size: .7rem;
+    font-weight: normal; padding: .4rem .55rem; border-bottom: 1px solid #333; white-space: nowrap; }}
+  th.txt {{ text-align: left; }}
+  td {{ padding: .4rem .55rem; border-bottom: 1px solid #222; font-size: .85rem; white-space: nowrap; }}
+  td.num {{ text-align: right; font-variant-numeric: tabular-nums; }}
+  td.date {{ color: #bbb; font-variant-numeric: tabular-nums; }}
+  td.id {{ color: #999; font-size: .8rem; }}
+  td.eur {{ color: #fff; font-weight: 700; }}
+  td.todo {{ color: #e0b050; font-style: italic; }}
+  tr.total td {{ border-bottom: 0; border-top: 1px solid #333; color: #fff; font-weight: 700; }}
+  .dot {{ display: inline-block; width: .6rem; height: .6rem; border-radius: 50%;
+    margin-right: .5rem; vertical-align: baseline; }}
+  .ver {{ color: #666; font-size: .7rem; margin-top: 2rem; }}
+  tr.sub td {{ color: #ccc; font-weight: 600; border-bottom: 1px solid #333; }}
+  th abbr {{ text-decoration: none; cursor: help; }}
+</style>
+</head>
+<body>
+{menu}
+{tabs}
+{blocks}
+<footer class="ver">v{version}</footer>
+</body>
+</html>
+"""
+
 _FR_MONTHS_SHORT = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.",
                     "août", "sept.", "oct.", "nov.", "déc."]
 
 
 def _suivi_tabs(prefix, active):
-    """Onglets Mois / Synthèse des pages /suivi."""
+    """Onglets Mois / Synthèse / Factures / Lots des pages /suivi."""
     items = (("mois", "Mois", f"{prefix}/suivi"),
              ("synthese", "Synthèse", f"{prefix}/suivi/synthese"),
-             ("factures", "Factures", f"{prefix}/suivi/factures"))
+             ("factures", "Factures", f"{prefix}/suivi/factures"),
+             ("lots", "Lots", f"{prefix}/suivi/lots"))
     links = "".join(
         f'<a href="{href}" class="active">{text}</a>' if key == active
         else f'<a href="{href}">{text}</a>'
@@ -3050,6 +3098,85 @@ def suivi_factures_page(secret_path):
         tabs=_suivi_tabs(prefix, "factures"),
         rows=trs,
         quarters=quarter_trs,
+        version=APP_VERSION,
+    )
+
+
+@app.get("/suivi/lots", defaults={"secret_path": ""})
+@app.get("/<path:secret_path>/suivi/lots")
+def suivi_lots_page(secret_path):
+    """Ventilation des jours facturés par lot client : un tableau par projet,
+    une ligne par facture, une colonne par lot, sous-total par commande."""
+    if SECRET and secret_path.strip("/") != SECRET:
+        return "not found\n", 404
+    prefix = f"/{secret_path.strip('/')}" if secret_path.strip("/") else ""
+    facturation = suivi.load_facturation(FACTURATION_PATH)
+    blocks = suivi.invoice_lots(
+        facturation.get("factures") or [],
+        facturation.get("commandes") or [],
+        facturation.get("lots") or {},
+    )
+
+    def days(value):
+        return f'<td class="num">{suivi.format_jours(value, trim=True)}</td>'
+
+    html_blocks = ""
+    for block in blocks:
+        codes = [code for code, _ in block["lots"]]
+        headers = "".join(
+            f'<th><abbr title="{html.escape(label)}">{html.escape(code)}</abbr></th>'
+            if label else f"<th>{html.escape(code)}</th>"
+            for code, label in block["lots"]
+        )
+        trs = ""
+        for commande in block["commandes"]:
+            for f in commande["factures"]:
+                if not f["ventilee"]:
+                    state = '<td class="todo">non ventilée</td>'
+                elif abs(f["ecart"]) > 1e-9:
+                    ecart = suivi.format_jours(f["ecart"], trim=True)
+                    state = f'<td class="todo">écart {ecart} j</td>'
+                else:
+                    state = "<td></td>"
+                trs += (
+                    f'<tr><td class="date">{_format_ymd(f["date"].replace("-", ""))}</td>'
+                    f'<td class="id">{html.escape(f["id"])}</td>'
+                    f'<td>{_suivi_dot(commande["nom"])}{html.escape(commande["nom"])}</td>'
+                    + "".join(
+                        days(f["lots"][code]) if code in f["lots"]
+                        else '<td class="num"></td>'
+                        for code in codes
+                    )
+                    + days(f["jours"]) + state + "</tr>"
+                )
+            trs += (
+                f'<tr class="sub"><td></td><td></td>'
+                f'<td>{html.escape(commande["nom"])}</td>'
+                + "".join(days(commande["totaux"].get(code, 0)) for code in codes)
+                + days(commande["jours"]) + "<td></td></tr>"
+            )
+        trs += (
+            '<tr class="total"><td>Total</td><td></td><td></td>'
+            + "".join(days(block["totaux"].get(code, 0)) for code in codes)
+            + days(block["jours"]) + "<td></td></tr>"
+        )
+        html_blocks += (
+            f'<h2>{html.escape(block["projet"])}</h2>\n<div class="scroll">\n<table>\n'
+            '  <thead><tr><th class="txt">Émise le</th><th class="txt">N°</th>'
+            f'<th class="txt">Commande</th>{headers}<th>Total</th>'
+            '<th class="txt"></th></tr></thead>\n'
+            f"  <tbody>{trs}</tbody>\n</table>\n</div>\n"
+        )
+    if not blocks:
+        html_blocks = (
+            '<p class="todo">aucune facture — ajouter <code>factures</code> '
+            "dans facturation.yml</p>"
+        )
+
+    return SUIVI_LOTS_HTML.format(
+        menu=_menu_bar(prefix, "suivi"),
+        tabs=_suivi_tabs(prefix, "lots"),
+        blocks=html_blocks,
         version=APP_VERSION,
     )
 

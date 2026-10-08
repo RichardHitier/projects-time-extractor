@@ -284,3 +284,76 @@ def test_suivi_factures_page_flags_unpaid_and_undeclared(tmp_path):
     assert '<td class="date"></td><td class="todo">à déclarer</td>' in page      # F2
     assert '<td class="num eur">1 000 €</td>' in page   # HT de F1
     assert 'href="/suivi/factures" class="active">Factures' in page
+
+
+LOTS_COMMANDES = [
+    {"nom": "calipso_a", "projet": "calipso", "debut": "2025-10-01"},
+    {"nom": "calipso_b", "projet": "calipso", "debut": "2025-12-05"},
+    {"nom": "speasy", "projet": "speasy", "debut": "2025-10-01"},
+]
+LOTS_CATALOG = {"calipso": {"WP_1": "Banc", "WP_2": "IHM"},
+                "speasy": {"JUICE_E2": "TF"}}
+
+
+def test_invoice_lots_splits_days_by_lot_with_subtotals():
+    factures = [
+        {"id": "F3", "date": "2026-01-27", "commande": "calipso_b", "jours": 5,
+         "lots": {"WP_1": 1, "WP_2": 4}},
+        {"id": "F1", "date": "2025-11-18", "commande": "calipso_a", "jours": 3,
+         "lots": {"WP_1": 3}},
+        {"id": "F2", "date": "2025-12-19", "commande": "calipso_b", "jours": 2,
+         "lots": {"WP_1": 1, "WP_2": 1}},
+    ]
+    (block,) = suivi.invoice_lots(factures, LOTS_COMMANDES, LOTS_CATALOG)
+    assert block["projet"] == "calipso"
+    assert block["lots"] == [("WP_1", "Banc"), ("WP_2", "IHM")]
+    a, b = block["commandes"]
+    assert (a["nom"], a["totaux"], a["jours"]) == ("calipso_a", {"WP_1": 3}, 3)
+    assert [f["id"] for f in b["factures"]] == ["F2", "F3"]   # par date
+    assert b["totaux"] == {"WP_1": 2, "WP_2": 5}
+    assert (block["totaux"], block["jours"]) == ({"WP_1": 5, "WP_2": 5}, 10)
+    assert all(f["ventilee"] and f["ecart"] == 0 for f in b["factures"])
+
+
+def test_invoice_lots_flags_gaps_unsplit_and_unknown_lots():
+    factures = [
+        {"id": "F1", "date": "2026-01-29", "commande": "speasy", "jours": 9},
+        {"id": "F2", "date": "2026-04-01", "commande": "speasy", "jours": 9,
+         "lots": {"JUICE_E2": 8}},
+        {"id": "F3", "date": "2026-06-19", "commande": "speasy", "jours": 1,
+         "lots": {"AUTRE": 1}},
+    ]
+    (block,) = suivi.invoice_lots(factures, LOTS_COMMANDES, LOTS_CATALOG)
+    first, second, third = block["commandes"][0]["factures"]
+    assert (first["ventilee"], first["ecart"]) == (False, 9)
+    assert (second["ventilee"], second["ecart"]) == (True, 1)
+    assert block["lots"] == [("JUICE_E2", "TF"), ("AUTRE", "")]
+    assert third["ecart"] == 0
+
+
+def test_suivi_lots_page_has_one_table_per_project(tmp_path):
+    yml = tmp_path / "facturation.yml"
+    yml.write_text(
+        "commandes:\n"
+        "  - {nom: calipso_b, projet: calipso, debut: '2025-12-05'}\n"
+        "  - {nom: speasy, projet: speasy, debut: '2025-10-01'}\n"
+        "lots:\n"
+        "  calipso: {WP_1: Banc, WP_2: IHM}\n"
+        "  speasy: {JUICE_E2: TF}\n"
+        "factures:\n"
+        "  - {id: F1, date: '2026-01-27', commande: calipso_b, jours: 5,"
+        " lots: {WP_1: 1, WP_2: 4}}\n"
+        "  - {id: F2, date: '2026-04-01', commande: speasy, jours: 9}\n",
+        encoding="utf-8",
+    )
+    webhook_receiver.FACTURATION_PATH = str(yml)
+    page = webhook_receiver.app.test_client().get(
+        "/suivi/lots").get_data(as_text=True)
+
+    assert 'href="/suivi/lots" class="active">Lots' in page
+    assert "<h2>calipso</h2>" in page and "<h2>speasy</h2>" in page
+    assert '<abbr title="Banc">WP_1</abbr>' in page
+    # F1 : 1 + 4 = 5, sans alerte ; F2 non ventilée
+    assert ('<td class="num">1</td><td class="num">4</td>'
+            '<td class="num">5</td><td></td></tr>') in page
+    assert '<td class="todo">non ventilée</td>' in page

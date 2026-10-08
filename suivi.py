@@ -232,3 +232,77 @@ def invoice_register(factures, commandes, tva_declarations):
             "declaree": str((tva_declarations or {}).get(quarter) or ""),
         })
     return register
+
+
+def invoice_lots(factures, commandes, lots_catalog):
+    """Ventilation des jours facturés par lot client, un bloc par projet (dans
+    l'ordre des commandes de facturation.yml).
+
+    `lots_catalog` = {projet: {code: libellé}} (`lots` de facturation.yml) ;
+    chaque facture porte `lots: {code: jours}`. Un code absent du catalogue
+    est quand même montré (libellé vide) ; une facture sans `lots` est non
+    ventilée.
+
+    Renvoie des dicts : projet, lots [(code, libellé)], commandes [{nom,
+    factures, totaux, jours}], totaux {code: jours}, jours. Chaque facture :
+    id, date, jours, lots {code: jours}, ventilee (bool), ecart (jours − somme
+    des lots).
+    """
+    projects = []
+    for commande in commandes:
+        if commande["projet"] not in projects:
+            projects.append(commande["projet"])
+    by_commande = {}
+    by_date = sorted(factures, key=lambda f: (str(f["date"]), str(f["id"])))
+    for facture in by_date:
+        by_commande.setdefault(facture["commande"], []).append(facture)
+
+    blocks = []
+    for project in projects:
+        lots = dict((lots_catalog or {}).get(project) or {})
+        block_commandes = []
+        for commande in commandes:
+            if commande["projet"] != project:
+                continue
+            rows = []
+            for facture in by_commande.get(commande["nom"], []):
+                split = {code: float(days) for code, days
+                         in (facture.get("lots") or {}).items()}
+                for code in split:
+                    lots.setdefault(code, "")
+                days = float(facture["jours"])
+                rows.append({
+                    "id": str(facture["id"]),
+                    "date": str(facture["date"]),
+                    "jours": days,
+                    "lots": split,
+                    "ventilee": bool(split),
+                    "ecart": days - sum(split.values()),
+                })
+            if not rows:
+                continue
+            block_commandes.append({
+                "nom": commande["nom"],
+                "factures": rows,
+                "totaux": _sum_lots(row["lots"] for row in rows),
+                "jours": sum(row["jours"] for row in rows),
+            })
+        if not block_commandes:
+            continue
+        blocks.append({
+            "projet": project,
+            "lots": list(lots.items()),
+            "commandes": block_commandes,
+            "totaux": _sum_lots(c["totaux"] for c in block_commandes),
+            "jours": sum(c["jours"] for c in block_commandes),
+        })
+    return blocks
+
+
+def _sum_lots(splits):
+    """{code: jours} sommés sur plusieurs ventilations."""
+    totals = {}
+    for split in splits:
+        for code, days in split.items():
+            totals[code] = totals.get(code, 0) + days
+    return totals
