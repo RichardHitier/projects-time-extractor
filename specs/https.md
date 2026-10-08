@@ -1,6 +1,6 @@
 # SPEC — https
 Date : 2026-10-08
-Statut : en cours (A1 fait, A2 après le premier certificat)
+Statut : A1 déployé, certificat obtenu le 2026-10-08, A2 v0.35.0 à vérifier en prod
 
 Prérequis du mot de passe nginx (`specs/basic-auth.md`) : sans HTTPS, le mot
 de passe circulerait en clair.
@@ -33,3 +33,12 @@ Après le déploiement de A1 :
     ls certbot/conf/live/timer.co-libri.org/   # fullchain.pem, privkey.pem
 
 Puis pousser A2.
+
+Vérification après déploiement de A2 :
+
+    curl -sI http://timer.co-libri.org/suivi | head -3     # 301 → https
+    curl -sI https://timer.co-libri.org/suivi | head -1    # 200
+    sudo ls certbot/conf/live/timer.co-libri.org/          # (VPS) root seul
+
+Local : nginx et certbot sont exclus du `docker compose up` par
+`docker-compose.override.yml` (`profiles: ["prod"]`).

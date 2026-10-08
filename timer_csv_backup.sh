@@ -14,7 +14,7 @@
 
 set -uo pipefail
 
-URL="http://timer.co-libri.org/api/csv"
+URL="https://timer.co-libri.org/api/csv"
 DEST_DIR="$HOME/00PRO/backups/timer"
 LOG_FILE="$HOME/timer-csv-backup.log"
 HEADER="date,project,task,minutes,startTime,endTime"
