@@ -43,3 +43,24 @@ def test_sync_facturation_refuses_invalid_content(tmp_path):
         assert "rien écrasé" in message
         assert dest.read_bytes() == YML
     assert not (tmp_path / "bckp").exists()
+
+
+def test_netrc_opener_adds_basic_auth_for_the_url_host(tmp_path):
+    rc = tmp_path / "netrc"
+    rc.write_text("machine timer.example.org login richard password s3cret\n")
+    rc.chmod(0o600)
+    opener = cli._netrc_opener("https://timer.example.org/api/csv", str(rc))
+    (handler,) = [h for h in opener.handlers
+                  if isinstance(h, cli.urllib.request.HTTPBasicAuthHandler)]
+    assert handler.passwd.find_user_password(
+        None, "https://timer.example.org/api/csv") == ("richard", "s3cret")
+
+
+def test_netrc_opener_without_entry_has_no_auth(tmp_path):
+    rc = tmp_path / "netrc"
+    rc.write_text("machine other.example.org login a password b\n")
+    rc.chmod(0o600)
+    for path in (str(rc), str(tmp_path / "absent")):
+        opener = cli._netrc_opener("https://timer.example.org/api/csv", path)
+        assert not [h for h in opener.handlers
+                    if isinstance(h, cli.urllib.request.HTTPBasicAuthHandler)]

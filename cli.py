@@ -1,7 +1,9 @@
 import argparse
+import netrc
 import os
 import shutil
 import urllib.error
+import urllib.parse
 import urllib.request
 from datetime import datetime
 
@@ -217,11 +219,37 @@ def cmd_ods_sync(args):
     cmd_eighty_hours(argparse.Namespace(write_ods=True, month=None, week=None))
 
 
+def _netrc_opener(url, netrc_path=None):
+    """Opener urllib avec authentification basique si ~/.netrc (ou
+    `netrc_path`) a une entrée pour l'hôte de `url` ; opener simple sinon.
+    Même fichier que `curl --netrc` (timer_csv_backup.sh)."""
+    host = urllib.parse.urlsplit(url).hostname
+    try:
+        entry = netrc.netrc(netrc_path).authenticators(host)
+    except (FileNotFoundError, netrc.NetrcParseError):
+        entry = None
+    if not entry:
+        return urllib.request.build_opener()
+    login, _, password = entry
+    passwords = urllib.request.HTTPPasswordMgrWithDefaultRealm()
+    passwords.add_password(None, f"https://{host}/", login, password)
+    passwords.add_password(None, f"http://{host}/", login, password)
+    return urllib.request.build_opener(
+        urllib.request.HTTPBasicAuthHandler(passwords))
+
+
 def _download(url):
     """Contenu de `url` ; échec réseau → arrêt avec un message explicite."""
     try:
-        with urllib.request.urlopen(url, timeout=30) as resp:
+        with _netrc_opener(url).open(url, timeout=30) as resp:
             return resp.read()
+    except urllib.error.HTTPError as exc:
+        if exc.code == 401:
+            host = urllib.parse.urlsplit(url).hostname
+            raise SystemExit(
+                f"web-sync failed: {url}: 401, identifiants absents ou faux "
+                f"dans ~/.netrc (machine {host} login … password …)")
+        raise SystemExit(f"web-sync failed: {url}: {exc}")
     except urllib.error.URLError as exc:
         raise SystemExit(f"web-sync failed: {url}: {exc}")
 
