@@ -1,4 +1,5 @@
 PPT_DATA_DIR: "DATA"
+PPT_DL_DIR: "Téléchargements"
 PPT_LOGLEVEL_CONSOLE: WARNING
 PPT_LOGLEVEL_LOGFILE: INFO
 
@@ -6,10 +7,22 @@ POMOFOCUS_FILENAME: "pomofocus.csv"
 SUPERPROD_FILENAME: "super_productivity.json"
 WEBPROD_FILENAME: "web_productivity.json"
 PARQUET_FILENAME: "histories.parquet"
+ODS_FILENAME: "suivi_chantiers.ods"
+
+# Webhook-captured Pomofocus CSV (downloaded by `timer web-sync`, read by
+# `timer report --input web`). Lives in its own dir, separate from DATA/.
+WEBHOOK_DATA_DIR: "webhook-data"
+WEBHOOK_POMOFOCUS_FILENAME: "pomofocus_webhook.csv"
+WEBHOOK_CSV_URL: "http://timer.co-libri.org/api/csv"
+
+# Arrondi facturable, en minutes : chaque (jour, projet, tâche) est monté au
+# multiple supérieur (« 1/4 h commencé est dû »). Règle de /suivi et du total
+# « à facturer » de /live ; seul pas proposé par le sélecteur de /live.
+BILLING_ROUND_MINUTES: 15
 
 EXPORT_PROJECTS:
-- "project_a"
-- "project_b"
+- "colibri"
+- "speasy"
 
 BILLABLE_PROJECTS:
 - "project_a"

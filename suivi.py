@@ -10,7 +10,6 @@ import re
 import yaml
 
 MINUTES_PER_DAY = 8 * 60  # un jour facturé = 8 h, comme core.data.duration_d
-ROUND_MINUTES = 15  # arrondi des lignes de l'ODS : 1/32 de jour = 15 min
 
 
 def load_facturation(path):
@@ -41,13 +40,15 @@ def _clean(value):
     return re.sub(r"\s+", " ", (value or "").strip().strip('"'))
 
 
-def month_lines(rows, yyyymm, commandes, projects, ajustements=()):
+def month_lines(rows, yyyymm, commandes, projects, ajustements=(),
+                round_minutes=15):
     """Lignes de la feuille du mois `yyyymm` (ex. '202609'), comme
     `timer report --view ods` les écrivait dans suivi_chantiers.ods.
 
     Séances des projets `projects` (préfixes, ex. EXPORT_PROJECTS) regroupées
     par (jour, projet, sous-projet, tâche), minutes sommées puis arrondies au
-    quart d'heure supérieur, converties en jours de 8 h. Chaque ligne porte la
+    multiple supérieur de `round_minutes` (BILLING_ROUND_MINUTES de
+    config.yml), converties en jours de 8 h. Chaque ligne porte la
     commande du jour (commande_for) ; une séance sans commande applicable
     (projet non facturé comme colibri, ou antérieure à la première commande)
     est écartée. Triées par date décroissante (la plus récente en haut), puis
@@ -77,7 +78,7 @@ def month_lines(rows, yyyymm, commandes, projects, ajustements=()):
         commande = commande_for(prefix, day, commandes)
         if commande is None:
             continue
-        rounded = -(-minutes // ROUND_MINUTES) * ROUND_MINUTES
+        rounded = -(-minutes // round_minutes) * round_minutes
         lines.append({
             "date": day,
             "commande": commande,
@@ -112,10 +113,15 @@ def totals_by_commande(lines):
     return dict(sorted(totals.items()))
 
 
-def format_jours(days):
-    """Jours avec toute leur précision (multiples de 1/32), virgule décimale,
-    sans zéros inutiles : 0.03125 → '0,03125', 9.0 → '9', 3.5 → '3,5'."""
-    text = f"{days:.5f}".rstrip("0").rstrip(".")
+def format_jours(days, trim=False):
+    """Jours à 2 décimales, virgule décimale : 0.03125 → '0,03', 9.0 → '9,00'.
+    Avec `trim`, sans zéros inutiles (jours facturés, en général entiers) :
+    9.0 → '9', 3.5 → '3,5'."""
+    text = f"{days:.2f}"
+    if text == "-0.00":
+        text = "0.00"
+    if trim:
+        text = text.rstrip("0").rstrip(".")
     return text.replace(".", ",")
 
 
@@ -142,13 +148,15 @@ def first_month(commandes, default):
     return min(debuts) if debuts else default
 
 
-def monthly_totals(rows, months, commandes, projects, ajustements=()):
+def monthly_totals(rows, months, commandes, projects, ajustements=(),
+                   round_minutes=15):
     """{commande: {mois: jours}} pour chaque mois de `months` : les totaux par
     commande de month_lines(), ajustements compris, donc exactement ceux de la
     feuille du mois."""
     table = {}
     for month in months:
-        lines = month_lines(rows, month, commandes, projects, ajustements)
+        lines = month_lines(rows, month, commandes, projects, ajustements,
+                            round_minutes)
         for name, days in totals_by_commande(lines).items():
             table.setdefault(name, {})[month] = days
     return dict(sorted(table.items()))

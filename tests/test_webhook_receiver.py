@@ -415,21 +415,27 @@ def _checked_rounds(html):
 def test_round_choice_reflects_cookie(tmp_path):
     webhook_receiver.CSV_PATH = str(tmp_path / "pomofocus_webhook.csv")
 
-    # sans cookie : les cinq choix sont offerts du plus fin au plus grossier,
-    # « brut » coché et lui seul
+    # sans cookie : brut et le pas de facturation (config), « brut » coché
+    # et lui seul
     for path in ("/live", "/weeks"):
         page = webhook_receiver.app.test_client().get(path).get_data(as_text=True)
         offered = re.findall(r'<input type="checkbox" value="(\d+)"', page)
-        assert offered == ["0", "6", "10", "12", "15"]
+        assert offered == ["0", "15"]
         for _, label in webhook_receiver.ROUND_CHOICES:
             assert f"> {label}</label>" in page
         assert _checked_rounds(page) == ["0"]
 
     # un pas choisi : exactement une case cochée, la sienne
     chosen = webhook_receiver.app.test_client()
-    chosen.set_cookie("round", "12")
+    chosen.set_cookie("round", "15")
     for path in ("/live", "/weeks"):
-        assert _checked_rounds(chosen.get(path).get_data(as_text=True)) == ["12"]
+        assert _checked_rounds(chosen.get(path).get_data(as_text=True)) == ["15"]
+
+    # ancien pas retiré du sélecteur : retombe sur brut
+    retired = webhook_receiver.app.test_client()
+    retired.set_cookie("round", "12")
+    for path in ("/live", "/weeks"):
+        assert _checked_rounds(retired.get(path).get_data(as_text=True)) == ["0"]
 
     # cookie historique 0/1 : « 1 » vaut le pas de 15 min, pas brut
     legacy = webhook_receiver.app.test_client()
@@ -1155,42 +1161,61 @@ def test_projects_page_lists_amounts_and_skips_untarifed(tmp_path, monkeypatch):
     assert "perso" not in page and "bht" not in page
 
 
-def test_live_shows_the_same_billable_total_as_projects(tmp_path, monkeypatch):
-    monkeypatch.setattr(webhook_receiver, "load_projects", _fake_projects)
+SUIVI_YML = (
+    "commandes:\n"
+    "  - {nom: calipso_b, projet: calipso, tjm: 540, debut: '2025-12-05'}\n"
+    "  - {nom: speasy, projet: speasy, tjm: 490, debut: '2025-10-01'}\n"
+    "factures:\n"
+    "  - {id: F1, date: '2026-06-25', commande: speasy, jours: 0.5}\n"
+)
+
+
+def _suivi_client(tmp_path, monkeypatch, rows):
     csv_path = tmp_path / "webhook.csv"
     _write_rows(csv_path, [
-        {**row, "startTime": "09:00", "endTime": "10:00"} for row in BILLING_ROWS
+        {"startTime": "09:00", "endTime": "10:00", **row} for row in rows
     ])
+    yml = tmp_path / "facturation.yml"
+    yml.write_text(SUIVI_YML, encoding="utf-8")
     monkeypatch.setattr(webhook_receiver, "CSV_PATH", str(csv_path))
-    client = webhook_receiver.app.test_client()
+    monkeypatch.setattr(webhook_receiver, "FACTURATION_PATH", str(yml))
+    return webhook_receiver.app.test_client()
+
+
+def test_live_shows_the_synthese_billable_total(tmp_path, monkeypatch):
+    client = _suivi_client(tmp_path, monkeypatch, [
+        {"date": "20260620", "project": "calipso_iesa", "task": "a",
+         "minutes": "480"},
+        {"date": "20260620", "project": "speasy_hapi", "task": "c",
+         "minutes": "480"},
+        {"date": "20260620", "project": "perso", "task": "d", "minutes": "300"},
+    ])
+    # calipso_b : 1 j × 540 ; speasy : (1 − 0,5 facturé) j × 490 → 785 €
+    total = webhook_receiver._format_eur(785)
 
     live = client.get("/live").get_data(as_text=True)
-    projects = client.get("/projects").get_data(as_text=True)
+    synthese = client.get("/suivi/synthese").get_data(as_text=True)
     api = client.get("/api/rows").get_json()
 
-    # 540 + 490, le même chiffre aux trois endroits
-    assert '<strong id="billable-total">1 030 €</strong>' in live
-    assert "1 030 €" in projects
-    assert api["billable_total"] == "1 030 €"
+    # le même chiffre aux trois endroits
+    assert f'<strong id="billable-total">{total}</strong>' in live
+    assert f'<td class="num eur">{total}</td><td></td></tr>' in synthese
+    assert api["billable_total"] == total
 
 
-def test_billable_total_on_live_follows_the_rounding_cookie(tmp_path, monkeypatch):
-    monkeypatch.setattr(webhook_receiver, "load_projects", _fake_projects)
-    csv_path = tmp_path / "webhook.csv"
-    # une seule tâche de 8 min, que l'arrondi 1/4h porte à 15 min
-    _write_rows(csv_path, [{
-        "date": "20260620", "project": "calipso_iesa", "task": "a",
-        "minutes": "8", "startTime": "09:00", "endTime": "09:08",
-    }])
-    monkeypatch.setattr(webhook_receiver, "CSV_PATH", str(csv_path))
-    client = webhook_receiver.app.test_client()
-
-    # 8 min = 1/60 j × 540 € = 9 €
-    assert client.get("/api/rows").get_json()["billable_total"] == "9\u202f€"
-
-    client.set_cookie("round", "1")
-    # 15 min = 0,03125 j × 540 € = 16,875 € → 17 €
-    assert client.get("/api/rows").get_json()["billable_total"] == "17 €"
+def test_billable_total_on_live_ignores_the_rounding_cookie(tmp_path,
+                                                            monkeypatch):
+    # une seule tâche de 8 min, que la règle de facturation porte à 15 min
+    client = _suivi_client(tmp_path, monkeypatch, [
+        {"date": "20260620", "project": "calipso_iesa", "task": "a",
+         "minutes": "8"},
+    ])
+    # 15 min = 0,03125 j × 540 € = 16,875 €, moins le 0,5 j speasy facturé
+    # d'avance (245 €) → −228 €, quel que soit l'arrondi choisi
+    expected = webhook_receiver._format_eur(0.03125 * 540 - 0.5 * 490)
+    for cookie in ("", "0", "15"):
+        client.set_cookie("round", cookie)
+        assert client.get("/api/rows").get_json()["billable_total"] == expected
 
 
 def test_fiscal_year_bounds_starts_on_the_monday_of_september_1st():

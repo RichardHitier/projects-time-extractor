@@ -71,9 +71,11 @@ def test_totals_by_commande_and_format_jours():
              {"commande": "calipso_b", "jours": 0.03125},
              {"commande": "speasy", "jours": 0.5}]
     assert suivi.totals_by_commande(lines) == {"calipso_b": 0.03125, "speasy": 1.0}
-    assert suivi.format_jours(0.03125) == "0,03125"
-    assert suivi.format_jours(9.0) == "9"
-    assert suivi.format_jours(3.5) == "3,5"
+    assert suivi.format_jours(0.03125) == "0,03"
+    assert suivi.format_jours(9.0) == "9,00"
+    assert suivi.format_jours(-0.0001) == "0,00"
+    assert suivi.format_jours(9.0, trim=True) == "9"
+    assert suivi.format_jours(3.5, trim=True) == "3,5"
 
 
 def test_shift_month_crosses_years():
@@ -102,8 +104,8 @@ def test_suivi_page_shows_the_month_by_commande(tmp_path):
     page = client.get("/suivi?m=202512").get_data(as_text=True)
 
     assert "décembre 2025" in page
-    assert "calipso_a</td><td class=\"ref\"></td><td class=\"num\">0,5</td>" in page
-    assert "calipso_b</td><td class=\"ref\"></td><td class=\"num\">1</td>" in page
+    assert "calipso_a</td><td class=\"ref\"></td><td class=\"num\">0,50</td>" in page
+    assert "calipso_b</td><td class=\"ref\"></td><td class=\"num\">1,00</td>" in page
     assert 'href="/suivi?m=202511"' in page
     assert 'href="/suivi"' in page   # entrée de menu
 
@@ -148,7 +150,7 @@ def test_suivi_synthese_page_links_each_cell_to_its_month(tmp_path):
     page = client.get("/suivi/synthese").get_data(as_text=True)
 
     assert "<th>déc. 25</th>" in page
-    assert '<a href="/suivi?m=202512">1</a>' in page
+    assert '<a href="/suivi?m=202512">1,00</a>' in page
     assert 'href="/suivi/synthese" class="active">Synthèse' in page
 
 
@@ -239,8 +241,8 @@ def test_suivi_synthese_page_shows_the_commandes_table(tmp_path):
     assert "<h2>Commandes</h2>" in page
     assert '<td class="ref">R9</td>' in page
     # exécuté 2, facturé 1, reste 1 j = 500 €, reste à réaliser 8
-    assert ('<td class="num">2</td><td class="num">1</td><td class="num">1</td>'
-            '<td class="num eur">500 €</td><td class="num">8</td>') in page
+    assert ('<td class="num">2,00</td><td class="num">1,00</td><td class="num">1,00</td>'
+            '<td class="num eur">500 €</td><td class="num">8,00</td>') in page
 
 
 def test_invoice_register_uses_the_chosen_tva_quarter():

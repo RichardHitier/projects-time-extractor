@@ -43,21 +43,22 @@ FACTURATION_PATH = os.environ.get(
     os.path.join(DATA_DIR, "facturation.yml"),
 )
 EXPORT_PROJECTS = _config.get("EXPORT_PROJECTS", [])
+# Arrondi facturable (minutes) : règle de /suivi et du total « à facturer ».
+BILLING_ROUND_MINUTES = int(_config.get("BILLING_ROUND_MINUTES", 15))
 CSV_COLUMNS = ["date", "project", "task", "minutes", "startTime", "endTime"]
 EXPORT_TYPES = {"finish", "pause"}
 SECRET = os.environ.get("WEBHOOK_SECRET", "").strip("/")
 PORT = int(os.environ.get("WEBHOOK_PORT", "5000"))
-APP_VERSION = "0.28.2"  # affiché en pied de page (miroir de pyproject.toml)
+APP_VERSION = "0.29.0"  # affiché en pied de page (miroir de pyproject.toml)
 
 BILLABLE_PROJECTS = {p.lower() for p in _config.get("BILLABLE_PROJECTS", [])}
 BILLABLE_MAX_HOURS = 4
 BILLABLE_WEEKS_SHOWN = 12  # /weeks : nombre de semaines les plus récentes affichées
 HOURS_PER_DAY = 8  # un jour facturé = 8 h, comme core.data.duration_d
 
-# Pas d'arrondi facturable proposés, en minutes (0 = brut, hors liste). Chaque
-# tâche est montée au multiple supérieur ; 15 est celui de l'export ODS.
-# L'ordre est celui d'affichage des cases, du plus fin au plus grossier.
-ROUND_STEPS = (6, 10, 12, 15)
+# Pas d'arrondi proposés aux graphes, en minutes (0 = brut, hors liste) :
+# le seul pas de facturation. Chaque tâche est montée au multiple supérieur.
+ROUND_STEPS = (BILLING_ROUND_MINUTES,)
 
 # /months : une ligne par semaine, N semaines par page (?n=), pagination par ?p=.
 # 200 semaines de recul maximum : les données commencent en sept. 2022, soit 201
@@ -1167,8 +1168,8 @@ def project_subamounts(rows, prefix, tjm, since, step=0):
 
 
 def billable_total(amounts):
-    """Total à facturer, tous projets tarifés confondus. Le chiffre du bas de
-    /projects et celui affiché en direct sur /live sortent tous deux d'ici."""
+    """Total à facturer de /projects, tous projets tarifés confondus, depuis
+    `derniere_facture`. /live, lui, affiche suivi_billable_total()."""
     return sum(amount for _, _, amount, _ in amounts)
 
 
@@ -2380,7 +2381,7 @@ def live(secret_path):
     wq = f"?w={weeks_back}"
     # rendu ici pour éviter le clignotement avant le premier poll() ; ensuite
     # c'est poll() qui le rafraîchit toutes les 3 s
-    amounts = project_amounts(_read_csv_rows(CSV_PATH), step=_round_step())
+    total = suivi_billable_total(_read_csv_rows(CSV_PATH))
 
     if show_today:
         current_box = '<div id="current-box" class="empty">aucune tâche en cours</div>'
@@ -2406,7 +2407,7 @@ def live(secret_path):
         menu=_menu_bar(prefix, "live"),
         nav=nav,
         round_choice=_round_choice_html(_round_step()),
-        billable_total=_format_eur(billable_total(amounts)),
+        billable_total=_format_eur(total),
         current_box=current_box,
         version=APP_VERSION,
     )
@@ -2432,10 +2433,11 @@ def _signed_int_arg(name):
 def _round_step():
     """Pas d'arrondi facturable en minutes, depuis le cookie `round` ; 0 = brut.
     Le cookie a longtemps valu 0/1 : un ancien « 1 » vaut donc 15 minutes, pour
-    que les navigateurs déjà réglés ne basculent pas en brut à la mise à jour."""
+    que les navigateurs déjà réglés ne basculent pas en brut à la mise à jour.
+    Un ancien pas retiré du sélecteur (6, 10, 12) retombe sur brut."""
     value = request.cookies.get("round", "")
     if value == "1":
-        return 15
+        return BILLING_ROUND_MINUTES
     try:
         step = int(value)
     except ValueError:
@@ -2824,7 +2826,8 @@ def suivi_page(secret_path):
     commandes = facturation.get("commandes") or []
     rows = _read_csv_rows(CSV_PATH)
     lines = suivi.month_lines(
-        rows, month, commandes, EXPORT_PROJECTS, facturation.get("ajustements") or []
+        rows, month, commandes, EXPORT_PROJECTS,
+        facturation.get("ajustements") or [], BILLING_ROUND_MINUTES,
     )
     totals = suivi.totals_by_commande(lines)
 
@@ -2878,6 +2881,32 @@ def suivi_page(secret_path):
     )
 
 
+def _suivi_synthese(rows):
+    """(mois, {commande: {mois: jours}}, tableau des commandes) de la Synthèse,
+    depuis `rows` (CSV) et facturation.yml. Seule source du reste à facturer :
+    /suivi/synthese et le total « à facturer » de /live en sortent tous deux."""
+    current = datetime.now().strftime("%Y%m")
+    facturation = suivi.load_facturation(FACTURATION_PATH)
+    commandes = facturation.get("commandes") or []
+    months = suivi.months_between(suivi.first_month(commandes, current), current)
+    table = suivi.monthly_totals(
+        rows, months, commandes, EXPORT_PROJECTS,
+        facturation.get("ajustements") or [], BILLING_ROUND_MINUTES,
+    )
+    executed = {name: sum(by_month.values()) for name, by_month in table.items()}
+    summary = suivi.commande_summary(
+        commandes, facturation.get("factures") or [], executed
+    )
+    return months, table, summary
+
+
+def suivi_billable_total(rows):
+    """Reste à facturer HT, toutes commandes confondues : le Total de
+    /suivi/synthese, affiché aussi sur /live. Indépendant du cookie d'arrondi."""
+    _, _, summary = _suivi_synthese(rows)
+    return sum(c["reste_a_facturer_ht"] for c in summary)
+
+
 @app.get("/suivi/synthese", defaults={"secret_path": ""})
 @app.get("/<path:secret_path>/suivi/synthese")
 def suivi_synthese_page(secret_path):
@@ -2886,14 +2915,7 @@ def suivi_synthese_page(secret_path):
     if SECRET and secret_path.strip("/") != SECRET:
         return "not found\n", 404
     prefix = f"/{secret_path.strip('/')}" if secret_path.strip("/") else ""
-    current = datetime.now().strftime("%Y%m")
-    facturation = suivi.load_facturation(FACTURATION_PATH)
-    commandes = facturation.get("commandes") or []
-    months = suivi.months_between(suivi.first_month(commandes, current), current)
-    table = suivi.monthly_totals(
-        _read_csv_rows(CSV_PATH), months, commandes, EXPORT_PROJECTS,
-        facturation.get("ajustements") or [],
-    )
+    months, table, summary = _suivi_synthese(_read_csv_rows(CSV_PATH))
 
     def month_cell(month, days, cls="num"):
         if not days:
@@ -2923,14 +2945,9 @@ def suivi_synthese_page(secret_path):
     else:
         trs = f'<tr><td class="empty" colspan="{len(months) + 2}">aucune séance</td></tr>'
 
-    executed = {name: sum(by_month.values()) for name, by_month in table.items()}
-    summary = suivi.commande_summary(
-        commandes, facturation.get("factures") or [], executed
-    )
-
     def num(value, eur=False):
         cls = "num neg" if value < -1e-9 else "num"
-        text = _format_eur(value) if eur else suivi.format_jours(round(value, 5))
+        text = _format_eur(value) if eur else suivi.format_jours(value)
         return f'<td class="{cls}{" eur" if eur else ""}">{text}</td>'
 
     cmd_trs = "".join(
@@ -2990,7 +3007,7 @@ def suivi_factures_page(secret_path):
     trs = "".join(
         f'<tr><td class="date">{ymd(f["date"])}</td><td class="id">{html.escape(f["id"])}</td>'
         f'<td>{_suivi_dot(f["commande"])}{html.escape(f["commande"])}</td>'
-        f'<td class="num">{suivi.format_jours(f["jours"])}</td>{eur(f["tjm"])}'
+        f'<td class="num">{suivi.format_jours(f["jours"], trim=True)}</td>{eur(f["tjm"])}'
         f'{eur(f["ht"], "num eur")}{eur(f["tva"])}{eur(f["ttc"])}'
         + (f'<td class="date">{ymd(f["payee"])}</td>' if f["payee"]
            else '<td class="todo">impayée</td>')
@@ -3003,7 +3020,7 @@ def suivi_factures_page(secret_path):
     if register:
         trs += (
             '<tr class="total"><td>Total</td><td></td><td></td>'
-            f'<td class="num">{suivi.format_jours(sum(f["jours"] for f in register))}</td><td></td>'
+            f'<td class="num">{suivi.format_jours(sum(f["jours"] for f in register), trim=True)}</td><td></td>'
             f'{eur(sum(f["ht"] for f in register))}{eur(sum(f["tva"] for f in register))}'
             f'{eur(sum(f["ttc"] for f in register))}<td></td><td></td><td></td></tr>'
         )
@@ -3101,13 +3118,12 @@ def api_rows(secret_path):
     current = current_task_row() if weeks_back == 0 else None
     if current:
         current["color"] = project_color(_project_prefix(current["project"]))
-    # le total est global (« depuis la dernière facture ») : il ne dépend ni du
-    # jour affiché ni de la semaine demandée, seulement du cookie d'arrondi
-    amounts = project_amounts(all_rows, step=_round_step())
+    # le total est global (reste à facturer de la Synthèse) : il ne dépend ni
+    # du jour affiché, ni de la semaine demandée, ni du cookie d'arrondi
     return jsonify({
         "rows": rows,
         "current": current,
-        "billable_total": _format_eur(billable_total(amounts)),
+        "billable_total": _format_eur(suivi_billable_total(all_rows)),
     })
 
 
