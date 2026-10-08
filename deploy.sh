@@ -14,7 +14,7 @@ echo "→ Build de l'image webhook"
 docker compose build webhook      # nginx = image stock, pas de build
 
 echo "→ Redémarrage (recrée les conteneurs dont l'image a changé)"
-docker compose up -d
+docker compose up -d --remove-orphans  # ex. certbot, retiré du compose
 
 echo "→ Nettoyage des images orphelines"
 docker image prune -f

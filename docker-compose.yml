@@ -24,25 +24,13 @@ services:
   nginx:
     image: nginx:alpine
     ports:
+      # 80 public (webhook Pomofocus) ; 8080 réservé à Caddy, sur la même
+      # machine (HTTPS + mot de passe, /etc/caddy/Caddyfile).
       - "80:80"
+      - "127.0.0.1:8080:8080"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
-      # Let's Encrypt : défis HTTP-01 (webroot) et certificats, écrits par
-      # le service certbot, lus par nginx.
-      - ./certbot/www:/var/www/certbot:ro
-      - ./certbot/conf:/etc/letsencrypt:ro
     depends_on:
       webhook:
         condition: service_healthy
-    restart: unless-stopped
-
-  # Renouvelle les certificats Let's Encrypt (tentative toutes les 12 h,
-  # effective à moins de 30 jours de l'échéance). Premier certificat : à la
-  # main, cf. specs/https.md.
-  certbot:
-    image: certbot/certbot
-    volumes:
-      - ./certbot/www:/var/www/certbot
-      - ./certbot/conf:/etc/letsencrypt
-    entrypoint: ["/bin/sh", "-c", "trap exit TERM; while :; do certbot renew --webroot -w /var/www/certbot --quiet; sleep 12h & wait $${!}; done"]
     restart: unless-stopped
