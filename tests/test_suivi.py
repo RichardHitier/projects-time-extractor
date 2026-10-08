@@ -436,7 +436,8 @@ def test_facturation_page_prefills_and_recomputes(tmp_path):
 
     page = client.get("/facturation").get_data(as_text=True)
     assert 'href="/facturation" class="active">Facturation' in page
-    assert 'class="tabs"' not in page   # hors des onglets de /suivi
+    assert 'href="/facturation" class="active">Prochaine facture' in page
+    assert 'href="/suivi/lots"' not in page   # hors des onglets de /suivi
     # 2,5 j → 2 j pré-remplis, ventilés 1/3 · 2/3 des restes 1 / 2 → 1 / 1
     assert 'name="j" min="0" step="1" value="2"' in page
     assert '<td class="num prop">1</td>' in page
@@ -446,3 +447,64 @@ def test_facturation_page_prefills_and_recomputes(tmp_path):
         as_text=True)
     assert "on facturerait du temps non réalisé" in page
     assert "1 j au-delà du devis" in page
+
+
+def test_module_totals_groups_by_subproject_and_adjustments():
+    rows = [
+        row("20251205", "calipso_iesa", "a", 240),
+        row("20251206", "calipso_lees", "b", 480),
+        row("20260105", "calipso_lees", "c", 120),
+        row("20260105", "calipso", "d", 60),          # sans sous-projet
+    ]
+    ajustements = [{"mois": "202601", "commande": "calipso_b", "jours": 0.5}]
+    table = suivi.module_totals(rows, ["202601", "202512"], COMMANDES,
+                                ["calipso"], ajustements)
+    assert table == {"calipso_b": {
+        "iesa": {"202512": 0.5},
+        "lees": {"202512": 1.0, "202601": 0.25},
+        "—": {"202601": 0.125},
+        "ajustements": {"202601": 0.5},
+    }}
+    # même total que la Synthèse
+    monthly = suivi.monthly_totals(rows, ["202601", "202512"], COMMANDES,
+                                   ["calipso"], ajustements)
+    assert sum(sum(m.values()) for m in table["calipso_b"].values()) == sum(
+        monthly["calipso_b"].values())
+
+
+def test_facturation_activite_page_shows_modules_by_month(tmp_path):
+    csv_path = tmp_path / "pomofocus_webhook.csv"
+    with open(csv_path, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=webhook_receiver.CSV_COLUMNS)
+        writer.writeheader()
+        for day, project, minutes in (("20260701", "calipso_lees", 480),
+                                      ("20260702", "calipso_lees", 480),
+                                      ("20260901", "calipso_iesa", 240),
+                                      ("20260901", "speasy_hapi", 480)):
+            writer.writerow({"date": day, "project": project, "task": "t",
+                             "minutes": minutes, "startTime": "",
+                             "endTime": ""})
+    yml = tmp_path / "facturation.yml"
+    yml.write_text(
+        "commandes:\n"
+        "  - {nom: calipso_c, projet: calipso, tjm: 540, debut: '2026-07-01'}\n"
+        "  - {nom: speasy, projet: speasy, tjm: 490, debut: '2025-10-01'}\n",
+        encoding="utf-8",
+    )
+    webhook_receiver.CSV_PATH = str(csv_path)
+    webhook_receiver.FACTURATION_PATH = str(yml)
+    client = webhook_receiver.app.test_client()
+
+    page = client.get("/facturation/activite").get_data(as_text=True)
+    assert 'href="/facturation/activite" class="active">Activité' in page
+    assert "Activité par module — calipso_c" in page
+    # lees 2 j (80 %), iesa 0,5 j ; août sans activité : pas de colonne
+    assert ('<td>lees</td><td class="num tot">2,00</td>'
+            '<td class="num pct">80%</td>') in page
+    assert "<th>sept. 26</th><th>juil. 26</th>" in page
+    assert "août" not in page
+
+    page = client.get("/facturation/activite?c=speasy").get_data(
+        as_text=True)
+    assert "<td>hapi</td>" in page and "lees" not in page
+

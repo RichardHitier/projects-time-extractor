@@ -375,3 +375,24 @@ def next_invoice(commande, factures, days, lots_catalog):
         "tva": ht * TVA_RATE,
         "ttc": ht * (1 + TVA_RATE),
     }
+
+
+def module_totals(rows, months, commandes, projects, ajustements=(),
+                  round_minutes=15):
+    """{commande: {module: {mois: jours}}} sur `months` : les lignes de
+    month_lines() regroupées par sous-projet (le module : « iesa », « lees »),
+    « — » pour une séance sans sous-projet, `ajustements` pour les ajustements
+    du mois. Mêmes séances et même arrondi que monthly_totals() : la somme
+    d'une commande est son exécuté de la Synthèse."""
+    table = {}
+    for month in months:
+        for line in month_lines(rows, month, commandes, projects, ajustements,
+                                round_minutes):
+            if line["ajustement"]:
+                module = "ajustements"
+            else:
+                module = line["sous_projet"] or "—"
+            by_month = table.setdefault(line["commande"], {}).setdefault(
+                module, {})
+            by_month[month] = by_month.get(month, 0) + line["jours"]
+    return table

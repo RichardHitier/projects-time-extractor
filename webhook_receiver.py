@@ -49,7 +49,7 @@ CSV_COLUMNS = ["date", "project", "task", "minutes", "startTime", "endTime"]
 EXPORT_TYPES = {"finish", "pause"}
 SECRET = os.environ.get("WEBHOOK_SECRET", "").strip("/")
 PORT = int(os.environ.get("WEBHOOK_PORT", "5000"))
-APP_VERSION = "0.33.1"  # affiché en pied de page (miroir de pyproject.toml)
+APP_VERSION = "0.34.0"  # affiché en pied de page (miroir de pyproject.toml)
 
 BILLABLE_PROJECTS = {p.lower() for p in _config.get("BILLABLE_PROJECTS", [])}
 BILLABLE_MAX_HOURS = 4
@@ -2383,6 +2383,10 @@ FACTURATION_HTML = """<!doctype html>
   td.lot {{ white-space: normal; }}
   td.lot small {{ color: #999; margin-left: .4rem; }}
   td.prop {{ color: #fff; font-weight: 700; }}
+  td.tot {{ color: #fff; font-weight: 700; }}
+  td.pct {{ color: #999; }}
+  td.empty {{ color: #777; }}
+  tr.adj td {{ color: #e0b050; font-style: italic; }}
 </style>
 </head>
 <body>
@@ -3243,6 +3247,37 @@ def suivi_lots_page(secret_path):
     )
 
 
+def _facturation_tabs(prefix, active):
+    """Onglets des pages /facturation."""
+    items = (("prochaine", "Prochaine facture", f"{prefix}/facturation"),
+             ("activite", "Activité", f"{prefix}/facturation/activite"))
+    links = "".join(
+        f'<a href="{href}" class="active">{text}</a>' if key == active
+        else f'<a href="{href}">{text}</a>'
+        for key, text, href in items
+    )
+    return f'<div class="tabs">{links}</div>'
+
+
+def _commande_choice(href, names, name):
+    """Pastilles de choix de commande (?c=) ; la choisie est bordée et teintée
+    de la couleur de son projet."""
+    def link(n):
+        color = project_color(_project_prefix(n))
+        active = (f' class="active" style="border-color:{color};'
+                  f'background:{color}40"' if n == name else "")
+        return (f'<a href="{href}?c={quote(n)}"{active}>'
+                f"{_suivi_dot(n)}{html.escape(n)}</a>")
+    return f'<div class="choice">{"".join(link(n) for n in names)}</div>'
+
+
+def _default_commande(names, summary):
+    """Commande affichée sans ?c= : la première avec au moins un jour
+    exécuté non facturé, sinon la première."""
+    to_bill = {c["nom"]: c["reste_a_facturer"] for c in summary}
+    return next((n for n in names if to_bill.get(n, 0) >= 1), names[0])
+
+
 @app.get("/facturation", defaults={"secret_path": ""})
 @app.get("/<path:secret_path>/facturation")
 def facturation_page(secret_path):
@@ -3262,7 +3297,7 @@ def facturation_page(secret_path):
     def page(content):
         return FACTURATION_HTML.format(
             menu=_menu_bar(prefix, "facturation"),
-            content=content,
+            content=_facturation_tabs(prefix, "prochaine") + content,
             version=APP_VERSION,
         )
 
@@ -3273,11 +3308,7 @@ def facturation_page(secret_path):
     names = [c["nom"] for c in commandes]
     name = request.args.get("c", "")
     if name not in names:
-        name = next(
-            (n for n in names
-             if by_name.get(n, {}).get("reste_a_facturer", 0) >= 1),
-            names[0],
-        )
+        name = _default_commande(names, summary)
     commande = commandes[names.index(name)]
     row = by_name.get(name, {})
     to_bill = row.get("reste_a_facturer", 0)
@@ -3293,15 +3324,7 @@ def facturation_page(secret_path):
     def jours(value):
         return suivi.format_jours(value, trim=True)
 
-    def choice_link(n):
-        # commande choisie : bordure et fond teinté de la couleur du projet
-        color = project_color(_project_prefix(n))
-        active = (f' class="active" style="border-color:{color};'
-                  f'background:{color}40"' if n == name else "")
-        return (f'<a href="{prefix}/facturation?c={quote(n)}"{active}>'
-                f"{_suivi_dot(n)}{html.escape(n)}</a>")
-
-    choice = "".join(choice_link(n) for n in names)
+    choice = _commande_choice(f"{prefix}/facturation", names, name)
     form = (
         f'<form class="days" method="get" action="{prefix}/facturation">'
         f'<input type="hidden" name="c" value="{html.escape(name)}">'
@@ -3359,8 +3382,95 @@ def facturation_page(secret_path):
         + eur(proposal["ttc"], "num eur") + "</tr></tbody></table></div>"
     )
     return page(
-        f'<div class="choice">{choice}</div>{form}{facts}{alerts}'
+        f'{choice}{form}{facts}{alerts}'
         f"<h2>Prochaine facture — ventilation proposée</h2>{table}"
+    )
+
+
+@app.get("/facturation/activite", defaults={"secret_path": ""})
+@app.get("/<path:secret_path>/facturation/activite")
+def facturation_activite_page(secret_path):
+    """Rapport d'activité d'une commande (?c=) : jours par module (sous-projet
+    du CSV : iesa, lees…) et par mois, mêmes séances et arrondi que la
+    Synthèse. Le plus récent à gauche ; mois sans activité masqués."""
+    if SECRET and secret_path.strip("/") != SECRET:
+        return "not found\n", 404
+    prefix = f"/{secret_path.strip('/')}" if secret_path.strip("/") else ""
+    facturation = suivi.load_facturation(FACTURATION_PATH)
+    commandes = facturation.get("commandes") or []
+    rows = _read_csv_rows(CSV_PATH)
+    months, _, summary = _suivi_synthese(rows)
+
+    def page(content):
+        return FACTURATION_HTML.format(
+            menu=_menu_bar(prefix, "facturation"),
+            content=_facturation_tabs(prefix, "activite") + content,
+            version=APP_VERSION,
+        )
+
+    if not commandes:
+        return page('<p class="todo">aucune commande dans facturation.yml</p>')
+
+    names = [c["nom"] for c in commandes]
+    name = request.args.get("c", "")
+    if name not in names:
+        name = _default_commande(names, summary)
+    modules = suivi.module_totals(
+        rows, months, commandes, EXPORT_PROJECTS,
+        facturation.get("ajustements") or [], BILLING_ROUND_MINUTES,
+    ).get(name, {})
+    modules = {m: by_month for m, by_month in modules.items()
+               if abs(sum(by_month.values())) > 1e-9}
+    shown = [m for m in months
+             if any(abs(by_month.get(m, 0)) > 1e-9 for by_month in modules.values())]
+    order = sorted(
+        modules,
+        key=lambda m: (m == "ajustements", -sum(modules[m].values()), m),
+    )
+    total = sum(sum(by_month.values()) for by_month in modules.values())
+
+    def cell(value, cls="num"):
+        text = suivi.format_jours(value) if abs(value) > 1e-9 else ""
+        return f'<td class="{cls}">{text}</td>'
+
+    headers = "".join(
+        f'<th>{_FR_MONTHS_SHORT[int(m[4:]) - 1]} {m[2:4]}</th>' for m in shown
+    )
+    trs = ""
+    for module in order:
+        by_month = modules[module]
+        module_total = sum(by_month.values())
+        share = f"{module_total / total:.0%}" if total else ""
+        trs += (
+            ('<tr class="adj">' if module == "ajustements" else "<tr>")
+            + f"<td>{html.escape(module)}</td>"
+            + cell(module_total, "num tot")
+            + f'<td class="num pct">{share}</td>'
+            + "".join(cell(by_month.get(m, 0)) for m in shown)
+            + "</tr>"
+        )
+    if modules:
+        trs += (
+            '<tr class="total"><td>Total</td>' + cell(total, "num tot")
+            + "<td></td>"
+            + "".join(
+                cell(sum(by_month.get(m, 0) for by_month in modules.values()))
+                for m in shown
+            )
+            + "</tr>"
+        )
+    else:
+        trs = (f'<tr><td class="empty" colspan="{len(shown) + 3}">'
+               "aucune séance sur cette commande</td></tr>")
+
+    table = (
+        '<div class="scroll"><table>'
+        '<thead><tr><th class="txt">Module</th><th>Total</th><th>Part</th>'
+        f"{headers}</tr></thead><tbody>{trs}</tbody></table></div>"
+    )
+    return page(
+        _commande_choice(f"{prefix}/facturation/activite", names, name)
+        + f"<h2>Activité par module — {html.escape(name)}</h2>{table}"
     )
 
 
