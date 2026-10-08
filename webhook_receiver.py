@@ -49,7 +49,7 @@ CSV_COLUMNS = ["date", "project", "task", "minutes", "startTime", "endTime"]
 EXPORT_TYPES = {"finish", "pause"}
 SECRET = os.environ.get("WEBHOOK_SECRET", "").strip("/")
 PORT = int(os.environ.get("WEBHOOK_PORT", "5000"))
-APP_VERSION = "0.32.0"  # affiché en pied de page (miroir de pyproject.toml)
+APP_VERSION = "0.33.0"  # affiché en pied de page (miroir de pyproject.toml)
 
 BILLABLE_PROJECTS = {p.lower() for p in _config.get("BILLABLE_PROJECTS", [])}
 BILLABLE_MAX_HOURS = 4
@@ -1554,9 +1554,9 @@ def render_swimlane_svg(days):
 
 def _menu_bar(prefix, active):
     """Shared top navigation across /live, /weeks, /months, /years, /swimlane,
-    /rows, /projects and /suivi. `active` is one of 'live' | 'weeks' | 'month'
-    | 'years' | 'swimlane' | 'rows' | 'projects' | 'suivi' and gets the
-    highlighted pill."""
+    /rows, /projects, /suivi and /facturation. `active` is one of 'live' |
+    'weeks' | 'month' | 'years' | 'swimlane' | 'rows' | 'projects' | 'suivi' |
+    'facturation' and gets the highlighted pill."""
     items = [
         ("live", "Live", f"{prefix}/live"),
         ("weeks", "Semaines", f"{prefix}/weeks"),
@@ -1566,6 +1566,7 @@ def _menu_bar(prefix, active):
         ("rows", "Lignes", f"{prefix}/rows"),
         ("projects", "Projets", f"{prefix}/projects"),
         ("suivi", "Suivi", f"{prefix}/suivi"),
+        ("facturation", "Facturation", f"{prefix}/facturation"),
     ]
     links = "".join(
         f'<a href="{href}" class="active">{text}</a>'
@@ -2331,11 +2332,11 @@ SUIVI_LOTS_HTML = """<!doctype html>
 </html>
 """
 
-SUIVI_PROCHAINE_HTML = """<!doctype html>
+FACTURATION_HTML = """<!doctype html>
 <html lang="fr">
 <head>
 <meta charset="utf-8">
-<title>Suivi — prochaine facture</title>
+<title>Facturation — prochaine facture</title>
 <style>
   body {{ font-family: system-ui, sans-serif; margin: 2rem; background: #111; color: #eee; }}
   a {{ color: #3987e5; text-decoration: none; }}
@@ -2385,7 +2386,6 @@ SUIVI_PROCHAINE_HTML = """<!doctype html>
 </head>
 <body>
 {menu}
-{tabs}
 {content}
 <footer class="ver">v{version}</footer>
 </body>
@@ -2401,8 +2401,7 @@ def _suivi_tabs(prefix, active):
     items = (("mois", "Mois", f"{prefix}/suivi"),
              ("synthese", "Synthèse", f"{prefix}/suivi/synthese"),
              ("factures", "Factures", f"{prefix}/suivi/factures"),
-             ("lots", "Lots", f"{prefix}/suivi/lots"),
-             ("prochaine", "Prochaine facture", f"{prefix}/suivi/prochaine"))
+             ("lots", "Lots", f"{prefix}/suivi/lots"))
     links = "".join(
         f'<a href="{href}" class="active">{text}</a>' if key == active
         else f'<a href="{href}">{text}</a>'
@@ -3243,9 +3242,9 @@ def suivi_lots_page(secret_path):
     )
 
 
-@app.get("/suivi/prochaine", defaults={"secret_path": ""})
-@app.get("/<path:secret_path>/suivi/prochaine")
-def suivi_prochaine_page(secret_path):
+@app.get("/facturation", defaults={"secret_path": ""})
+@app.get("/<path:secret_path>/facturation")
+def facturation_page(secret_path):
     """Prochaine facture d'une commande (?c=) : le reste à facturer, arrondi
     au jour entier inférieur ou choisi (?j=), ventilé sur les lots au prorata
     de leur reste (suivi.next_invoice). Lecture seule."""
@@ -3260,9 +3259,8 @@ def suivi_prochaine_page(secret_path):
                  if c.get("devis_lots")]
 
     def page(content):
-        return SUIVI_PROCHAINE_HTML.format(
-            menu=_menu_bar(prefix, "suivi"),
-            tabs=_suivi_tabs(prefix, "prochaine"),
+        return FACTURATION_HTML.format(
+            menu=_menu_bar(prefix, "facturation"),
             content=content,
             version=APP_VERSION,
         )
@@ -3295,13 +3293,13 @@ def suivi_prochaine_page(secret_path):
         return suivi.format_jours(value, trim=True)
 
     choice = "".join(
-        f'<a href="{prefix}/suivi/prochaine?c={quote(n)}"'
+        f'<a href="{prefix}/facturation?c={quote(n)}"'
         + (' class="active"' if n == name else "")
         + f">{_suivi_dot(n)}{html.escape(n)}</a>"
         for n in names
     )
     form = (
-        f'<form class="days" method="get" action="{prefix}/suivi/prochaine">'
+        f'<form class="days" method="get" action="{prefix}/facturation">'
         f'<input type="hidden" name="c" value="{html.escape(name)}">'
         f'<label>Jours à facturer <input type="number" name="j" min="0" '
         f'step="1" value="{days}"></label>'
@@ -3358,7 +3356,7 @@ def suivi_prochaine_page(secret_path):
     )
     return page(
         f'<div class="choice">{choice}</div>{form}{facts}{alerts}'
-        f"<h2>Ventilation proposée</h2>{table}"
+        f"<h2>Prochaine facture — ventilation proposée</h2>{table}"
     )
 
 

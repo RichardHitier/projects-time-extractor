@@ -411,7 +411,7 @@ def test_next_invoice_single_lot_and_missing_devis():
                               {}) is None
 
 
-def test_suivi_prochaine_page_prefills_and_recomputes(tmp_path):
+def test_facturation_page_prefills_and_recomputes(tmp_path):
     csv_path = tmp_path / "pomofocus_webhook.csv"
     with open(csv_path, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=webhook_receiver.CSV_COLUMNS)
@@ -434,14 +434,15 @@ def test_suivi_prochaine_page_prefills_and_recomputes(tmp_path):
     webhook_receiver.FACTURATION_PATH = str(yml)
     client = webhook_receiver.app.test_client()
 
-    page = client.get("/suivi/prochaine").get_data(as_text=True)
-    assert 'href="/suivi/prochaine" class="active">Prochaine facture' in page
+    page = client.get("/facturation").get_data(as_text=True)
+    assert 'href="/facturation" class="active">Facturation' in page
+    assert 'class="tabs"' not in page   # hors des onglets de /suivi
     # 2,5 j → 2 j pré-remplis, ventilés 1/3 · 2/3 des restes 1 / 2 → 1 / 1
     assert 'name="j" min="0" step="1" value="2"' in page
     assert '<td class="num prop">1</td>' in page
     assert "todo" not in page.split("<h2>")[0].split("</form>")[1]
 
-    page = client.get("/suivi/prochaine?c=calipso_c&j=4").get_data(
+    page = client.get("/facturation?c=calipso_c&j=4").get_data(
         as_text=True)
     assert "on facturerait du temps non réalisé" in page
     assert "1 j au-delà du devis" in page

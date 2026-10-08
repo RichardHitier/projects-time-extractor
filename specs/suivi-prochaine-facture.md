@@ -11,7 +11,7 @@ chaque lot du devis.
 - [x] `devis_lots` par commande dans `facturation.yml` (calipso_b et
       calipso_c : WP_1 6 / WP_2 7 / WP_3 7, devis DV20251211 et DV20260627 ;
       speasy : JUICE_E2 60) ; calipso_a, soldée, n'en a pas.
-- [x] `/suivi/prochaine` : choix de la commande, nombre de jours pré-rempli
+- [x] `/facturation` : choix de la commande, nombre de jours pré-rempli
       au reste à facturer arrondi à l'entier inférieur et modifiable,
       ventilation au plus fort reste plafonnée au reste de chaque lot, PU,
       HT, TVA, TTC. calipso_c : 12 j → 4 / 3 / 5, 6 480 € HT.
