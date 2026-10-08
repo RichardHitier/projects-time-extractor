@@ -150,12 +150,18 @@ mis à jour `*_LOGS`, la facture et la `Synthèse`.
       1,32 j (4,89 → 3,57 j) — le chiffre affiché aujourd'hui est faux.
       → action manuelle, déjà dans `TODO.md`.
 
-- [ ] **D2 — Rétablir la discipline `#<issue_id> <issue_name>: <description>`
+- [x] **D2 — Rétablir la discipline `#<issue_id> <issue_name>: <description>`
       dans le timer ?** C'est la condition pour que le brouillon de lignes de
       journal soit réellement automatique, et ça alimenterait aussi la feuille
       `Charge` de SPEASY_LOGS. Sinon, `Issue Id` restera une saisie manuelle
       après coup. Décision de **méthode de travail**, pas de code — mais tout
       l'étage 2 en dépend.
+      → **Tranché le 2026-10-08 : pas de `#numéro`.** Le module (sous-projet
+      du timer, après le premier `_`) tient lieu d'issue : le nommer d'après
+      l'issue (`speasy_hapi_csv`, `speasy_netcdf`, `calipso_lees`). Le rapport
+      `/facturation/activite` (v0.34.0) ventile alors directement par issue.
+      L'historique reste au grain d'alors (`speasy_hapi` mêle #181 à #185) ;
+      à renommer dans `/rows` si besoin.
 
 - [ ] **D3 — Où vivent commande, lot et module ?** Config YAML enrichie, ou
       lecture directe des ODS ? Contrainte forte : le conteneur webhook n'a
