@@ -402,6 +402,17 @@ INVOICE_ID = re.compile(r"^FA\d{8}$")
 ISO_DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 
+def next_invoice_id(factures, day):
+    """Premier n° libre à partir de FA<day> (day = date, aaaammjj), en
+    incrémentant comme pour les factures du même jour déjà émises :
+    FA20260803, FA20260804, FA20260805 toutes du 05/08."""
+    taken = {str(f["id"]) for f in factures}
+    number = int(f"{day:%Y%m%d}")
+    while f"FA{number}" in taken:
+        number += 1
+    return f"FA{number}"
+
+
 def check_invoice(facturation, invoice):
     """Erreurs (liste de phrases, vide si tout va bien) d'une facture à
     enregistrer : n° FAaaaammjj inédit, date aaaa-mm-jj, commande connue,

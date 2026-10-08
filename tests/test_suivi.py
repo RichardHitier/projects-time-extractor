@@ -595,3 +595,11 @@ def test_facturation_page_has_the_emit_form_prefilled(tmp_path):
     assert 'name="lot_WP_3"' in page
     assert 'name="jours" min="1" step="1" value="5"' in page
     assert "FA20261008 enregistrée dans facturation.yml" in page
+
+
+def test_next_invoice_id_skips_numbers_already_taken():
+    from datetime import date
+    factures = [{"id": "FA20261008"}, {"id": "FA20261009"}]
+    assert suivi.next_invoice_id(factures, date(2026, 10, 8)) == "FA20261010"
+    assert suivi.next_invoice_id([], date(2026, 10, 8)) == "FA20261008"
+
