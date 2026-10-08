@@ -6,6 +6,7 @@ import urllib.request
 from datetime import datetime
 
 import pandas as pd
+import yaml
 from config import load_config
 
 from core.suivi_chantier import report as suivi_report, billing_export_days, write_eighty_hours, load_suivi_for_report
@@ -34,6 +35,8 @@ _config = load_config()
 POMO_FILE = _config["POMOFOCUS_FILEPATH"]
 WEBHOOK_POMO_FILE = _config["WEBHOOK_POMOFOCUS_FILEPATH"]
 WEBHOOK_CSV_URL = _config["WEBHOOK_CSV_URL"]
+WEBHOOK_FACTURATION_FILE = _config["WEBHOOK_FACTURATION_FILEPATH"]
+WEBHOOK_FACTURATION_URL = _config.get("WEBHOOK_FACTURATION_URL")
 DATA_DIR = _config["DATA_DIR"]
 BCKP_DIR = os.path.join(_config["DATA_DIR"], "bckp")
 ODS_FILE = _config["ODS_FILEPATH"]
@@ -214,19 +217,58 @@ def cmd_ods_sync(args):
     cmd_eighty_hours(argparse.Namespace(write_ods=True, month=None, week=None))
 
 
+def _download(url):
+    """Contenu de `url` ; échec réseau → arrêt avec un message explicite."""
+    try:
+        with urllib.request.urlopen(url, timeout=30) as resp:
+            return resp.read()
+    except urllib.error.URLError as exc:
+        raise SystemExit(f"web-sync failed: {url}: {exc}")
+
+
+def sync_facturation(data, dest, bckp_dir):
+    """Écrit `data` (facturation.yml de la prod) dans `dest`, avec garde-fous :
+    un contenu qui n'est pas un YAML avec `commandes` n'écrase rien ; un
+    fichier local différent est d'abord sauvegardé, horodaté, dans `bckp_dir`.
+    Renvoie le message à afficher."""
+    try:
+        parsed = yaml.safe_load(data)
+    except yaml.YAMLError as exc:
+        return f"facturation.yml : contenu reçu invalide, rien écrasé ({exc})"
+    if not isinstance(parsed, dict) or "commandes" not in parsed:
+        return "facturation.yml : pas de `commandes` dans le contenu reçu, rien écrasé"
+    backup = None
+    if os.path.exists(dest):
+        with open(dest, "rb") as f:
+            if f.read() == data:
+                return f"facturation.yml : inchangé ({dest})"
+        os.makedirs(bckp_dir, exist_ok=True)
+        stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        backup = os.path.join(bckp_dir, f"facturation_{stamp}.yml")
+        shutil.copy2(dest, backup)
+    os.makedirs(os.path.dirname(dest), exist_ok=True)
+    with open(dest, "wb") as f:
+        f.write(data)
+    if backup:
+        return f"facturation.yml : mis à jour ({dest}, sauvegarde : {backup})"
+    return f"facturation.yml : écrit ({dest})"
+
+
 def cmd_web_sync(args):
     dest = WEBHOOK_POMO_FILE
     print(f"Downloading {WEBHOOK_CSV_URL} -> {dest}")
     os.makedirs(os.path.dirname(dest), exist_ok=True)
-    try:
-        with urllib.request.urlopen(WEBHOOK_CSV_URL, timeout=30) as resp:
-            data = resp.read()
-    except urllib.error.URLError as exc:
-        raise SystemExit(f"web-sync failed: {WEBHOOK_CSV_URL}: {exc}")
+    data = _download(WEBHOOK_CSV_URL)
     with open(dest, "wb") as f:
         f.write(data)
     n_lines = max(data.count(b"\n") - 1, 0)  # minus header
     print(f"Wrote {len(data)} bytes ({n_lines} records) to {dest}")
+
+    if WEBHOOK_FACTURATION_URL:
+        print(f"Downloading {WEBHOOK_FACTURATION_URL} -> {WEBHOOK_FACTURATION_FILE}")
+        print(sync_facturation(
+            _download(WEBHOOK_FACTURATION_URL), WEBHOOK_FACTURATION_FILE, BCKP_DIR
+        ))
 
 
 def cmd_plot(args):
@@ -357,7 +399,8 @@ def build_parser():
     p_ods_sync.set_defaults(func=cmd_ods_sync)
 
     p_web_sync = sub.add_parser(
-        "web-sync", help="Download webhook CSV → webhook-data/pomofocus_webhook.csv"
+        "web-sync",
+        help="Download webhook CSV + facturation.yml → webhook-data/"
     )
     p_web_sync.set_defaults(func=cmd_web_sync)
 

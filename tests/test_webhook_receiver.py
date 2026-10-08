@@ -1300,3 +1300,21 @@ def test_years_page_next_year_link_is_disabled_on_the_current_fiscal_year(tmp_pa
     assert '<span class="disabled">' in page
     assert 'href="/years?y=-1">' in page       # navigation : seul le lien "précédent"
     assert 'href="/years?y=1">' not in page     # pas de lien "suivant" sur l'année en cours
+
+
+def test_api_facturation_serves_the_yaml_as_is(tmp_path, monkeypatch):
+    yml = tmp_path / "facturation.yml"
+    yml.write_text("commandes:\n  - {nom: speasy}\n", encoding="utf-8")
+    monkeypatch.setattr(webhook_receiver, "FACTURATION_PATH", str(yml))
+    resp = webhook_receiver.app.test_client().get("/api/facturation")
+    assert resp.status_code == 200
+    assert resp.get_data(as_text=True) == "commandes:\n  - {nom: speasy}\n"
+    assert resp.mimetype == "text/yaml"
+    assert resp.headers["Cache-Control"] == "no-store"
+
+
+def test_api_facturation_is_404_without_file(tmp_path, monkeypatch):
+    monkeypatch.setattr(webhook_receiver, "FACTURATION_PATH",
+                        str(tmp_path / "absent.yml"))
+    resp = webhook_receiver.app.test_client().get("/api/facturation")
+    assert resp.status_code == 404

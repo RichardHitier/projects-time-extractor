@@ -49,7 +49,7 @@ CSV_COLUMNS = ["date", "project", "task", "minutes", "startTime", "endTime"]
 EXPORT_TYPES = {"finish", "pause"}
 SECRET = os.environ.get("WEBHOOK_SECRET", "").strip("/")
 PORT = int(os.environ.get("WEBHOOK_PORT", "5000"))
-APP_VERSION = "0.29.0"  # affiché en pied de page (miroir de pyproject.toml)
+APP_VERSION = "0.30.0"  # affiché en pied de page (miroir de pyproject.toml)
 
 BILLABLE_PROJECTS = {p.lower() for p in _config.get("BILLABLE_PROJECTS", [])}
 BILLABLE_MAX_HOURS = 4
@@ -3142,6 +3142,27 @@ def csv_export(secret_path):
         headers={
             "Cache-Control": "no-store",
             "Content-Disposition": "attachment; filename=pomofocus_webhook.csv",
+        },
+    )
+
+
+@app.get("/api/facturation", defaults={"secret_path": ""})
+@app.get("/<path:secret_path>/api/facturation")
+def facturation_export(secret_path):
+    """facturation.yml tel quel, pour `timer web-sync` : la prod est la
+    référence des commandes et factures."""
+    if SECRET and secret_path.strip("/") != SECRET:
+        return "not found\n", 404
+    if not os.path.exists(FACTURATION_PATH):
+        return "not found\n", 404
+    with open(FACTURATION_PATH, encoding="utf-8") as f:
+        body = f.read()
+    return Response(
+        body,
+        mimetype="text/yaml",
+        headers={
+            "Cache-Control": "no-store",
+            "Content-Disposition": "attachment; filename=facturation.yml",
         },
     )
 

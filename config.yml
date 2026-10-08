@@ -14,6 +14,10 @@ ODS_FILENAME: "suivi_chantiers.ods"
 WEBHOOK_DATA_DIR: "webhook-data"
 WEBHOOK_POMOFOCUS_FILENAME: "pomofocus_webhook.csv"
 WEBHOOK_CSV_URL: "http://timer.co-libri.org/api/csv"
+# Commandes et factures (/suivi) : la prod est la référence, `timer web-sync`
+# en rapatrie une copie à côté du CSV.
+WEBHOOK_FACTURATION_FILENAME: "facturation.yml"
+WEBHOOK_FACTURATION_URL: "http://timer.co-libri.org/api/facturation"
 
 # Arrondi facturable, en minutes : chaque (jour, projet, tâche) est monté au
 # multiple supérieur (« 1/4 h commencé est dû »). Règle de /suivi et du total
