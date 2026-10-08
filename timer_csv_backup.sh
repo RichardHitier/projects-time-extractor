@@ -3,7 +3,7 @@
 #
 # Le fichier vit en un seul exemplaire sur le VPS (volume docker webhook-data/)
 # et porte tout l'historique depuis sept. 2022. On le tire ici via l'endpoint
-# public /api/csv, dans un dossier que rclone_to_bckp.sh (cron horaire) pousse
+# /api/csv (https, identifiants dans ~/.netrc), dans un dossier que rclone_to_bckp.sh (cron horaire) pousse
 # déjà vers gdrive:backup/00PRO — donc rien à installer sur le VPS.
 #
 # Un exemplaire par jour, réécrit à chaque passage : la sauvegarde du jour suit
@@ -14,7 +14,7 @@
 
 set -uo pipefail
 
-URL="http://timer.co-libri.org/api/csv"
+URL="https://timer.co-libri.org/api/csv"
 DEST_DIR="$HOME/00PRO/backups/timer"
 LOG_FILE="$HOME/timer-csv-backup.log"
 HEADER="date,project,task,minutes,startTime,endTime"
@@ -25,7 +25,7 @@ mkdir -p "$DEST_DIR"
 tmp=$(mktemp) || exit 1
 trap 'rm -f "$tmp"' EXIT
 
-if ! curl -fsS --max-time 30 "$URL" -o "$tmp"; then
+if ! curl -fsS --netrc --max-time 30 "$URL" -o "$tmp"; then
     log "ERREUR : téléchargement impossible ($URL)"
     exit 1
 fi
