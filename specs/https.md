@@ -1,6 +1,6 @@
 # SPEC — https
 Date : 2026-10-08
-Statut : en cours — HTTPS et mot de passe par Caddy (VPS)
+Statut : terminé (v0.36.0) — HTTPS et mot de passe par Caddy (VPS)
 
 ## Objectif (une phrase)
 `https://timer.co-libri.org` servi par Caddy (déjà installé sur le VPS pour
@@ -25,7 +25,8 @@ tenu par Caddy (`~/01DEV/apnee/Caddyfile`), nginx n'a pas démarré, prod coupé
    privées.
 
 ## Critères de fin
-- [ ] `https://timer.co-libri.org/suivi` : mot de passe demandé, certificat
+- [x] `https://timer.co-libri.org/suivi` : mot de passe demandé, certificat
       valide.
-- [ ] `http://…/suivi` → 301 ; POST du webhook Pomofocus toujours reçu.
-- [ ] `timer web-sync` et la sauvegarde cron passent par https + `~/.netrc`.
+- [ ] `http://…/suivi` → 301 ; POST du webhook Pomofocus toujours reçu
+      (à vérifier en prod après le push de v0.36.0).
+- [x] `timer web-sync` et la sauvegarde cron passent par https + `~/.netrc`.

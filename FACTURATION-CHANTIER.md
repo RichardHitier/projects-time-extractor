@@ -136,9 +136,9 @@ Règles :
 - `*_LOGS.ods` restent à la main : ils sont sur le disque local, pas sur le
   serveur, et le conteneur n'écrit pas d'ODS. L'appli prépare, je colle.
 
-Prérequis des formulaires : **protéger les routes** (`/suivi`,
-`/facturation`, `/api/*`), aujourd'hui publiques — mot de passe nginx ou
-`WEBHOOK_SECRET`. Première feature à faire.
+Prérequis des formulaires : **protéger les routes** — fait le 2026-10-08
+(v0.36.0) : HTTPS + mot de passe par Caddy sur le VPS, seul le POST du webhook
+Pomofocus reste ouvert en HTTP (`specs/https.md`).
 
 ---
 
