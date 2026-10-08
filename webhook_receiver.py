@@ -50,7 +50,7 @@ CSV_COLUMNS = ["date", "project", "task", "minutes", "startTime", "endTime"]
 EXPORT_TYPES = {"finish", "pause"}
 SECRET = os.environ.get("WEBHOOK_SECRET", "").strip("/")
 PORT = int(os.environ.get("WEBHOOK_PORT", "5000"))
-APP_VERSION = "0.38.1"  # affiché en pied de page (miroir de pyproject.toml)
+APP_VERSION = "0.39.0"  # affiché en pied de page (miroir de pyproject.toml)
 
 BILLABLE_PROJECTS = {p.lower() for p in _config.get("BILLABLE_PROJECTS", [])}
 BILLABLE_MAX_HOURS = 4
@@ -2263,9 +2263,7 @@ _FR_MONTHS_SHORT = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.",
 def _suivi_tabs(prefix, active):
     """Onglets des pages /suivi."""
     items = (("mois", "Mois", f"{prefix}/suivi"),
-             ("synthese", "Synthèse", f"{prefix}/suivi/synthese"),
-             ("factures", "Factures", f"{prefix}/suivi/factures"),
-             ("lots", "Lots", f"{prefix}/suivi/lots"))
+             ("synthese", "Synthèse", f"{prefix}/suivi/synthese"))
     links = "".join(
         f'<a href="{href}" class="active">{text}</a>' if key == active
         else f'<a href="{href}">{text}</a>'
@@ -2916,8 +2914,19 @@ def suivi_synthese_page(secret_path):
     )
 
 
-@app.get("/suivi/factures", defaults={"secret_path": ""})
-@app.get("/<path:secret_path>/suivi/factures")
+@app.get("/suivi/<any(factures, lots):page>", defaults={"secret_path": ""})
+@app.get("/<path:secret_path>/suivi/<any(factures, lots):page>")
+def suivi_moved_to_facturation(secret_path, page):
+    """Factures et Lots ont quitté /suivi pour /facturation : redirige les
+    anciennes adresses (favoris)."""
+    if SECRET and secret_path.strip("/") != SECRET:
+        return "not found\n", 404
+    prefix = f"/{secret_path.strip('/')}" if secret_path.strip("/") else ""
+    return redirect(f"{prefix}/facturation/{page}")
+
+
+@app.get("/facturation/factures", defaults={"secret_path": ""})
+@app.get("/<path:secret_path>/facturation/factures")
 def suivi_factures_page(secret_path):
     """Tableau B de la Synthèse de l'ODS : registre des factures (émission,
     paiement, TVA par trimestre d'encaissement)."""
@@ -2980,16 +2989,16 @@ def suivi_factures_page(secret_path):
     ) or '<tr><td colspan="5">aucune facture payée</td></tr>'
 
     return SUIVI_FACTURES_HTML.format(
-        menu=_menu_bar(prefix, "suivi"),
-        tabs=_suivi_tabs(prefix, "factures"),
+        menu=_menu_bar(prefix, "facturation"),
+        tabs=_facturation_tabs(prefix, "factures"),
         rows=trs,
         quarters=quarter_trs,
         version=APP_VERSION,
     )
 
 
-@app.get("/suivi/lots", defaults={"secret_path": ""})
-@app.get("/<path:secret_path>/suivi/lots")
+@app.get("/facturation/lots", defaults={"secret_path": ""})
+@app.get("/<path:secret_path>/facturation/lots")
 def suivi_lots_page(secret_path):
     """Ventilation des jours facturés par lot client : un tableau par projet,
     une ligne par facture, une colonne par lot, sous-total par commande."""
@@ -3060,8 +3069,8 @@ def suivi_lots_page(secret_path):
         )
 
     return SUIVI_LOTS_HTML.format(
-        menu=_menu_bar(prefix, "suivi"),
-        tabs=_suivi_tabs(prefix, "lots"),
+        menu=_menu_bar(prefix, "facturation"),
+        tabs=_facturation_tabs(prefix, "lots"),
         blocks=html_blocks,
         version=APP_VERSION,
     )
@@ -3070,6 +3079,8 @@ def suivi_lots_page(secret_path):
 def _facturation_tabs(prefix, active):
     """Onglets des pages /facturation."""
     items = (("prochaine", "Prochaine facture", f"{prefix}/facturation"),
+             ("factures", "Factures", f"{prefix}/facturation/factures"),
+             ("lots", "Lots", f"{prefix}/facturation/lots"),
              ("activite", "Activité", f"{prefix}/facturation/activite"))
     links = "".join(
         f'<a href="{href}" class="active">{text}</a>' if key == active

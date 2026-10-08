@@ -118,7 +118,7 @@ Validé le 2026-10-08, exemple calipso. Référence des données : le
 | 2 | Émettre la facture `FA<date>_CL.odt` (copie de la précédente) | `FA*.odt` | ❌ à la main | ❌ à la main | |
 | 2a | **Enregistrer la facture dès l'émission** : `id`, `date`, `commande`, `jours`, `lots` | `facturation.yml` | ✅ formulaire « Émettre » sur `/facturation` (v0.38.0) | — | |
 | 2b | Écrire les lignes de log (mois, lot, module, description, jours), estampiller la dernière (Facture, Qté, HT, TTC) | `IESA_LOGS.ods` / `SPEASY_LOGS.ods` | ❌ à la main | 🟡 brouillon de lignes à copier-coller, généré par l'appli | |
-| 3 | Paiement reçu : date de paiement **et** trimestre de TVA (encaissement) | `facturation.yml` (`payee`, `tva`) | ❌ édition locale + `scp` | champ « payée le » sur `/suivi/factures`, trimestre pré-rempli | |
+| 3 | Paiement reçu : date de paiement **et** trimestre de TVA (encaissement) | `facturation.yml` (`payee`, `tva`) | ❌ édition locale + `scp` | champ « payée le » sur `/facturation/factures`, trimestre pré-rempli | |
 | 4 | Déclaration / paiement de la TVA, une fois par trimestre pour toutes ses factures | `facturation.yml` (`tva_declarations`) | ❌ édition locale + `scp` | champ « déclarée le » dans « TVA par trimestre » | |
 
 Règles :

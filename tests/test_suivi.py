@@ -276,14 +276,14 @@ def test_suivi_factures_page_flags_unpaid_and_undeclared(tmp_path):
     webhook_receiver.FACTURATION_PATH = str(yml)
     client = webhook_receiver.app.test_client()
 
-    page = client.get("/suivi/factures").get_data(as_text=True)
+    page = client.get("/facturation/factures").get_data(as_text=True)
 
     assert "<h2>Registre des factures</h2>" in page
     assert '<td class="todo">impayée</td>' in page                       # F3
     assert '<td class="date">3T26</td><td class="todo">à déclarer</td>' in page  # F1
     assert '<td class="date"></td><td class="todo">à déclarer</td>' in page      # F2
     assert '<td class="num eur">1 000 €</td>' in page   # HT de F1
-    assert 'href="/suivi/factures" class="active">Factures' in page
+    assert 'href="/facturation/factures" class="active">Factures' in page
 
 
 LOTS_COMMANDES = [
@@ -348,9 +348,9 @@ def test_suivi_lots_page_has_one_table_per_project(tmp_path):
     )
     webhook_receiver.FACTURATION_PATH = str(yml)
     page = webhook_receiver.app.test_client().get(
-        "/suivi/lots").get_data(as_text=True)
+        "/facturation/lots").get_data(as_text=True)
 
-    assert 'href="/suivi/lots" class="active">Lots' in page
+    assert 'href="/facturation/lots" class="active">Lots' in page
     assert "<h2>calipso</h2>" in page and "<h2>speasy</h2>" in page
     assert '<abbr title="Banc">WP_1</abbr>' in page
     # F1 : 1 + 4 = 5, sans alerte ; F2 non ventilée
@@ -437,7 +437,7 @@ def test_facturation_page_prefills_and_recomputes(tmp_path):
     page = client.get("/facturation").get_data(as_text=True)
     assert 'href="/facturation" class="active">Facturation' in page
     assert 'href="/facturation" class="active">Prochaine facture' in page
-    assert 'href="/suivi/lots"' not in page   # hors des onglets de /suivi
+    assert 'href="/suivi/synthese"' not in page   # onglets de /facturation
     # 2,5 j → 2 j pré-remplis, ventilés 1/3 · 2/3 des restes 1 / 2 → 1 / 1
     assert 'name="j" min="0" step="1" value="2"' in page
     assert '<td class="num prop">1</td>' in page
@@ -602,4 +602,12 @@ def test_next_invoice_id_skips_numbers_already_taken():
     factures = [{"id": "FA20261008"}, {"id": "FA20261009"}]
     assert suivi.next_invoice_id(factures, date(2026, 10, 8)) == "FA20261010"
     assert suivi.next_invoice_id([], date(2026, 10, 8)) == "FA20261008"
+
+
+def test_old_suivi_factures_and_lots_redirect_to_facturation():
+    client = webhook_receiver.app.test_client()
+    for page in ("factures", "lots"):
+        resp = client.get(f"/suivi/{page}")
+        assert resp.status_code == 302
+        assert resp.headers["Location"].endswith(f"/facturation/{page}")
 
