@@ -3,3 +3,6 @@ DATA/webhook_log.jsonl
 webhook-data/
 .env
 docker-compose.override.yml
+
+# Let's Encrypt (certificats et défis, sur le VPS)
+certbot/
