@@ -106,22 +106,39 @@ l'axe de la facturation.
 
 ---
 
-## 3. Le workflow manuel aujourd'hui
+## 3. Le workflow de facturation
 
-> À remplir. Un pas = une action réelle, dans l'ordre, avec **la durée
-> chronométrée** (pas estimée) et le document touché. Sans ces durées, la
-> section 6 se priorise à l'intuition.
+Validé le 2026-10-08, exemple calipso. Référence des données : le
+`facturation.yml` **de la prod** (`timer web-sync` le rapatrie dans
+`webhook-data/`). Durées à chronométrer sur la prochaine facture réelle.
 
-| # | Pas | Document touché | Durée |
-|---|---|---|---|
-| 1 |  |  |  |
-| 2 |  |  |  |
-| 3 |  |  |  |
+| # | Étape | Fichier touché | Aujourd'hui | Cible | Durée |
+|---|---|---|---|---|---|
+| 1 | Lire la ventilation proposée : `/facturation` (ex. WP_1 4 · WP_2 3 · WP_3 5 = 12 j) ; `/facturation/activite` pour les modules (iesa / lees) | — | ✅ appli | — | |
+| 2 | Émettre la facture `FA<date>_CL.odt` (copie de la précédente) | `FA*.odt` | ❌ à la main | ❌ à la main | |
+| 2a | **Enregistrer la facture dès l'émission** : `id`, `date`, `commande`, `jours`, `lots` | `facturation.yml` | ❌ édition locale + `scp` | formulaire « Émettre » sur `/facturation`, pré-rempli par la proposition | |
+| 2b | Écrire les lignes de log (mois, lot, module, description, jours), estampiller la dernière (Facture, Qté, HT, TTC) | `IESA_LOGS.ods` / `SPEASY_LOGS.ods` | ❌ à la main | 🟡 brouillon de lignes à copier-coller, généré par l'appli | |
+| 3 | Paiement reçu : date de paiement **et** trimestre de TVA (encaissement) | `facturation.yml` (`payee`, `tva`) | ❌ édition locale + `scp` | champ « payée le » sur `/suivi/factures`, trimestre pré-rempli | |
+| 4 | Déclaration / paiement de la TVA, une fois par trimestre pour toutes ses factures | `facturation.yml` (`tva_declarations`) | ❌ édition locale + `scp` | champ « déclarée le » dans « TVA par trimestre » | |
 
-Questions à couvrir au passage : quel est l'élément déclencheur (fin de mois ?
-tranche atteinte ? relance client ?) — comment se choisit la tranche ronde —
-comment se répartissent les jours entre lots et issues — dans quel ordre sont
-mis à jour `*_LOGS`, la facture et la `Synthèse`.
+Règles :
+
+- **2a avant tout le reste** : tant que la facture n'est pas dans
+  `facturation.yml`, `/facturation` et la Synthèse comptent ses jours comme
+  non facturés et les reproposeraient.
+- **TVA en deux temps** : le trimestre se fixe au paiement (étape 3), la date
+  de déclaration une fois par trimestre (étape 4).
+- **Une seule copie qu'on édite** : la prod. Les formulaires y écrivent
+  (sauvegarde horodatée avant chaque écriture) ; le local ne fait que
+  `web-sync`. Tant qu'il n'y a pas de formulaires : éditer en local, vérifier
+  que la prod n'a pas bougé (`ssh … cat … | diff - webhook-data/facturation.yml`),
+  puis `scp`.
+- `*_LOGS.ods` restent à la main : ils sont sur le disque local, pas sur le
+  serveur, et le conteneur n'écrit pas d'ODS. L'appli prépare, je colle.
+
+Prérequis des formulaires : **protéger les routes** (`/suivi`,
+`/facturation`, `/api/*`), aujourd'hui publiques — mot de passe nginx ou
+`WEBHOOK_SECRET`. Première feature à faire.
 
 ---
 
@@ -219,3 +236,7 @@ Le backlog qui ne rentre pas dans ce chantier part dans `TODO.md`, pas ici.
 - 2026-08-05 — ouverture. Sections 1, 2 et 5 reprises de `FACTURATION.md`.
   Prochaine étape : chronométrer le workflow manuel (§3) sur la prochaine
   facture réelle.
+- 2026-10-08 — v0.24 → v0.34 : `/suivi` (mois, synthèse, factures, lots),
+  `/facturation` (prochaine facture, activité par module), `web-sync` de
+  `facturation.yml`. D2 tranchée. §3 : workflow cible validé.
+  Prochaine étape : protéger les routes, puis formulaire « Émettre ».
