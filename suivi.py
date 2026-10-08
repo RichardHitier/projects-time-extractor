@@ -497,15 +497,34 @@ def _split_units(units, weights):
     return shares
 
 
+JOURNAL_TASKS_SHOWN = 3  # tâches citées par ligne de journal
+
+
+def _tasks_summary(tasks):
+    """« t1, t2, t3, … » : les tâches d'une ligne de journal, de la plus
+    longue à la plus courte, les mêmes à la casse près fusionnées."""
+    merged = {}
+    # la graphie la plus longue en temps l'emporte
+    for task, days in sorted(tasks.items(), key=lambda item: -item[1]):
+        key = task.strip().casefold()
+        name, total = merged.get(key, (task.strip(), 0))
+        merged[key] = (name, total + days)
+    ranked = sorted(merged.values(), key=lambda item: (-item[1], item[0]))
+    names = [name for name, _ in ranked[:JOURNAL_TASKS_SHOWN]]
+    return ", ".join(names) + (", …" if len(ranked) > JOURNAL_TASKS_SHOWN
+                               else "")
+
+
 def journal_draft(rows, facturation, invoice_id, projects, round_minutes=15):
     """Brouillon des lignes du journal (*_LOGS.ods) qui justifient la facture
     `invoice_id`, ou None si elle n'existe pas.
 
     Séances de sa commande entre la facture précédente de la même commande
     (exclue ; à défaut `debut`, inclus) et sa date (incluse), une ligne par
-    (mois, sous-projet, tâche) ; jours de la facture répartis au prorata du
-    mesuré en demi-journées (somme exacte), puis lots remplis dans l'ordre du
-    catalogue, une ligne coupée si elle chevauche deux lots. Décompte « reste
+    (mois, sous-projet), ses tâches principales résumées ; jours de la
+    facture répartis au prorata du mesuré en demi-journées (somme exacte),
+    puis lots remplis dans l'ordre du catalogue, une ligne coupée si elle
+    chevauche deux lots. Décompte « reste
     à réaliser » sur le devis ; dernière ligne estampillée (n°, qté, HT, TTC).
     """
     factures = facturation.get("factures") or []
@@ -536,9 +555,12 @@ def journal_draft(rows, facturation, invoice_id, projects, round_minutes=15):
             if (line["commande"] != name or not after(line["date"])
                     or line["date"] > end):
                 continue
-            group = (month, line["sous_projet"], line["description"])
-            first, days = measured.get(group, (line["date"], 0))
-            measured[group] = (min(first, line["date"]), days + line["jours"])
+            group = (month, line["sous_projet"])
+            first, days, tasks = measured.get(group, (line["date"], 0, {}))
+            task = line["description"]
+            tasks[task] = tasks.get(task, 0) + line["jours"]
+            measured[group] = (min(first, line["date"]), days + line["jours"],
+                               tasks)
     groups = sorted(measured, key=lambda g: (measured[g][0], g))
 
     days_billed = float(invoice["jours"])
@@ -560,10 +582,11 @@ def journal_draft(rows, facturation, invoice_id, projects, round_minutes=15):
                 lot_left = lot_units[lot_index][1]
             take = min(units, lot_left) if lot_units and lot_left else units
             code = lot_units[lot_index][0] if lot_units else ""
-            month, module, task = group
+            month, module = group
             lines.append({"mois": MOIS[int(month[4:]) - 1], "lot": code,
                           "lot_libelle": labels.get(code, code),
-                          "projet": module, "tache": task,
+                          "projet": module,
+                          "tache": _tasks_summary(measured[group][2]),
                           "jours": take / 2})
             units -= take
             if lot_units:
@@ -582,7 +605,7 @@ def journal_draft(rows, facturation, invoice_id, projects, round_minutes=15):
     return {
         "facture": invoice, "commande": commande, "projet": project,
         "debut": start, "fin": end, "lignes": lines,
-        "mesure": sum(days for _, days in measured.values()),
+        "mesure": sum(days for _, days, _ in measured.values()),
     }
 
 

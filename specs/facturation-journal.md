@@ -13,7 +13,7 @@ estampille.
 ## Critères de fin (3 max, observables)
 - [x] Séances de la commande entre la facture précédente (exclue ; sinon le
       début de la commande) et la date de la facture, une ligne par (mois,
-      sous-projet, tâche) ; jours de la facture au prorata, en demi-journées,
+      sous-projet), tâches principales résumées (v0.42.0) ; jours de la facture au prorata, en demi-journées,
       somme exacte ; lots remplis dans l'ordre, ligne coupée si besoin.
 - [x] Colonnes communes aux deux journaux, alignés le 2026-10-08 (v0.41.0) :
       Mois · DEVIS · PUMA · lot · Ss-projet · Tâche · jours · à Réaliser (J)

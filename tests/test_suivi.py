@@ -689,3 +689,22 @@ def test_facturation_journal_page_shows_tsv_for_the_invoice(tmp_path):
     assert "juillet;;R1 (10j);Banc;lees;deploy;0,5;8,5;;;;" in page
     page = client.get("/facturation/factures").get_data(as_text=True)
     assert 'href="/facturation/journal?f=FA20260710"' in page
+
+
+def test_journal_draft_groups_by_month_and_subproject():
+    rows = [
+        row("20260711", "calipso_lees", "deploy", 240),
+        row("20260712", "calipso_lees", "calib", 480),
+        row("20260713", "calipso_lees", "Deploy", 120),   # même tâche
+        row("20260714", "calipso_lees", "doc", 30),
+        row("20260715", "calipso_lees", "meeting", 15),
+    ]
+    facturation = {**JOURNAL_FACTURATION, "factures": [
+        {"id": "FA20260805", "date": "2026-08-05", "commande": "calipso_c",
+         "jours": 2, "lots": {"WP_1": 2}}]}
+    draft = suivi.journal_draft(rows, facturation, "FA20260805", ["calipso"])
+    (line,) = draft["lignes"]
+    assert (line["mois"], line["projet"], line["jours"]) == ("juillet",
+                                                             "lees", 2.0)
+    assert line["tache"] == "calib, deploy, doc, …"
+
