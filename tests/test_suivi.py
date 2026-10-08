@@ -357,3 +357,91 @@ def test_suivi_lots_page_has_one_table_per_project(tmp_path):
     assert ('<td class="num">1</td><td class="num">4</td>'
             '<td class="num">5</td><td></td></tr>') in page
     assert '<td class="todo">non ventilée</td>' in page
+
+
+CALIPSO_C = {"nom": "calipso_c", "projet": "calipso", "tjm": 540,
+             "debut": "2026-07-01",
+             "devis_lots": {"WP_1": 6, "WP_2": 7, "WP_3": 7}}
+CALIPSO_CATALOG = {"calipso": {"WP_1": "Banc", "WP_2": "IHM", "WP_3": "Tests"}}
+CALIPSO_C_FACTURES = [
+    {"id": "F1", "date": "2026-08-05", "commande": "calipso_c", "jours": 4,
+     "lots": {"WP_1": 1, "WP_2": 3, "WP_3": 0}},
+    # autre commande : ignorée
+    {"id": "F0", "date": "2026-06-19", "commande": "calipso_b", "jours": 8,
+     "lots": {"WP_1": 4, "WP_2": 3, "WP_3": 1}},
+]
+
+
+def test_next_invoice_splits_by_remaining_per_lot():
+    # restes 5 / 4 / 7 ; 12 j → 3,75 / 3 / 5,25 → 4 / 3 / 5
+    result = suivi.next_invoice(CALIPSO_C, CALIPSO_C_FACTURES, 12,
+                                CALIPSO_CATALOG)
+    assert [(lot["code"], lot["reste"], lot["jours"])
+            for lot in result["lots"]] == [
+        ("WP_1", 5, 4), ("WP_2", 4, 3), ("WP_3", 7, 5)]
+    assert (result["jours"], result["hors_commande"]) == (12, 0)
+    assert (result["ht"], result["ttc"]) == (6480, 6480 * 1.2)
+    assert result["lots"][0]["libelle"] == "Banc"
+
+
+def test_next_invoice_caps_each_lot_and_reports_the_overflow():
+    result = suivi.next_invoice(CALIPSO_C, CALIPSO_C_FACTURES, 17,
+                                CALIPSO_CATALOG)
+    assert [lot["jours"] for lot in result["lots"]] == [5, 4, 7]
+    assert (result["jours"], result["hors_commande"]) == (16, 1)
+
+
+def test_next_invoice_breaks_ties_in_catalog_order():
+    commande = {**CALIPSO_C, "devis_lots": {"WP_1": 2, "WP_2": 2}}
+    # restes 2 / 2 ; 1 j → 0,5 / 0,5 → le premier lot du catalogue
+    result = suivi.next_invoice(commande, [], 1, CALIPSO_CATALOG)
+    assert [lot["jours"] for lot in result["lots"]] == [1, 0]
+
+
+def test_next_invoice_single_lot_and_missing_devis():
+    speasy = {"nom": "speasy", "projet": "speasy", "tjm": 490,
+              "devis_lots": {"JUICE_E2": 60}}
+    factures = [{"id": "F1", "date": "2026-01-29", "commande": "speasy",
+                 "jours": 9, "lots": {"JUICE_E2": 9}}]
+    result = suivi.next_invoice(speasy, factures, 3, {})
+    assert [(lot["code"], lot["reste"], lot["jours"])
+            for lot in result["lots"]] == [("JUICE_E2", 51, 3)]
+    assert result["ht"] == 1470
+    assert suivi.next_invoice({**speasy, "devis_lots": {}}, factures, 3,
+                              {}) is None
+
+
+def test_suivi_prochaine_page_prefills_and_recomputes(tmp_path):
+    csv_path = tmp_path / "pomofocus_webhook.csv"
+    with open(csv_path, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=webhook_receiver.CSV_COLUMNS)
+        writer.writeheader()
+        # 2,5 j exécutés sur calipso_c, rien de facturé
+        for day in ("20260701", "20260702", "20260703"):
+            writer.writerow({"date": day, "project": "calipso_iesa",
+                             "task": "t", "minutes": 480 if day < "20260703"
+                             else 240, "startTime": "", "endTime": ""})
+    yml = tmp_path / "facturation.yml"
+    yml.write_text(
+        "commandes:\n"
+        "  - {nom: calipso_c, projet: calipso, tjm: 540, devis: 3,"
+        " debut: '2026-07-01', devis_lots: {WP_1: 1, WP_2: 2}}\n"
+        "lots:\n"
+        "  calipso: {WP_1: Banc, WP_2: IHM}\n",
+        encoding="utf-8",
+    )
+    webhook_receiver.CSV_PATH = str(csv_path)
+    webhook_receiver.FACTURATION_PATH = str(yml)
+    client = webhook_receiver.app.test_client()
+
+    page = client.get("/suivi/prochaine").get_data(as_text=True)
+    assert 'href="/suivi/prochaine" class="active">Prochaine facture' in page
+    # 2,5 j → 2 j pré-remplis, ventilés 1/3 · 2/3 des restes 1 / 2 → 1 / 1
+    assert 'name="j" min="0" step="1" value="2"' in page
+    assert '<td class="num prop">1</td>' in page
+    assert "todo" not in page.split("<h2>")[0].split("</form>")[1]
+
+    page = client.get("/suivi/prochaine?c=calipso_c&j=4").get_data(
+        as_text=True)
+    assert "on facturerait du temps non réalisé" in page
+    assert "1 j au-delà du devis" in page

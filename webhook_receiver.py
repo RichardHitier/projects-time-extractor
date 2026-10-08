@@ -49,7 +49,7 @@ CSV_COLUMNS = ["date", "project", "task", "minutes", "startTime", "endTime"]
 EXPORT_TYPES = {"finish", "pause"}
 SECRET = os.environ.get("WEBHOOK_SECRET", "").strip("/")
 PORT = int(os.environ.get("WEBHOOK_PORT", "5000"))
-APP_VERSION = "0.31.0"  # affiché en pied de page (miroir de pyproject.toml)
+APP_VERSION = "0.32.0"  # affiché en pied de page (miroir de pyproject.toml)
 
 BILLABLE_PROJECTS = {p.lower() for p in _config.get("BILLABLE_PROJECTS", [])}
 BILLABLE_MAX_HOURS = 4
@@ -2331,16 +2331,78 @@ SUIVI_LOTS_HTML = """<!doctype html>
 </html>
 """
 
+SUIVI_PROCHAINE_HTML = """<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Suivi — prochaine facture</title>
+<style>
+  body {{ font-family: system-ui, sans-serif; margin: 2rem; background: #111; color: #eee; }}
+  a {{ color: #3987e5; text-decoration: none; }}
+  .menubar {{ display: flex; gap: .6rem; margin-bottom: 1.5rem; flex-wrap: wrap; }}
+  .menubar a {{ background: #2e2e2b; padding: .4rem .9rem; border-radius: 999px;
+    text-transform: uppercase; font-size: .8rem; color: #bbb; transition: background .15s ease; }}
+  .menubar a:hover {{ background: #3c3c37; }}
+  .menubar a.active {{ background: #3987e5; color: #fff; }}
+  .tabs {{ display: flex; gap: .4rem; margin: 0 0 1.2rem; }}
+  .tabs a {{ padding: .3rem .8rem; border-radius: 999px; font-size: .75rem; color: #bbb;
+    background: #2e2e2b; }}
+  .tabs a.active {{ background: #3987e5; color: #fff; }}
+  h2 {{ color: #999; font-weight: normal; text-transform: uppercase; font-size: .7rem;
+    letter-spacing: .04em; margin: 0 0 .5rem; }}
+  .scroll {{ overflow-x: auto; margin-bottom: 2.2rem; }}
+  table {{ border-collapse: collapse; }}
+  th {{ text-align: right; color: #999; text-transform: uppercase; font-size: .7rem;
+    font-weight: normal; padding: .4rem .55rem; border-bottom: 1px solid #333; white-space: nowrap; }}
+  th.txt {{ text-align: left; }}
+  td {{ padding: .4rem .55rem; border-bottom: 1px solid #222; font-size: .85rem; white-space: nowrap; }}
+  td.num {{ text-align: right; font-variant-numeric: tabular-nums; }}
+  td.date {{ color: #bbb; font-variant-numeric: tabular-nums; }}
+  td.id {{ color: #999; font-size: .8rem; }}
+  td.eur {{ color: #fff; font-weight: 700; }}
+  td.todo {{ color: #e0b050; font-style: italic; }}
+  tr.total td {{ border-bottom: 0; border-top: 1px solid #333; color: #fff; font-weight: 700; }}
+  .dot {{ display: inline-block; width: .6rem; height: .6rem; border-radius: 50%;
+    margin-right: .5rem; vertical-align: baseline; }}
+  .ver {{ color: #666; font-size: .7rem; margin-top: 2rem; }}
+  .choice {{ display: flex; gap: .4rem; flex-wrap: wrap; margin: 0 0 1rem; }}
+  .choice a {{ padding: .3rem .8rem; border-radius: 999px; font-size: .75rem; color: #bbb;
+    background: #2e2e2b; }}
+  .choice a.active {{ background: #3c3c37; color: #fff; }}
+  form.days {{ display: flex; align-items: center; gap: .6rem; margin: 0 0 1rem;
+    font-size: .85rem; color: #bbb; }}
+  form.days input {{ width: 4.5rem; background: #1c1c1a; color: #fff; border: 1px solid #444;
+    border-radius: 6px; padding: .3rem .4rem; font-size: .85rem; text-align: right; }}
+  form.days button {{ background: #3987e5; color: #fff; border: 0; border-radius: 999px;
+    padding: .35rem .9rem; font-size: .75rem; cursor: pointer; }}
+  p.facts {{ color: #bbb; font-size: .85rem; margin: 0 0 1rem; }}
+  p.facts strong {{ color: #fff; }}
+  p.todo {{ color: #e0b050; font-style: italic; font-size: .85rem; margin: 0 0 .6rem; }}
+  td.lot {{ white-space: normal; }}
+  td.lot small {{ color: #999; margin-left: .4rem; }}
+  td.prop {{ color: #fff; font-weight: 700; }}
+</style>
+</head>
+<body>
+{menu}
+{tabs}
+{content}
+<footer class="ver">v{version}</footer>
+</body>
+</html>
+"""
+
 _FR_MONTHS_SHORT = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.",
                     "août", "sept.", "oct.", "nov.", "déc."]
 
 
 def _suivi_tabs(prefix, active):
-    """Onglets Mois / Synthèse / Factures / Lots des pages /suivi."""
+    """Onglets des pages /suivi."""
     items = (("mois", "Mois", f"{prefix}/suivi"),
              ("synthese", "Synthèse", f"{prefix}/suivi/synthese"),
              ("factures", "Factures", f"{prefix}/suivi/factures"),
-             ("lots", "Lots", f"{prefix}/suivi/lots"))
+             ("lots", "Lots", f"{prefix}/suivi/lots"),
+             ("prochaine", "Prochaine facture", f"{prefix}/suivi/prochaine"))
     links = "".join(
         f'<a href="{href}" class="active">{text}</a>' if key == active
         else f'<a href="{href}">{text}</a>'
@@ -3178,6 +3240,125 @@ def suivi_lots_page(secret_path):
         tabs=_suivi_tabs(prefix, "lots"),
         blocks=html_blocks,
         version=APP_VERSION,
+    )
+
+
+@app.get("/suivi/prochaine", defaults={"secret_path": ""})
+@app.get("/<path:secret_path>/suivi/prochaine")
+def suivi_prochaine_page(secret_path):
+    """Prochaine facture d'une commande (?c=) : le reste à facturer, arrondi
+    au jour entier inférieur ou choisi (?j=), ventilé sur les lots au prorata
+    de leur reste (suivi.next_invoice). Lecture seule."""
+    if SECRET and secret_path.strip("/") != SECRET:
+        return "not found\n", 404
+    prefix = f"/{secret_path.strip('/')}" if secret_path.strip("/") else ""
+    facturation = suivi.load_facturation(FACTURATION_PATH)
+    factures = facturation.get("factures") or []
+    _, _, summary = _suivi_synthese(_read_csv_rows(CSV_PATH))
+    by_name = {c["nom"]: c for c in summary}
+    commandes = [c for c in facturation.get("commandes") or []
+                 if c.get("devis_lots")]
+
+    def page(content):
+        return SUIVI_PROCHAINE_HTML.format(
+            menu=_menu_bar(prefix, "suivi"),
+            tabs=_suivi_tabs(prefix, "prochaine"),
+            content=content,
+            version=APP_VERSION,
+        )
+
+    if not commandes:
+        return page('<p class="todo">aucune commande avec <code>devis_lots</code> '
+                    "dans facturation.yml</p>")
+
+    names = [c["nom"] for c in commandes]
+    name = request.args.get("c", "")
+    if name not in names:
+        name = next(
+            (n for n in names
+             if by_name.get(n, {}).get("reste_a_facturer", 0) >= 1),
+            names[0],
+        )
+    commande = commandes[names.index(name)]
+    row = by_name.get(name, {})
+    to_bill = row.get("reste_a_facturer", 0)
+    default_days = max(int(to_bill + 1e-9), 0)
+    try:
+        days = max(int(request.args.get("j", default_days)), 0)
+    except (TypeError, ValueError):
+        days = default_days
+    proposal = suivi.next_invoice(
+        commande, factures, days, facturation.get("lots") or {}
+    )
+
+    def jours(value):
+        return suivi.format_jours(value, trim=True)
+
+    choice = "".join(
+        f'<a href="{prefix}/suivi/prochaine?c={quote(n)}"'
+        + (' class="active"' if n == name else "")
+        + f">{_suivi_dot(n)}{html.escape(n)}</a>"
+        for n in names
+    )
+    form = (
+        f'<form class="days" method="get" action="{prefix}/suivi/prochaine">'
+        f'<input type="hidden" name="c" value="{html.escape(name)}">'
+        f'<label>Jours à facturer <input type="number" name="j" min="0" '
+        f'step="1" value="{days}"></label>'
+        "<button>recalculer</button></form>"
+    )
+    facts = (
+        f'<p class="facts">Commande {html.escape(str(commande.get("ref") or ""))} · '
+        f'exécuté non facturé <strong>{suivi.format_jours(to_bill)} j</strong> · '
+        f'reste sur la commande '
+        f'<strong>{jours(sum(lot["reste"] for lot in proposal["lots"]))} j</strong></p>'
+    )
+    alerts = ""
+    if days > to_bill + 1e-9:
+        alerts += (
+            f'<p class="todo">{days} j demandés pour {suivi.format_jours(to_bill)} j '
+            "exécutés non facturés : on facturerait du temps non réalisé.</p>"
+        )
+    if proposal["hors_commande"]:
+        alerts += (
+            f'<p class="todo">{proposal["hors_commande"]} j au-delà du devis : '
+            "non ventilés, à reporter sur une commande suivante.</p>"
+        )
+
+    def eur(value, cls="num"):
+        return f'<td class="{cls}">{_format_eur(value)}</td>'
+
+    trs = "".join(
+        f'<tr><td class="lot">{html.escape(lot["code"])}'
+        + (f'<small>{html.escape(lot["libelle"])}</small>' if lot["libelle"] else "")
+        + f'</td><td class="num">{jours(lot["devis"])}</td>'
+        f'<td class="num">{jours(lot["facture"])}</td>'
+        f'<td class="num">{jours(lot["reste"])}</td>'
+        f'<td class="num prop">{lot["jours"]}</td>'
+        + eur(proposal["tjm"]) + eur(lot["ht"]) + "</tr>"
+        for lot in proposal["lots"]
+    )
+    trs += (
+        '<tr class="total"><td>Total</td>'
+        f'<td class="num">{jours(sum(lot["devis"] for lot in proposal["lots"]))}</td>'
+        f'<td class="num">{jours(sum(lot["facture"] for lot in proposal["lots"]))}</td>'
+        f'<td class="num">{jours(sum(lot["reste"] for lot in proposal["lots"]))}</td>'
+        f'<td class="num">{proposal["jours"]}</td><td></td>'
+        + eur(proposal["ht"], "num eur") + "</tr>"
+    )
+    table = (
+        '<div class="scroll"><table>'
+        '<thead><tr><th class="txt">Lot</th><th>Devis</th><th>Déjà facturé</th>'
+        "<th>Reste</th><th>Proposé</th><th>PU</th><th>HT</th></tr></thead>"
+        f"<tbody>{trs}</tbody></table></div>"
+        '<div class="scroll"><table>'
+        "<thead><tr><th>Base HT</th><th>TVA 20 %</th><th>TTC</th></tr></thead>"
+        "<tbody><tr>" + eur(proposal["ht"]) + eur(proposal["tva"])
+        + eur(proposal["ttc"], "num eur") + "</tr></tbody></table></div>"
+    )
+    return page(
+        f'<div class="choice">{choice}</div>{form}{facts}{alerts}'
+        f"<h2>Ventilation proposée</h2>{table}"
     )
 
 

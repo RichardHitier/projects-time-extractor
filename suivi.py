@@ -306,3 +306,72 @@ def _sum_lots(splits):
         for code, days in split.items():
             totals[code] = totals.get(code, 0) + days
     return totals
+
+
+def next_invoice(commande, factures, days, lots_catalog):
+    """Ventilation proposée de la prochaine facture de `commande` : `days`
+    jours entiers répartis sur ses lots au prorata de leur reste (devis du lot
+    − déjà facturé), par la méthode du plus fort reste — parties entières,
+    puis un jour de plus aux plus grandes parties fractionnaires, à égalité
+    dans l'ordre du catalogue —, sans dépasser le reste d'un lot.
+
+    Lots dans l'ordre du catalogue du projet, puis ceux du devis absents du
+    catalogue. Sans `devis_lots` sur la commande : None.
+
+    Renvoie un dict : lots [{code, libelle, devis, facture, reste, jours,
+    ht}], jours (ventilés), hors_commande (jours au-delà des restes), ht,
+    tva, ttc.
+    """
+    devis = commande.get("devis_lots") or {}
+    if not devis:
+        return None
+    labels = dict((lots_catalog or {}).get(commande["projet"]) or {})
+    codes = [code for code in labels if code in devis]
+    codes += [code for code in devis if code not in labels]
+    billed = _sum_lots(
+        {code: float(d) for code, d in (f.get("lots") or {}).items()}
+        for f in factures if f["commande"] == commande["nom"]
+    )
+    remaining = {code: max(float(devis[code]) - billed.get(code, 0), 0)
+                 for code in codes}
+
+    total_remaining = sum(remaining.values())
+    to_split = min(int(days), int(total_remaining))
+    split = dict.fromkeys(codes, 0)
+    if to_split > 0:
+        quotas = {code: to_split * remaining[code] / total_remaining
+                  for code in codes}
+        split = {code: int(quotas[code]) for code in codes}
+        by_fraction = sorted(
+            codes, key=lambda code: (-(quotas[code] - split[code]),
+                                     codes.index(code))
+        )
+        left = to_split - sum(split.values())
+        for code in by_fraction:
+            if left <= 0:
+                break
+            if split[code] < remaining[code]:
+                split[code] += 1
+                left -= 1
+
+    tjm = float(commande.get("tjm") or 0)
+    lots = [{
+        "code": code,
+        "libelle": labels.get(code, ""),
+        "devis": float(devis[code]),
+        "facture": billed.get(code, 0),
+        "reste": remaining[code],
+        "jours": split[code],
+        "ht": split[code] * tjm,
+    } for code in codes]
+    ventiles = sum(split.values())
+    ht = ventiles * tjm
+    return {
+        "lots": lots,
+        "jours": ventiles,
+        "hors_commande": max(int(days) - ventiles, 0),
+        "tjm": tjm,
+        "ht": ht,
+        "tva": ht * TVA_RATE,
+        "ttc": ht * (1 + TVA_RATE),
+    }
