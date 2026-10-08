@@ -51,7 +51,7 @@ CSV_COLUMNS = ["date", "project", "task", "minutes", "startTime", "endTime"]
 EXPORT_TYPES = {"finish", "pause"}
 SECRET = os.environ.get("WEBHOOK_SECRET", "").strip("/")
 PORT = int(os.environ.get("WEBHOOK_PORT", "5000"))
-APP_VERSION = "0.42.0"  # affiché en pied de page (miroir de pyproject.toml)
+APP_VERSION = "0.43.0"  # affiché en pied de page (miroir de pyproject.toml)
 
 BILLABLE_PROJECTS = {p.lower() for p in _config.get("BILLABLE_PROJECTS", [])}
 BILLABLE_MAX_HOURS = 4
@@ -3370,9 +3370,34 @@ def facturation_journal_page(secret_path):
         f'{_format_ymd(draft["fin"])} : {suivi.format_jours(draft["mesure"])} j '
         "mesurés</p>"
     )
+    billed = suivi.invoice_lines(facturation, invoice_id)
+
+    def eur(value, cls="num"):
+        return f'<td class="{cls}">{_format_eur(value)}</td>'
+
+    def qty(value):
+        return f'<td class="num">{suivi.format_jours(value, trim=True)}</td>'
+
+    lines_table = (
+        "<h2>Facture — lignes à reporter dans le .odt</h2>"
+        '<div class="scroll"><table><thead><tr><th class="txt">Désignation</th>'
+        "<th>Quantité (jours)</th><th>Prix unitaire</th><th>Prix HT</th>"
+        "</tr></thead><tbody>"
+        + "".join(
+            f'<tr><td class="lot">{html.escape(ln["designation"])}</td>'
+            + qty(ln["jours"]) + eur(ln["pu"]) + eur(ln["ht"]) + "</tr>"
+            for ln in billed["lignes"]
+        )
+        + "</tbody></table></div>"
+        '<div class="scroll"><table><thead><tr><th>Base HT</th><th>TVA 20 %</th>'
+        "<th>TTC</th></tr></thead><tbody><tr>"
+        + eur(billed["ht"]) + eur(billed["tva"]) + eur(billed["ttc"], "num eur")
+        + "</tr></tbody></table></div>"
+    )
     if not rows:
-        return page(choice + facts + '<p class="todo">aucune séance de la '
-                    "commande sur la période : rien à proposer</p>")
+        return page(choice + facts + lines_table
+                    + '<p class="todo">aucune séance de la commande sur la '
+                    "période : pas de brouillon de journal</p>")
     preview = (
         '<div class="scroll"><table><thead><tr>'
         + "".join(f'<th class="txt">{html.escape(h)}</th>' for h in headers)
@@ -3393,7 +3418,7 @@ def facturation_journal_page(secret_path):
         "this.textContent='copié'\">copier</button>"
     )
     return page(
-        choice + facts
+        choice + facts + lines_table
         + "<h2>Brouillon du journal — à relire avant de coller</h2>"
         + preview
         + "<h2>Texte à coller dans le journal (séparateur « ; », sans "

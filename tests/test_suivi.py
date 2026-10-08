@@ -687,6 +687,8 @@ def test_facturation_journal_page_shows_tsv_for_the_invoice(tmp_path):
     assert 'href="/facturation/journal" class="active">Journal' in page
     assert '<option value="FA20260805" selected>' in page   # la dernière
     assert "juillet;;R1 (10j);Banc;lees;deploy;0,5;8,5;;;;" in page
+    assert "Facture — lignes à reporter dans le .odt" in page
+    assert '<td class="lot">WP 2 : IHM</td>' in page
     page = client.get("/facturation/factures").get_data(as_text=True)
     assert 'href="/facturation/journal?f=FA20260710"' in page
 
@@ -707,4 +709,16 @@ def test_journal_draft_groups_by_month_and_subproject():
     assert (line["mois"], line["projet"], line["jours"]) == ("juillet",
                                                              "lees", 2.0)
     assert line["tache"] == "calib, deploy, doc, …"
+
+
+def test_invoice_lines_follow_the_odt_layout():
+    facturation = {**JOURNAL_FACTURATION, "commandes": [
+        {**JOURNAL_FACTURATION["commandes"][0],
+         "devis_lots": {"WP_1": 5, "WP_2": 5}}]}
+    lines = suivi.invoice_lines(facturation, "FA20260710")
+    assert [(ln["designation"], ln["jours"], ln["ht"])
+            for ln in lines["lignes"]] == [("WP 1 : Banc", 1, 500),
+                                           ("WP 2 : IHM", 0, 0)]
+    assert (lines["ht"], lines["tva"], lines["ttc"]) == (500, 100, 600)
+    assert suivi.invoice_lines(facturation, "FA0") is None
 

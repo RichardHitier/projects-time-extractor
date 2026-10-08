@@ -646,3 +646,32 @@ def journal_table(draft):
     rows = [[value(draft, line) for _, value in JOURNAL_COLUMNS]
             for line in draft["lignes"]]
     return headers, rows
+
+
+def invoice_lines(facturation, invoice_id):
+    """Lignes de la facture `invoice_id` telles que sur le .odt : une par lot
+    du devis de sa commande (lots à 0 compris, comme sur les factures émises),
+    désignation « WP 1 : libellé », quantité, PU, HT ; puis HT, TVA, TTC.
+    None si la facture n'existe pas."""
+    invoice = next((f for f in facturation.get("factures") or []
+                    if str(f["id"]) == invoice_id), None)
+    if invoice is None:
+        return None
+    commande = next((c for c in facturation.get("commandes") or []
+                     if c["nom"] == invoice["commande"]), {})
+    labels = (facturation.get("lots") or {}).get(commande.get("projet")) or {}
+    split = invoice.get("lots") or {}
+    codes = [code for code in labels
+             if code in (commande.get("devis_lots") or split)]
+    codes += [code for code in split if code not in codes]
+    tjm = float(commande.get("tjm") or 0)
+    lines = [{
+        "designation": (f"{code.replace('_', ' ')} : {labels[code]}"
+                        if labels.get(code) else code.replace("_", " ")),
+        "jours": float(split.get(code, 0)),
+        "pu": tjm,
+        "ht": float(split.get(code, 0)) * tjm,
+    } for code in codes]
+    ht = float(invoice["jours"]) * tjm
+    return {"lignes": lines, "ht": ht, "tva": ht * TVA_RATE,
+            "ttc": ht * (1 + TVA_RATE)}
