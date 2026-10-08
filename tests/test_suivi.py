@@ -686,6 +686,6 @@ def test_facturation_journal_page_shows_tsv_for_the_invoice(tmp_path):
     page = client.get("/facturation/journal").get_data(as_text=True)
     assert 'href="/facturation/journal" class="active">Journal' in page
     assert '<option value="FA20260805" selected>' in page   # la dernière
-    assert "juillet\tBanc\tdeploy\t\tlees\t0,5" in page
+    assert "juillet;Banc;deploy;;lees;0,5;R1;8,5;;;;" in page
     page = client.get("/facturation/factures").get_data(as_text=True)
     assert 'href="/facturation/journal?f=FA20260710"' in page

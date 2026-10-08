@@ -18,6 +18,7 @@ Set WEBHOOK_SECRET to use an unguessable path:
 import csv
 import hashlib
 import html
+import io
 import json
 import os
 import shutil
@@ -50,7 +51,7 @@ CSV_COLUMNS = ["date", "project", "task", "minutes", "startTime", "endTime"]
 EXPORT_TYPES = {"finish", "pause"}
 SECRET = os.environ.get("WEBHOOK_SECRET", "").strip("/")
 PORT = int(os.environ.get("WEBHOOK_PORT", "5000"))
-APP_VERSION = "0.40.0"  # affiché en pied de page (miroir de pyproject.toml)
+APP_VERSION = "0.40.1"  # affiché en pied de page (miroir de pyproject.toml)
 
 BILLABLE_PROJECTS = {p.lower() for p in _config.get("BILLABLE_PROJECTS", [])}
 BILLABLE_MAX_HOURS = 4
@@ -3380,7 +3381,9 @@ def facturation_journal_page(secret_path):
                   + "</tr>" for row in rows)
         + "</tbody></table></div>"
     )
-    tsv = "\n".join("\t".join(row) for row in rows)
+    buffer = io.StringIO()
+    csv.writer(buffer, delimiter=";", lineterminator="\n").writerows(rows)
+    tsv = buffer.getvalue().rstrip("\n")
     copy = (
         f'<textarea class="tsv" id="tsv" readonly>{html.escape(tsv)}</textarea>'
         '<br><button class="copy" type="button" onclick="'
@@ -3393,7 +3396,8 @@ def facturation_journal_page(secret_path):
         choice + facts
         + "<h2>Brouillon du journal — à relire avant de coller</h2>"
         + preview
-        + "<h2>Texte à coller dans le journal (sans en-têtes)</h2>" + copy
+        + "<h2>Texte à coller dans le journal (séparateur « ; », sans "
+        "en-têtes)</h2>" + copy
     )
 
 
