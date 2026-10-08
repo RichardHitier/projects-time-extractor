@@ -611,3 +611,81 @@ def test_old_suivi_factures_and_lots_redirect_to_facturation():
         assert resp.status_code == 302
         assert resp.headers["Location"].endswith(f"/facturation/{page}")
 
+
+
+JOURNAL_FACTURATION = {
+    "commandes": [{"nom": "calipso_c", "projet": "calipso", "ref": "R1",
+                   "tjm": 500, "devis": 10, "debut": "2026-07-01"}],
+    "lots": {"calipso": {"WP_1": "Banc", "WP_2": "IHM"}},
+    "factures": [
+        {"id": "FA20260710", "date": "2026-07-10", "commande": "calipso_c",
+         "jours": 1, "lots": {"WP_1": 1}},
+        {"id": "FA20260805", "date": "2026-08-05", "commande": "calipso_c",
+         "jours": 2, "lots": {"WP_1": 1, "WP_2": 1}},
+    ],
+}
+JOURNAL_ROWS = [
+    row("20260709", "calipso_lees", "avant", 480),     # facture précédente
+    row("20260710", "calipso_lees", "avant", 480),     # jour de la précédente
+    row("20260711", "calipso_lees", "deploy", 240),    # 0,5 j
+    row("20260802", "calipso_iesa", "fixes", 720),     # 1,5 j
+    row("20260806", "calipso_lees", "après", 480),     # après la facture
+]
+
+
+def test_journal_draft_spans_the_period_and_fills_lots_in_order():
+    draft = suivi.journal_draft(JOURNAL_ROWS, JOURNAL_FACTURATION,
+                                "FA20260805", ["calipso"])
+    assert (draft["debut"], draft["fin"]) == ("20260710", "20260805")
+    assert draft["mesure"] == 2.0
+    # 2 j au prorata 0,5 / 1,5 en demi-journées → 0,5 / 1,5 ; WP_1 1 j puis
+    # WP_2 1 j : la ligne « fixes » est coupée entre les deux lots
+    assert [(ln["mois"], ln["lot"], ln["projet"], ln["tache"], ln["jours"])
+            for ln in draft["lignes"]] == [
+        ("juillet", "WP_1", "lees", "deploy", 0.5),
+        ("août", "WP_1", "iesa", "fixes", 0.5),
+        ("août", "WP_2", "iesa", "fixes", 1.0),
+    ]
+    # devis 10 − 1 déjà facturé − cumul
+    assert [ln["reste"] for ln in draft["lignes"]] == [8.5, 8.0, 7.0]
+    last = draft["lignes"][-1]
+    assert (last["facture"], last["qte"], last["ht"]) == ("FA20260805", 2,
+                                                         1000)
+    assert "facture" not in draft["lignes"][0]
+    assert suivi.journal_draft(JOURNAL_ROWS, JOURNAL_FACTURATION, "FA0",
+                               ["calipso"]) is None
+
+
+def test_journal_table_uses_the_project_layout():
+    draft = suivi.journal_draft(JOURNAL_ROWS, JOURNAL_FACTURATION,
+                                "FA20260805", ["calipso"])
+    headers, rows = suivi.journal_table(draft)
+    assert headers[:6] == ["date", "lot", "module", "description", "Projet",
+                           "jours"]
+    assert rows[0] == ["juillet", "Banc", "deploy", "", "lees", "0,5", "R1",
+                       "8,5", "", "", "", ""]
+    assert rows[-1][-4:] == ["FA20260805", "2", "1000", "1200"]
+    draft["projet"] = "speasy"
+    headers, _ = suivi.journal_table(draft)
+    assert headers[:3] == ["date", "PUMA", "lot"]
+
+
+def test_facturation_journal_page_shows_tsv_for_the_invoice(tmp_path):
+    import yaml
+    csv_path = tmp_path / "pomofocus_webhook.csv"
+    with open(csv_path, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=webhook_receiver.CSV_COLUMNS)
+        writer.writeheader()
+        writer.writerows(JOURNAL_ROWS)
+    yml = tmp_path / "facturation.yml"
+    yml.write_text(yaml.safe_dump(JOURNAL_FACTURATION), encoding="utf-8")
+    webhook_receiver.CSV_PATH = str(csv_path)
+    webhook_receiver.FACTURATION_PATH = str(yml)
+    client = webhook_receiver.app.test_client()
+
+    page = client.get("/facturation/journal").get_data(as_text=True)
+    assert 'href="/facturation/journal" class="active">Journal' in page
+    assert '<option value="FA20260805" selected>' in page   # la dernière
+    assert "juillet\tBanc\tdeploy\t\tlees\t0,5" in page
+    page = client.get("/facturation/factures").get_data(as_text=True)
+    assert 'href="/facturation/journal?f=FA20260710"' in page

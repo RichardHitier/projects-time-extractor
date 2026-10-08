@@ -476,3 +476,159 @@ def append_invoice(text, line):
         lines[last] += "\n"
     lines.insert(last + 1, line)
     return "".join(lines)
+
+
+MOIS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet",
+        "août", "septembre", "octobre", "novembre", "décembre"]
+
+
+def _split_units(units, weights):
+    """`units` entiers répartis au prorata de `weights`, plus fort reste (à
+    égalité, dans l'ordre) : somme exacte."""
+    total = sum(weights)
+    if units <= 0 or total <= 0:
+        return [0] * len(weights)
+    quotas = [units * w / total for w in weights]
+    shares = [int(q) for q in quotas]
+    order = sorted(range(len(weights)),
+                   key=lambda i: (-(quotas[i] - shares[i]), i))
+    for i in order[:units - sum(shares)]:
+        shares[i] += 1
+    return shares
+
+
+def journal_draft(rows, facturation, invoice_id, projects, round_minutes=15):
+    """Brouillon des lignes du journal (*_LOGS.ods) qui justifient la facture
+    `invoice_id`, ou None si elle n'existe pas.
+
+    Séances de sa commande entre la facture précédente de la même commande
+    (exclue ; à défaut `debut`, inclus) et sa date (incluse), une ligne par
+    (mois, sous-projet, tâche) ; jours de la facture répartis au prorata du
+    mesuré en demi-journées (somme exacte), puis lots remplis dans l'ordre du
+    catalogue, une ligne coupée si elle chevauche deux lots. Décompte « reste
+    à réaliser » sur le devis ; dernière ligne estampillée (n°, qté, HT, TTC).
+    """
+    factures = facturation.get("factures") or []
+    invoice = next((f for f in factures if str(f["id"]) == invoice_id), None)
+    if invoice is None:
+        return None
+    commandes = {c["nom"]: c for c in facturation.get("commandes") or []}
+    commande = commandes.get(invoice["commande"], {})
+    name, project = invoice["commande"], commande.get("projet", "")
+
+    def key(f):
+        return (str(f["date"]), str(f["id"]))
+
+    previous = sorted((f for f in factures if f["commande"] == name
+                       and key(f) < key(invoice)), key=key)
+    end = str(invoice["date"]).replace("-", "")
+    if previous:
+        start = str(previous[-1]["date"]).replace("-", "")
+        after = lambda day: day > start  # noqa: E731
+    else:
+        start = str(commande.get("debut", "")).replace("-", "")
+        after = lambda day: day >= start  # noqa: E731
+
+    measured = {}
+    for month in months_between(start[:6] or end[:6], end[:6]):
+        for line in month_lines(rows, month, list(commandes.values()),
+                                projects, (), round_minutes):
+            if (line["commande"] != name or not after(line["date"])
+                    or line["date"] > end):
+                continue
+            group = (month, line["sous_projet"], line["description"])
+            first, days = measured.get(group, (line["date"], 0))
+            measured[group] = (min(first, line["date"]), days + line["jours"])
+    groups = sorted(measured, key=lambda g: (measured[g][0], g))
+
+    days_billed = float(invoice["jours"])
+    shares = _split_units(int(round(days_billed * 2)),
+                          [measured[g][1] for g in groups])
+    labels = (facturation.get("lots") or {}).get(project) or {}
+    split = invoice.get("lots") or {}
+    codes = list(labels) + [c for c in split if c not in labels]
+    lot_units = [(code, int(round(float(split[code]) * 2)))
+                 for code in codes
+                 if code in split and float(split[code]) > 0]
+
+    lines = []
+    lot_index, lot_left = 0, lot_units[0][1] if lot_units else 0
+    for group, units in zip(groups, shares):
+        while units > 0:
+            if lot_units and lot_left == 0 and lot_index + 1 < len(lot_units):
+                lot_index += 1
+                lot_left = lot_units[lot_index][1]
+            take = min(units, lot_left) if lot_units and lot_left else units
+            code = lot_units[lot_index][0] if lot_units else ""
+            month, module, task = group
+            lines.append({"mois": MOIS[int(month[4:]) - 1], "lot": code,
+                          "lot_libelle": labels.get(code, code),
+                          "projet": module, "tache": task,
+                          "jours": take / 2})
+            units -= take
+            if lot_units:
+                lot_left = max(lot_left - take, 0)
+
+    tjm = float(commande.get("tjm") or 0)
+    remaining = (float(commande.get("devis") or 0)
+                 - sum(float(f["jours"]) for f in previous))
+    for line in lines:
+        remaining -= line["jours"]
+        line["reste"] = remaining
+    if lines:
+        lines[-1].update({"facture": str(invoice["id"]), "qte": days_billed,
+                          "ht": days_billed * tjm,
+                          "ttc": days_billed * tjm * (1 + TVA_RATE)})
+    return {
+        "facture": invoice, "commande": commande, "projet": project,
+        "debut": start, "fin": end, "lignes": lines,
+        "mesure": sum(days for _, days in measured.values()),
+    }
+
+
+def _jours_text(value):
+    return format_jours(value, trim=True) if value != "" else ""
+
+
+# Colonnes des journaux à la main, par projet : (en-tête, valeur de la ligne).
+JOURNAL_LAYOUTS = {
+    "calipso": [  # IESA_LOGS.ods
+        ("date", lambda d, ln: ln["mois"]),
+        ("lot", lambda d, ln: ln["lot_libelle"]),
+        ("module", lambda d, ln: ln["tache"]),
+        ("description", lambda d, ln: ""),
+        ("Projet", lambda d, ln: ln["projet"]),
+        ("jours", lambda d, ln: _jours_text(ln["jours"])),
+        ("PUMA", lambda d, ln: str(d["commande"].get("ref") or "")),
+        ("à Réaliser (J)", lambda d, ln: _jours_text(ln["reste"])),
+        ("Facture", lambda d, ln: ln.get("facture", "")),
+        ("Qté (j)", lambda d, ln: _jours_text(ln.get("qte", ""))),
+        ("HT", lambda d, ln: _jours_text(ln.get("ht", ""))),
+        ("TTC", lambda d, ln: _jours_text(ln.get("ttc", ""))),
+    ],
+    "speasy": [  # SPEASY_LOGS.ods, feuille logs
+        ("date", lambda d, ln: ln["mois"]),
+        ("PUMA", lambda d, ln: str(d["commande"].get("ref") or "")),
+        ("lot", lambda d, ln: ln["lot_libelle"]),
+        ("Projet", lambda d, ln: d["projet"]),
+        ("Issue Id", lambda d, ln: ""),
+        ("Issue name", lambda d, ln: ln["projet"]),
+        ("Description", lambda d, ln: ln["tache"]),
+        ("temps (j)", lambda d, ln: _jours_text(ln["jours"])),
+        ("RESTE à Réaliser (J)", lambda d, ln: _jours_text(ln["reste"])),
+        ("Num Facture", lambda d, ln: ln.get("facture", "")),
+        ("Qté (j)", lambda d, ln: _jours_text(ln.get("qte", ""))),
+        ("montant ht", lambda d, ln: _jours_text(ln.get("ht", ""))),
+        ("montant ttc", lambda d, ln: _jours_text(ln.get("ttc", ""))),
+    ],
+}
+
+
+def journal_table(draft):
+    """(en-têtes, lignes de texte) du brouillon, colonnes du journal du projet
+    (IESA_LOGS par défaut)."""
+    layout = JOURNAL_LAYOUTS.get(draft["projet"], JOURNAL_LAYOUTS["calipso"])
+    headers = [title for title, _ in layout]
+    rows = [[value(draft, line) for _, value in layout]
+            for line in draft["lignes"]]
+    return headers, rows

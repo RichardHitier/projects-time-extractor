@@ -50,7 +50,7 @@ CSV_COLUMNS = ["date", "project", "task", "minutes", "startTime", "endTime"]
 EXPORT_TYPES = {"finish", "pause"}
 SECRET = os.environ.get("WEBHOOK_SECRET", "").strip("/")
 PORT = int(os.environ.get("WEBHOOK_PORT", "5000"))
-APP_VERSION = "0.39.0"  # affiché en pied de page (miroir de pyproject.toml)
+APP_VERSION = "0.40.0"  # affiché en pied de page (miroir de pyproject.toml)
 
 BILLABLE_PROJECTS = {p.lower() for p in _config.get("BILLABLE_PROJECTS", [])}
 BILLABLE_MAX_HOURS = 4
@@ -2231,6 +2231,14 @@ FACTURATION_HTML = """<!doctype html>
   form.emit input.id {{ width: 7.5rem; }}
   form.emit button {{ background: #2e9e5b; color: #fff; border: 0; border-radius: 999px;
     padding: .4rem 1rem; font-size: .8rem; cursor: pointer; }}
+  textarea.tsv {{ width: 100%; max-width: 70rem; height: 9rem; background: #1c1c1a;
+    color: #ddd; border: 1px solid #444; border-radius: 6px; padding: .5rem;
+    font: .78rem ui-monospace, monospace; white-space: pre; }}
+  button.copy {{ background: #3987e5; color: #fff; border: 0; border-radius: 999px;
+    padding: .4rem 1rem; font-size: .8rem; cursor: pointer; margin: .4rem 0 1rem; }}
+  select {{ background: #1c1c1a; color: #fff; border: 1px solid #444; border-radius: 6px;
+    padding: .3rem .4rem; font-size: .85rem; }}
+  p.flash a {{ color: inherit; text-decoration: underline; }}
   p.flash {{ font-size: .85rem; margin: 0 0 1rem; padding: .5rem .8rem; border-radius: 6px; }}
   p.flash.ok {{ background: #1d3b29; color: #9fe0b5; }}
   p.flash.err {{ background: #3b1d1d; color: #f0a0a0; }}
@@ -2948,7 +2956,9 @@ def suivi_factures_page(secret_path):
         return f'<td class="{cls}">{_format_eur(value)}</td>'
 
     trs = "".join(
-        f'<tr><td class="date">{ymd(f["date"])}</td><td class="id">{html.escape(f["id"])}</td>'
+        f'<tr><td class="date">{ymd(f["date"])}</td><td class="id">'
+        f'<a href="{prefix}/facturation/journal?f={quote(f["id"])}" '
+        f'title="brouillon du journal">{html.escape(f["id"])}</a></td>'
         f'<td>{_suivi_dot(f["commande"])}{html.escape(f["commande"])}</td>'
         f'<td class="num">{suivi.format_jours(f["jours"], trim=True)}</td>{eur(f["tjm"])}'
         f'{eur(f["ht"], "num eur")}{eur(f["tva"])}{eur(f["ttc"])}'
@@ -3081,6 +3091,7 @@ def _facturation_tabs(prefix, active):
     items = (("prochaine", "Prochaine facture", f"{prefix}/facturation"),
              ("factures", "Factures", f"{prefix}/facturation/factures"),
              ("lots", "Lots", f"{prefix}/facturation/lots"),
+             ("journal", "Journal", f"{prefix}/facturation/journal"),
              ("activite", "Activité", f"{prefix}/facturation/activite"))
     links = "".join(
         f'<a href="{href}" class="active">{text}</a>' if key == active
@@ -3232,8 +3243,10 @@ def facturation_page(secret_path):
     )
     flash = ""
     if request.args.get("ok"):
-        flash = (f'<p class="flash ok">{html.escape(request.args["ok"])} '
-                 "enregistrée dans facturation.yml</p>")
+        done = request.args["ok"]
+        flash = (f'<p class="flash ok">{html.escape(done)} enregistrée dans '
+                 f'facturation.yml — <a href="{prefix}/facturation/journal?'
+                 f'f={quote(done)}">brouillon du journal</a></p>')
     elif request.args.get("err"):
         flash = f'<p class="flash err">{html.escape(request.args["err"])}</p>'
     return page(
@@ -3301,6 +3314,87 @@ def facturation_emettre(secret_path):
     except (OSError, ValueError) as exc:
         return redirect(f"{back}&err={quote(str(exc))}")
     return redirect(f"{back}&ok={quote(invoice['id'])}")
+
+
+@app.get("/facturation/journal", defaults={"secret_path": ""})
+@app.get("/<path:secret_path>/facturation/journal")
+def facturation_journal_page(secret_path):
+    """Brouillon des lignes du journal (*_LOGS.ods) d'une facture (?f=, défaut
+    la dernière émise), à copier-coller : aperçu + texte tabulé."""
+    if SECRET and secret_path.strip("/") != SECRET:
+        return "not found\n", 404
+    prefix = f"/{secret_path.strip('/')}" if secret_path.strip("/") else ""
+    facturation = suivi.load_facturation(FACTURATION_PATH)
+    factures = sorted(facturation.get("factures") or [],
+                      key=lambda f: (str(f["date"]), str(f["id"])),
+                      reverse=True)
+
+    def page(content):
+        return FACTURATION_HTML.format(
+            menu=_menu_bar(prefix, "facturation"),
+            content=_facturation_tabs(prefix, "journal") + content,
+            version=APP_VERSION,
+        )
+
+    if not factures:
+        return page('<p class="todo">aucune facture dans facturation.yml</p>')
+    ids = [str(f["id"]) for f in factures]
+    invoice_id = request.args.get("f", "")
+    if invoice_id not in ids:
+        invoice_id = ids[0]
+    draft = suivi.journal_draft(
+        _read_csv_rows(CSV_PATH), facturation, invoice_id, EXPORT_PROJECTS,
+        BILLING_ROUND_MINUTES,
+    )
+    headers, rows = suivi.journal_table(draft)
+
+    options = "".join(
+        f'<option value="{html.escape(i)}"'
+        + (" selected" if i == invoice_id else "")
+        + f'>{html.escape(i)} — {html.escape(str(f["commande"]))}, '
+        f'{suivi.format_jours(float(f["jours"]), trim=True)} j</option>'
+        for i, f in zip(ids, factures)
+    )
+    choice = (
+        f'<form class="days" method="get" action="{prefix}/facturation/journal">'
+        f'<label>Facture <select name="f" onchange="this.form.submit()">'
+        f"{options}</select></label></form>"
+    )
+    invoice = draft["facture"]
+    facts = (
+        f'<p class="facts">{html.escape(invoice_id)} · '
+        f'{_suivi_dot(invoice["commande"])}{html.escape(invoice["commande"])} · '
+        f'<strong>{suivi.format_jours(float(invoice["jours"]), trim=True)} j</strong>'
+        f' facturés · séances du {_format_ymd(draft["debut"])} au '
+        f'{_format_ymd(draft["fin"])} : {suivi.format_jours(draft["mesure"])} j '
+        "mesurés</p>"
+    )
+    if not rows:
+        return page(choice + facts + '<p class="todo">aucune séance de la '
+                    "commande sur la période : rien à proposer</p>")
+    preview = (
+        '<div class="scroll"><table><thead><tr>'
+        + "".join(f'<th class="txt">{html.escape(h)}</th>' for h in headers)
+        + "</tr></thead><tbody>"
+        + "".join("<tr>" + "".join(f"<td>{html.escape(v)}</td>" for v in row)
+                  + "</tr>" for row in rows)
+        + "</tbody></table></div>"
+    )
+    tsv = "\n".join("\t".join(row) for row in rows)
+    copy = (
+        f'<textarea class="tsv" id="tsv" readonly>{html.escape(tsv)}</textarea>'
+        '<br><button class="copy" type="button" onclick="'
+        "var t=document.getElementById('tsv');t.select();"
+        "(navigator.clipboard?navigator.clipboard.writeText(t.value)"
+        ":Promise.reject()).catch(function(){document.execCommand('copy')});"
+        "this.textContent='copié'\">copier</button>"
+    )
+    return page(
+        choice + facts
+        + "<h2>Brouillon du journal — à relire avant de coller</h2>"
+        + preview
+        + "<h2>Texte à coller dans le journal (sans en-têtes)</h2>" + copy
+    )
 
 
 @app.get("/facturation/activite", defaults={"secret_path": ""})
