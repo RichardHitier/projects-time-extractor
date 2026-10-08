@@ -49,7 +49,7 @@ CSV_COLUMNS = ["date", "project", "task", "minutes", "startTime", "endTime"]
 EXPORT_TYPES = {"finish", "pause"}
 SECRET = os.environ.get("WEBHOOK_SECRET", "").strip("/")
 PORT = int(os.environ.get("WEBHOOK_PORT", "5000"))
-APP_VERSION = "0.33.0"  # affiché en pied de page (miroir de pyproject.toml)
+APP_VERSION = "0.33.1"  # affiché en pied de page (miroir de pyproject.toml)
 
 BILLABLE_PROJECTS = {p.lower() for p in _config.get("BILLABLE_PROJECTS", [])}
 BILLABLE_MAX_HOURS = 4
@@ -2369,7 +2369,8 @@ FACTURATION_HTML = """<!doctype html>
   .choice {{ display: flex; gap: .4rem; flex-wrap: wrap; margin: 0 0 1rem; }}
   .choice a {{ padding: .3rem .8rem; border-radius: 999px; font-size: .75rem; color: #bbb;
     background: #2e2e2b; }}
-  .choice a.active {{ background: #3c3c37; color: #fff; }}
+  .choice a {{ border: 2px solid transparent; }}
+  .choice a.active {{ color: #fff; font-weight: 700; }}
   form.days {{ display: flex; align-items: center; gap: .6rem; margin: 0 0 1rem;
     font-size: .85rem; color: #bbb; }}
   form.days input {{ width: 4.5rem; background: #1c1c1a; color: #fff; border: 1px solid #444;
@@ -3292,12 +3293,15 @@ def facturation_page(secret_path):
     def jours(value):
         return suivi.format_jours(value, trim=True)
 
-    choice = "".join(
-        f'<a href="{prefix}/facturation?c={quote(n)}"'
-        + (' class="active"' if n == name else "")
-        + f">{_suivi_dot(n)}{html.escape(n)}</a>"
-        for n in names
-    )
+    def choice_link(n):
+        # commande choisie : bordure et fond teinté de la couleur du projet
+        color = project_color(_project_prefix(n))
+        active = (f' class="active" style="border-color:{color};'
+                  f'background:{color}40"' if n == name else "")
+        return (f'<a href="{prefix}/facturation?c={quote(n)}"{active}>'
+                f"{_suivi_dot(n)}{html.escape(n)}</a>")
+
+    choice = "".join(choice_link(n) for n in names)
     form = (
         f'<form class="days" method="get" action="{prefix}/facturation">'
         f'<input type="hidden" name="c" value="{html.escape(name)}">'
