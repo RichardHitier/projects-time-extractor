@@ -656,18 +656,18 @@ def test_journal_draft_spans_the_period_and_fills_lots_in_order():
                                ["calipso"]) is None
 
 
-def test_journal_table_uses_the_project_layout():
+def test_journal_table_uses_the_common_columns():
     draft = suivi.journal_draft(JOURNAL_ROWS, JOURNAL_FACTURATION,
                                 "FA20260805", ["calipso"])
     headers, rows = suivi.journal_table(draft)
-    assert headers[:6] == ["date", "lot", "module", "description", "Projet",
-                           "jours"]
-    assert rows[0] == ["juillet", "Banc", "deploy", "", "lees", "0,5", "R1",
-                       "8,5", "", "", "", ""]
+    assert headers == ["Mois", "DEVIS", "PUMA", "lot", "Ss-projet", "Tâche",
+                       "jours", "à Réaliser (J)", "Facture", "Qté (j)", "HT",
+                       "TTC"]
+    assert rows[0] == ["juillet", "", "R1 (10j)", "Banc", "lees", "deploy",
+                       "0,5", "8,5", "", "", "", ""]
     assert rows[-1][-4:] == ["FA20260805", "2", "1000", "1200"]
-    draft["projet"] = "speasy"
-    headers, _ = suivi.journal_table(draft)
-    assert headers[:3] == ["date", "PUMA", "lot"]
+    draft["commande"] = {**draft["commande"], "devis_ref": "DV20260627_CL"}
+    assert suivi.journal_table(draft)[1][0][1] == "DV20260627_CL"
 
 
 def test_facturation_journal_page_shows_tsv_for_the_invoice(tmp_path):
@@ -686,6 +686,6 @@ def test_facturation_journal_page_shows_tsv_for_the_invoice(tmp_path):
     page = client.get("/facturation/journal").get_data(as_text=True)
     assert 'href="/facturation/journal" class="active">Journal' in page
     assert '<option value="FA20260805" selected>' in page   # la dernière
-    assert "juillet;Banc;deploy;;lees;0,5;R1;8,5;;;;" in page
+    assert "juillet;;R1 (10j);Banc;lees;deploy;0,5;8,5;;;;" in page
     page = client.get("/facturation/factures").get_data(as_text=True)
     assert 'href="/facturation/journal?f=FA20260710"' in page

@@ -15,12 +15,13 @@ estampille.
       début de la commande) et la date de la facture, une ligne par (mois,
       sous-projet, tâche) ; jours de la facture au prorata, en demi-journées,
       somme exacte ; lots remplis dans l'ordre, ligne coupée si besoin.
-- [x] Colonnes du journal du projet (IESA_LOGS pour calipso, SPEASY_LOGS
-      `logs` pour speasy), reste à réaliser, estampille n°/qté/HT/TTC.
+- [x] Colonnes communes aux deux journaux, alignés le 2026-10-08 (v0.41.0) :
+      Mois · DEVIS · PUMA · lot · Ss-projet · Tâche · jours · à Réaliser (J)
+      · Facture · Qté (j) · HT · TTC. DEVIS = `devis_ref` de la commande
+      (facultatif), PUMA = « réf (devis j) ».
 - [x] `/facturation/journal?f=` : aperçu + texte tabulé + « copier » ; liens
       depuis « Émettre » et le registre des factures.
 
 ## Limites connues
 - Brouillon : lot et commande se décident à la main (ex. « June Tiny Fixes »
   rattaché par date à calipso_c, facturé en réalité sur calipso_b).
-- `description` (IESA) et `Issue Id` (speasy) restent à remplir.

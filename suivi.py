@@ -590,45 +590,36 @@ def _jours_text(value):
     return format_jours(value, trim=True) if value != "" else ""
 
 
-# Colonnes des journaux à la main, par projet : (en-tête, valeur de la ligne).
-JOURNAL_LAYOUTS = {
-    "calipso": [  # IESA_LOGS.ods
-        ("date", lambda d, ln: ln["mois"]),
-        ("lot", lambda d, ln: ln["lot_libelle"]),
-        ("module", lambda d, ln: ln["tache"]),
-        ("description", lambda d, ln: ""),
-        ("Projet", lambda d, ln: ln["projet"]),
-        ("jours", lambda d, ln: _jours_text(ln["jours"])),
-        ("PUMA", lambda d, ln: str(d["commande"].get("ref") or "")),
-        ("à Réaliser (J)", lambda d, ln: _jours_text(ln["reste"])),
-        ("Facture", lambda d, ln: ln.get("facture", "")),
-        ("Qté (j)", lambda d, ln: _jours_text(ln.get("qte", ""))),
-        ("HT", lambda d, ln: _jours_text(ln.get("ht", ""))),
-        ("TTC", lambda d, ln: _jours_text(ln.get("ttc", ""))),
-    ],
-    "speasy": [  # SPEASY_LOGS.ods, feuille logs
-        ("date", lambda d, ln: ln["mois"]),
-        ("PUMA", lambda d, ln: str(d["commande"].get("ref") or "")),
-        ("lot", lambda d, ln: ln["lot_libelle"]),
-        ("Projet", lambda d, ln: d["projet"]),
-        ("Issue Id", lambda d, ln: ""),
-        ("Issue name", lambda d, ln: ln["projet"]),
-        ("Description", lambda d, ln: ln["tache"]),
-        ("temps (j)", lambda d, ln: _jours_text(ln["jours"])),
-        ("RESTE à Réaliser (J)", lambda d, ln: _jours_text(ln["reste"])),
-        ("Num Facture", lambda d, ln: ln.get("facture", "")),
-        ("Qté (j)", lambda d, ln: _jours_text(ln.get("qte", ""))),
-        ("montant ht", lambda d, ln: _jours_text(ln.get("ht", ""))),
-        ("montant ttc", lambda d, ln: _jours_text(ln.get("ttc", ""))),
-    ],
-}
+def _puma(commande):
+    """Réf. de commande et capital, comme dans les journaux : « 2680L076888
+    (60j) »."""
+    ref = str(commande.get("ref") or "")
+    devis = commande.get("devis")
+    return f"{ref} ({float(devis):g}j)" if ref and devis else ref
+
+
+# Colonnes communes des journaux (IESA_LOGS, SPEASY_LOGS), alignées le
+# 2026-10-08 : (en-tête, valeur de la ligne).
+JOURNAL_COLUMNS = [
+    ("Mois", lambda d, ln: ln["mois"]),
+    ("DEVIS", lambda d, ln: str(d["commande"].get("devis_ref") or "")),
+    ("PUMA", lambda d, ln: _puma(d["commande"])),
+    ("lot", lambda d, ln: ln["lot_libelle"]),
+    ("Ss-projet", lambda d, ln: ln["projet"]),
+    ("Tâche", lambda d, ln: ln["tache"]),
+    ("jours", lambda d, ln: _jours_text(ln["jours"])),
+    ("à Réaliser (J)", lambda d, ln: _jours_text(ln["reste"])),
+    ("Facture", lambda d, ln: ln.get("facture", "")),
+    ("Qté (j)", lambda d, ln: _jours_text(ln.get("qte", ""))),
+    ("HT", lambda d, ln: _jours_text(ln.get("ht", ""))),
+    ("TTC", lambda d, ln: _jours_text(ln.get("ttc", ""))),
+]
 
 
 def journal_table(draft):
-    """(en-têtes, lignes de texte) du brouillon, colonnes du journal du projet
-    (IESA_LOGS par défaut)."""
-    layout = JOURNAL_LAYOUTS.get(draft["projet"], JOURNAL_LAYOUTS["calipso"])
-    headers = [title for title, _ in layout]
-    rows = [[value(draft, line) for _, value in layout]
+    """(en-têtes, lignes de texte) du brouillon, colonnes communes des
+    journaux (JOURNAL_COLUMNS)."""
+    headers = [title for title, _ in JOURNAL_COLUMNS]
+    rows = [[value(draft, line) for _, value in JOURNAL_COLUMNS]
             for line in draft["lignes"]]
     return headers, rows
