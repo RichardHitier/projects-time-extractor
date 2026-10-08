@@ -27,6 +27,6 @@ tenu par Caddy (`~/01DEV/apnee/Caddyfile`), nginx n'a pas démarré, prod coupé
 ## Critères de fin
 - [x] `https://timer.co-libri.org/suivi` : mot de passe demandé, certificat
       valide.
-- [ ] `http://…/suivi` → 301 ; POST du webhook Pomofocus toujours reçu
-      (à vérifier en prod après le push de v0.36.0).
+- [x] `http://…/suivi` → 301 ; POST du webhook Pomofocus toujours reçu
+      (vérifié en prod le 2026-10-08).
 - [x] `timer web-sync` et la sauvegarde cron passent par https + `~/.netrc`.
