@@ -25,15 +25,14 @@ def load_facturation(path):
 def commande_for(project, day, commandes):
     """Commande d'une séance : la dernière commande du projet dont `debut` est
     au plus tard `day` (YYYYMMDD). Sans commande applicable — projet non
-    facturé (colibri) ou séance antérieure à la première commande —, le
-    préfixe du projet."""
+    facturé (colibri) ou séance antérieure à la première commande —, None."""
     prefix = (project or "").split("_", 1)[0].strip().lower()
     current = None
     for commande in sorted(commandes, key=lambda c: c["debut"]):
         debut = commande["debut"].replace("-", "")
         if commande["projet"] == prefix and debut <= day:
             current = commande["nom"]
-    return current or prefix
+    return current
 
 
 def _clean(value):
@@ -49,7 +48,10 @@ def month_lines(rows, yyyymm, commandes, projects, ajustements=()):
     Séances des projets `projects` (préfixes, ex. EXPORT_PROJECTS) regroupées
     par (jour, projet, sous-projet, tâche), minutes sommées puis arrondies au
     quart d'heure supérieur, converties en jours de 8 h. Chaque ligne porte la
-    commande du jour (commande_for). Triées par date puis commande.
+    commande du jour (commande_for) ; une séance sans commande applicable
+    (projet non facturé comme colibri, ou antérieure à la première commande)
+    est écartée. Triées par date décroissante (la plus récente en haut), puis
+    commande.
 
     Les `ajustements` du mois (facturation.yml : mois, commande, jours, motif)
     s'ajoutent en fin de feuille, sans date : ils alignent les jours retenus
@@ -72,17 +74,21 @@ def month_lines(rows, yyyymm, commandes, projects, ajustements=()):
         groups[key] = groups.get(key, 0) + int(row.get("minutes") or 0)
     lines = []
     for (day, prefix, sub, task), minutes in groups.items():
+        commande = commande_for(prefix, day, commandes)
+        if commande is None:
+            continue
         rounded = -(-minutes // ROUND_MINUTES) * ROUND_MINUTES
         lines.append({
             "date": day,
-            "commande": commande_for(prefix, day, commandes),
+            "commande": commande,
             "sous_projet": sub,
             "description": task,
             "jours": rounded / MINUTES_PER_DAY,
             "ajustement": False,
         })
-    lines.sort(key=lambda line: (line["date"], line["commande"],
-                                 line["sous_projet"], line["description"]))
+    lines.sort(key=lambda line: (line["commande"], line["sous_projet"],
+                                 line["description"]))
+    lines.sort(key=lambda line: line["date"], reverse=True)
     for adjustment in ajustements:
         if str(adjustment["mois"]) != yyyymm:
             continue

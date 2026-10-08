@@ -25,10 +25,26 @@ def test_commande_for_picks_the_last_started_commande():
     assert suivi.commande_for("calipso", "20260301", COMMANDES) == "calipso_b"
 
 
-def test_commande_for_falls_back_to_the_project_prefix():
-    assert suivi.commande_for("colibri_admin", "20260101", COMMANDES) == "colibri"
+def test_commande_for_is_none_without_an_applicable_commande():
+    assert suivi.commande_for("colibri_admin", "20260101", COMMANDES) is None
     # séance antérieure à la première commande du projet
-    assert suivi.commande_for("calipso_iesa", "20240101", COMMANDES) == "calipso"
+    assert suivi.commande_for("calipso_iesa", "20240101", COMMANDES) is None
+
+
+def test_month_lines_drops_sessions_without_commande_and_puts_latest_first():
+    rows = [
+        row("20251203", "speasy", "codec", 60),
+        row("20251208", "calipso_iesa", "fix", 60),
+        row("20251208", "speasy", "codec", 60),
+        row("20251208", "colibri_admin", "compta", 60),  # sans commande
+    ]
+    lines = suivi.month_lines(rows, "202512", COMMANDES,
+                              ["calipso", "speasy", "colibri"])
+    assert [(line["date"], line["commande"]) for line in lines] == [
+        ("20251208", "calipso_b"),
+        ("20251208", "speasy"),
+        ("20251203", "speasy"),
+    ]
 
 
 def test_load_facturation_missing_file_is_empty(tmp_path):
