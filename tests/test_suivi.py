@@ -508,3 +508,90 @@ def test_facturation_activite_page_shows_modules_by_month(tmp_path):
         as_text=True)
     assert "<td>hapi</td>" in page and "lees" not in page
 
+
+
+EMIT_YML = (
+    "# commentaire gardé\n"
+    "commandes:\n"
+    "  - {nom: calipso_c, projet: calipso, tjm: 540, devis: 20,"
+    " debut: '2026-07-01', devis_lots: {WP_1: 6, WP_2: 7, WP_3: 7}}\n"
+    "\n"
+    "factures:\n"
+    "  - {id: FA20260803, date: \"2026-08-05\", commande: calipso_c,"
+    " jours: 4, lots: {WP_1: 1, WP_2: 3, WP_3: 0}}\n"
+    "\n"
+    "# TVA\n"
+    "tva_declarations:\n"
+    "  \"3T26\": \"2026-10-07\"\n"
+)
+EMIT_INVOICE = {"id": "FA20261008", "date": "2026-10-08",
+                "commande": "calipso_c", "jours": 12,
+                "lots": {"WP_1": 4, "WP_2": 3, "WP_3": 5}}
+
+
+def test_check_invoice_accepts_a_valid_invoice_and_lists_errors():
+    import yaml
+    facturation = yaml.safe_load(EMIT_YML)
+    assert suivi.check_invoice(facturation, EMIT_INVOICE) == []
+    errors = suivi.check_invoice(facturation, {
+        **EMIT_INVOICE, "id": "FA20260803", "date": "08/10/2026",
+        "commande": "calipso_c", "lots": {"WP_1": 4, "WP_9": 1}})
+    assert errors == [
+        "n° FA20260803 déjà enregistré",
+        "date « 08/10/2026 » : attendu aaaa-mm-jj",
+        "lots hors devis : WP_9",
+        "lots : 5 j ventilés pour 12 j facturés",
+    ]
+
+
+def test_append_invoice_inserts_after_the_last_invoice_only():
+    line = suivi.invoice_yaml_line(EMIT_INVOICE)
+    assert line == ('  - {id: FA20261008, date: "2026-10-08", '
+                    "commande: calipso_c, jours: 12, "
+                    "lots: {WP_1: 4, WP_2: 3, WP_3: 5}}\n")
+    text = suivi.append_invoice(EMIT_YML, line)
+    assert text == EMIT_YML.replace(
+        "WP_3: 0}}\n", "WP_3: 0}}\n" + line, 1)
+    assert suivi.append_invoice("commandes: []\n", line) == (
+        "commandes: []\n\nfactures:\n" + line)
+
+
+def test_facturation_emettre_writes_the_invoice_with_a_backup(tmp_path):
+    yml = tmp_path / "facturation.yml"
+    yml.write_text(EMIT_YML, encoding="utf-8")
+    webhook_receiver.FACTURATION_PATH = str(yml)
+    client = webhook_receiver.app.test_client()
+    form = {"c": "calipso_c", "id": "FA20261008", "date": "2026-10-08",
+            "jours": "12", "lot_WP_1": "4", "lot_WP_2": "3", "lot_WP_3": "5"}
+
+    resp = client.post("/facturation/emettre", data=form)
+    assert resp.status_code == 302
+    assert resp.headers["Location"].endswith(
+        "/facturation?c=calipso_c&ok=FA20261008")
+    text = yml.read_text(encoding="utf-8")
+    assert "# commentaire gardé" in text and "# TVA" in text
+    assert suivi.load_facturation(str(yml))["factures"][-1]["lots"] == {
+        "WP_1": 4, "WP_2": 3, "WP_3": 5}
+    (backup,) = (tmp_path / "bckp").iterdir()
+    assert backup.read_text(encoding="utf-8") == EMIT_YML
+
+    # même n° une seconde fois : refusé, rien d'écrit
+    resp = client.post("/facturation/emettre", data=form)
+    assert "err=" in resp.headers["Location"]
+    assert yml.read_text(encoding="utf-8") == text
+
+
+def test_facturation_page_has_the_emit_form_prefilled(tmp_path):
+    csv_path = tmp_path / "pomofocus_webhook.csv"
+    csv_path.write_text(",".join(webhook_receiver.CSV_COLUMNS) + "\n",
+                        encoding="utf-8")
+    yml = tmp_path / "facturation.yml"
+    yml.write_text(EMIT_YML, encoding="utf-8")
+    webhook_receiver.CSV_PATH = str(csv_path)
+    webhook_receiver.FACTURATION_PATH = str(yml)
+    page = webhook_receiver.app.test_client().get(
+        "/facturation?c=calipso_c&j=5&ok=FA20261008").get_data(as_text=True)
+    assert 'action="/facturation/emettre"' in page
+    assert 'name="lot_WP_3"' in page
+    assert 'name="jours" min="1" step="1" value="5"' in page
+    assert "FA20261008 enregistrée dans facturation.yml" in page

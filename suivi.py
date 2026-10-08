@@ -396,3 +396,72 @@ def module_totals(rows, months, commandes, projects, ajustements=(),
                 module, {})
             by_month[month] = by_month.get(month, 0) + line["jours"]
     return table
+
+
+INVOICE_ID = re.compile(r"^FA\d{8}$")
+ISO_DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+
+def check_invoice(facturation, invoice):
+    """Erreurs (liste de phrases, vide si tout va bien) d'une facture à
+    enregistrer : n° FAaaaammjj inédit, date aaaa-mm-jj, commande connue,
+    jours entiers > 0, lots du devis de la commande sommant aux jours."""
+    errors = []
+    if not INVOICE_ID.match(invoice["id"]):
+        errors.append(f"n° « {invoice['id']} » : attendu FAaaaammjj")
+    if any(str(f["id"]) == invoice["id"]
+           for f in facturation.get("factures") or []):
+        errors.append(f"n° {invoice['id']} déjà enregistré")
+    if not ISO_DATE.match(invoice["date"]):
+        errors.append(f"date « {invoice['date']} » : attendu aaaa-mm-jj")
+    commandes = {c["nom"]: c for c in facturation.get("commandes") or []}
+    commande = commandes.get(invoice["commande"])
+    if commande is None:
+        errors.append(f"commande « {invoice['commande']} » inconnue")
+    if invoice["jours"] <= 0:
+        errors.append("jours : au moins 1")
+    lots = invoice["lots"]
+    if commande is not None:
+        unknown = set(lots) - set(commande.get("devis_lots") or {})
+        if unknown:
+            errors.append(f"lots hors devis : {', '.join(sorted(unknown))}")
+    if any(days < 0 for days in lots.values()):
+        errors.append("lots : jours négatifs")
+    if sum(lots.values()) != invoice["jours"]:
+        errors.append(f"lots : {sum(lots.values())} j ventilés pour "
+                      f"{invoice['jours']} j facturés")
+    return errors
+
+
+def invoice_yaml_line(invoice):
+    """Ligne YAML d'une facture, au format de facturation.yml (une facture par
+    ligne, en style « flow »)."""
+    lots = ", ".join(f"{code}: {days}"
+                     for code, days in invoice["lots"].items())
+    return (f'  - {{id: {invoice["id"]}, date: "{invoice["date"]}", '
+            f'commande: {invoice["commande"]}, jours: {invoice["jours"]}, '
+            f"lots: {{{lots}}}}}\n")
+
+
+def append_invoice(text, line):
+    """`text` (facturation.yml) avec `line` ajoutée à la fin de la liste
+    `factures:`, sans toucher au reste du fichier (commentaires, mise en
+    forme). Sans liste `factures:`, la crée en fin de fichier."""
+    lines = text.splitlines(keepends=True)
+    start = next((i for i, current in enumerate(lines)
+                  if current.rstrip() == "factures:"), None)
+    if start is None:
+        if text and not text.endswith("\n"):
+            text += "\n"
+        return text + "\nfactures:\n" + line
+    last = start
+    for i in range(start + 1, len(lines)):
+        current = lines[i]
+        if current.startswith((" ", "\t")):
+            last = i
+        elif current.strip():
+            break
+    if not lines[last].endswith("\n"):
+        lines[last] += "\n"
+    lines.insert(last + 1, line)
+    return "".join(lines)

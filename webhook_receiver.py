@@ -20,6 +20,7 @@ import hashlib
 import html
 import json
 import os
+import shutil
 from datetime import date, datetime, timedelta, timezone
 from urllib.parse import quote
 
@@ -49,7 +50,7 @@ CSV_COLUMNS = ["date", "project", "task", "minutes", "startTime", "endTime"]
 EXPORT_TYPES = {"finish", "pause"}
 SECRET = os.environ.get("WEBHOOK_SECRET", "").strip("/")
 PORT = int(os.environ.get("WEBHOOK_PORT", "5000"))
-APP_VERSION = "0.37.0"  # affiché en pied de page (miroir de pyproject.toml)
+APP_VERSION = "0.38.0"  # affiché en pied de page (miroir de pyproject.toml)
 
 BILLABLE_PROJECTS = {p.lower() for p in _config.get("BILLABLE_PROJECTS", [])}
 BILLABLE_MAX_HOURS = 4
@@ -2222,6 +2223,17 @@ FACTURATION_HTML = """<!doctype html>
     font-size: .85rem; color: #bbb; }}
   form.days input {{ width: 4.5rem; background: #1c1c1a; color: #fff; border: 1px solid #444;
     border-radius: 6px; padding: .3rem .4rem; font-size: .85rem; text-align: right; }}
+  form.emit {{ display: flex; flex-wrap: wrap; align-items: center; gap: .6rem;
+    margin: .4rem 0 1rem; font-size: .85rem; color: #bbb; }}
+  form.emit input {{ background: #1c1c1a; color: #fff; border: 1px solid #444;
+    border-radius: 6px; padding: .3rem .4rem; font-size: .85rem; }}
+  form.emit input.n {{ width: 3.5rem; text-align: right; }}
+  form.emit input.id {{ width: 7.5rem; }}
+  form.emit button {{ background: #2e9e5b; color: #fff; border: 0; border-radius: 999px;
+    padding: .4rem 1rem; font-size: .8rem; cursor: pointer; }}
+  p.flash {{ font-size: .85rem; margin: 0 0 1rem; padding: .5rem .8rem; border-radius: 6px; }}
+  p.flash.ok {{ background: #1d3b29; color: #9fe0b5; }}
+  p.flash.err {{ background: #3b1d1d; color: #f0a0a0; }}
   form.days button {{ background: #3987e5; color: #fff; border: 0; border-radius: 999px;
     padding: .35rem .9rem; font-size: .75rem; cursor: pointer; }}
   p.facts {{ color: #bbb; font-size: .85rem; margin: 0 0 1rem; }}
@@ -3189,10 +3201,94 @@ def facturation_page(secret_path):
         "<tbody><tr>" + eur(proposal["ht"]) + eur(proposal["tva"])
         + eur(proposal["ttc"], "num eur") + "</tr></tbody></table></div>"
     )
-    return page(
-        f'{choice}{form}{facts}{alerts}'
-        f"<h2>Prochaine facture — ventilation proposée</h2>{table}"
+    today = date.today()
+    emit = (
+        f'<form class="emit" method="post" action="{prefix}/facturation/emettre">'
+        f'<input type="hidden" name="c" value="{html.escape(name)}">'
+        f'<label>N° <input class="id" name="id" value="FA{today:%Y%m%d}"></label>'
+        f'<label>Date <input type="date" name="date" value="{today:%Y-%m-%d}">'
+        "</label>"
+        f'<label>Jours <input class="n" type="number" name="jours" min="1" '
+        f'step="1" value="{proposal["jours"]}"></label>'
+        + "".join(
+            f'<label>{html.escape(lot["code"])} <input class="n" type="number" '
+            f'name="lot_{html.escape(lot["code"])}" min="0" step="1" '
+            f'value="{lot["jours"]}"></label>'
+            for lot in proposal["lots"]
+        )
+        + "<button>Émettre</button></form>"
     )
+    flash = ""
+    if request.args.get("ok"):
+        flash = (f'<p class="flash ok">{html.escape(request.args["ok"])} '
+                 "enregistrée dans facturation.yml</p>")
+    elif request.args.get("err"):
+        flash = f'<p class="flash err">{html.escape(request.args["err"])}</p>'
+    return page(
+        f'{flash}{choice}{form}{facts}{alerts}'
+        f"<h2>Prochaine facture — ventilation proposée</h2>{table}"
+        f"<h2>Émettre la facture</h2>{emit}"
+    )
+
+
+def _save_invoice(invoice):
+    """Ajoute `invoice` à facturation.yml (une ligne en fin de `factures:`),
+    après sauvegarde horodatée dans DATA/bckp/. Si le fichier écrit ne se relit
+    pas, la sauvegarde est remise en place et l'erreur remonte."""
+    with open(FACTURATION_PATH, encoding="utf-8") as f:
+        text = f.read()
+    backup_dir = os.path.join(os.path.dirname(FACTURATION_PATH), "bckp")
+    os.makedirs(backup_dir, exist_ok=True)
+    backup = os.path.join(
+        backup_dir, f"facturation_{datetime.now():%Y%m%d_%H%M%S}.yml")
+    shutil.copy2(FACTURATION_PATH, backup)
+    new_text = suivi.append_invoice(text, suivi.invoice_yaml_line(invoice))
+    with open(FACTURATION_PATH, "w", encoding="utf-8") as f:
+        f.write(new_text)
+    written = suivi.load_facturation(FACTURATION_PATH)
+    if not any(str(f["id"]) == invoice["id"]
+               for f in written.get("factures") or []):
+        shutil.copy2(backup, FACTURATION_PATH)
+        raise ValueError("facturation.yml illisible après écriture, restauré")
+
+
+@app.post("/facturation/emettre", defaults={"secret_path": ""})
+@app.post("/<path:secret_path>/facturation/emettre")
+def facturation_emettre(secret_path):
+    """Enregistre la facture du formulaire « Émettre » de /facturation, puis
+    revient sur la page avec un message (?ok= / ?err=)."""
+    if SECRET and secret_path.strip("/") != SECRET:
+        return "not found\n", 404
+    prefix = f"/{secret_path.strip('/')}" if secret_path.strip("/") else ""
+    form = request.form
+    name = form.get("c", "")
+    back = f"{prefix}/facturation?c={quote(name)}"
+
+    def number(value):
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return -1
+
+    invoice = {
+        "id": form.get("id", "").strip(),
+        "date": form.get("date", "").strip(),
+        "commande": name,
+        "jours": number(form.get("jours")),
+        "lots": {key[4:]: number(value) for key, value in form.items()
+                 if key.startswith("lot_")},
+    }
+    if not os.path.exists(FACTURATION_PATH):
+        return redirect(f"{back}&err={quote('facturation.yml introuvable')}")
+    errors = suivi.check_invoice(suivi.load_facturation(FACTURATION_PATH),
+                                 invoice)
+    if errors:
+        return redirect(f"{back}&err={quote(' ; '.join(errors))}")
+    try:
+        _save_invoice(invoice)
+    except (OSError, ValueError) as exc:
+        return redirect(f"{back}&err={quote(str(exc))}")
+    return redirect(f"{back}&ok={quote(invoice['id'])}")
 
 
 @app.get("/facturation/activite", defaults={"secret_path": ""})
