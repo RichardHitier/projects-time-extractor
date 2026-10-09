@@ -413,6 +413,15 @@ def next_invoice_id(factures, day):
     return f"FA{number}"
 
 
+def invoice_date(invoice_id):
+    """Issue date of an invoice, read from its number since 2026-10-09:
+    FA20261008 → '2026-10-08'. Empty if the number is malformed."""
+    if not INVOICE_ID.match(invoice_id):
+        return ""
+    digits = invoice_id[2:]
+    return f"{digits[:4]}-{digits[4:6]}-{digits[6:]}"
+
+
 def check_invoice(facturation, invoice):
     """Erreurs (liste de phrases, vide si tout va bien) d'une facture à
     enregistrer : n° FAaaaammjj inédit, date aaaa-mm-jj, commande connue,
@@ -425,6 +434,10 @@ def check_invoice(facturation, invoice):
         errors.append(f"n° {invoice['id']} déjà enregistré")
     if not ISO_DATE.match(invoice["date"]):
         errors.append(f"date « {invoice['date']} » : attendu aaaa-mm-jj")
+    if (INVOICE_ID.match(invoice["id"]) and ISO_DATE.match(invoice["date"])
+            and invoice["date"] != invoice_date(invoice["id"])):
+        errors.append(f"date {invoice['date']} ≠ date du n° "
+                      f"{invoice_date(invoice['id'])}")
     commandes = {c["nom"]: c for c in facturation.get("commandes") or []}
     commande = commandes.get(invoice["commande"])
     if commande is None:

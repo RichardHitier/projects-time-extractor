@@ -561,8 +561,8 @@ def test_facturation_emettre_writes_the_invoice_with_a_backup(tmp_path):
     yml.write_text(EMIT_YML, encoding="utf-8")
     webhook_receiver.FACTURATION_PATH = str(yml)
     client = webhook_receiver.app.test_client()
-    form = {"c": "calipso_c", "id": "FA20261008", "date": "2026-10-08",
-            "jours": "12", "lot_WP_1": "4", "lot_WP_2": "3", "lot_WP_3": "5"}
+    form = {"c": "calipso_c", "id": "FA20261008", "jours": "12",
+            "lot_WP_1": "4", "lot_WP_2": "3", "lot_WP_3": "5"}
 
     resp = client.post("/facturation/emettre", data=form)
     assert resp.status_code == 302
@@ -570,8 +570,9 @@ def test_facturation_emettre_writes_the_invoice_with_a_backup(tmp_path):
         "/facturation?c=calipso_c&ok=FA20261008")
     text = yml.read_text(encoding="utf-8")
     assert "# commentaire gardé" in text and "# TVA" in text
-    assert suivi.load_facturation(str(yml))["factures"][-1]["lots"] == {
-        "WP_1": 4, "WP_2": 3, "WP_3": 5}
+    written = suivi.load_facturation(str(yml))["factures"][-1]
+    assert written["lots"] == {"WP_1": 4, "WP_2": 3, "WP_3": 5}
+    assert written["date"] == "2026-10-08"     # tirée du n°
     (backup,) = (tmp_path / "bckp").iterdir()
     assert backup.read_text(encoding="utf-8") == EMIT_YML
 
@@ -593,6 +594,7 @@ def test_facturation_page_has_the_emit_form_prefilled(tmp_path):
         "/facturation?c=calipso_c&j=5&ok=FA20261008").get_data(as_text=True)
     assert 'action="/facturation/emettre"' in page
     assert 'name="lot_WP_3"' in page
+    assert 'name="date"' not in page
     assert 'name="jours" min="1" step="1" value="5"' in page
     assert "FA20261008 enregistrée dans facturation.yml" in page
 
@@ -721,4 +723,14 @@ def test_invoice_lines_follow_the_odt_layout():
                                            ("WP 2 : IHM", 0, 0)]
     assert (lines["ht"], lines["tva"], lines["ttc"]) == (500, 100, 600)
     assert suivi.invoice_lines(facturation, "FA0") is None
+
+
+def test_invoice_date_comes_from_the_number():
+    assert suivi.invoice_date("FA20261008") == "2026-10-08"
+    assert suivi.invoice_date("FA2026") == ""
+    import yaml
+    facturation = yaml.safe_load(EMIT_YML)
+    errors = suivi.check_invoice(facturation,
+                                 {**EMIT_INVOICE, "date": "2026-10-09"})
+    assert errors == ["date 2026-10-09 ≠ date du n° 2026-10-08"]
 

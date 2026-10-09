@@ -51,7 +51,7 @@ CSV_COLUMNS = ["date", "project", "task", "minutes", "startTime", "endTime"]
 EXPORT_TYPES = {"finish", "pause"}
 SECRET = os.environ.get("WEBHOOK_SECRET", "").strip("/")
 PORT = int(os.environ.get("WEBHOOK_PORT", "5000"))
-APP_VERSION = "0.43.0"  # affiché en pied de page (miroir de pyproject.toml)
+APP_VERSION = "0.44.0"  # affiché en pied de page (miroir de pyproject.toml)
 
 BILLABLE_PROJECTS = {p.lower() for p in _config.get("BILLABLE_PROJECTS", [])}
 BILLABLE_MAX_HOURS = 4
@@ -3230,8 +3230,6 @@ def facturation_page(secret_path):
         f'<input type="hidden" name="c" value="{html.escape(name)}">'
         f'<label>N° <input class="id" name="id" '
         f'value="{suivi.next_invoice_id(factures, today)}"></label>'
-        f'<label>Date <input type="date" name="date" value="{today:%Y-%m-%d}">'
-        "</label>"
         f'<label>Jours <input class="n" type="number" name="jours" min="1" '
         f'step="1" value="{proposal["jours"]}"></label>'
         + "".join(
@@ -3298,7 +3296,8 @@ def facturation_emettre(secret_path):
 
     invoice = {
         "id": form.get("id", "").strip(),
-        "date": form.get("date", "").strip(),
+        # la date d'une facture est celle de son n° (FA20261008 → 2026-10-08)
+        "date": suivi.invoice_date(form.get("id", "").strip()),
         "commande": name,
         "jours": number(form.get("jours")),
         "lots": {key[4:]: number(value) for key, value in form.items()
