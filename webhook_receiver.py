@@ -51,7 +51,7 @@ CSV_COLUMNS = ["date", "project", "task", "minutes", "startTime", "endTime"]
 EXPORT_TYPES = {"finish", "pause"}
 SECRET = os.environ.get("WEBHOOK_SECRET", "").strip("/")
 PORT = int(os.environ.get("WEBHOOK_PORT", "5000"))
-APP_VERSION = "0.45.0"  # affiché en pied de page (miroir de pyproject.toml)
+APP_VERSION = "0.46.0"  # affiché en pied de page (miroir de pyproject.toml)
 
 BILLABLE_PROJECTS = {p.lower() for p in _config.get("BILLABLE_PROJECTS", [])}
 BILLABLE_MAX_HOURS = 4
@@ -2111,17 +2111,23 @@ SUIVI_FACTURES_HTML = """<!doctype html>
   .dot {{ display: inline-block; width: .6rem; height: .6rem; border-radius: 50%;
     margin-right: .5rem; vertical-align: baseline; }}
   .ver {{ color: #666; font-size: .7rem; margin-top: 2rem; }}
+  button.del {{ background: none; color: #c77; border: 1px solid #744; border-radius: 999px;
+    padding: .1rem .6rem; font-size: .7rem; cursor: pointer; }}
+  p.flash {{ font-size: .85rem; margin: 0 0 1rem; padding: .5rem .8rem; border-radius: 6px; }}
+  p.flash.ok {{ background: #1d3b29; color: #9fe0b5; }}
+  p.flash.err {{ background: #3b1d1d; color: #f0a0a0; }}
 </style>
 </head>
 <body>
 {menu}
 {tabs}
+{flash}
 <h2>Registre des factures</h2>
 <div class="scroll">
 <table>
   <thead><tr><th class="txt">Émise le</th><th class="txt">N°</th><th class="txt">Commande</th>
   <th>Jours</th><th>TJM</th><th>HT</th><th>TVA</th><th>TTC</th>
-  <th class="txt">Payée le</th><th class="txt">Trim. TVA</th><th class="txt">Déclarée le</th></tr></thead>
+  <th class="txt">Payée le</th><th class="txt">Trim. TVA</th><th class="txt">Déclarée le</th><th></th></tr></thead>
   <tbody>{rows}</tbody>
 </table>
 </div>
@@ -2991,6 +2997,12 @@ def suivi_factures_page(secret_path):
         + f'<td class="date">{f["trimestre"]}</td>'
         + (f'<td class="date">{ymd(f["declaree"])}</td>' if f["declaree"]
            else ('<td class="todo">à déclarer</td>' if f["payee"] else "<td></td>"))
+        + ("<td></td>" if f["payee"] else
+           f'<td><form method="post" action="{prefix}/facturation/factures/supprimer" '
+           f'onsubmit="return confirm(\'Supprimer {html.escape(f["id"])} de '
+           f'facturation.yml ?\')"><input type="hidden" name="id" '
+           f'value="{html.escape(f["id"])}"><button class="del" '
+           'title="supprimer cette facture impayée">supprimer</button></form></td>')
         + "</tr>"
         for f in register
     )
@@ -2999,10 +3011,10 @@ def suivi_factures_page(secret_path):
             '<tr class="total"><td>Total</td><td></td><td></td>'
             f'<td class="num">{suivi.format_jours(sum(f["jours"] for f in register), trim=True)}</td><td></td>'
             f'{eur(sum(f["ht"] for f in register))}{eur(sum(f["tva"] for f in register))}'
-            f'{eur(sum(f["ttc"] for f in register))}<td></td><td></td><td></td></tr>'
+            f'{eur(sum(f["ttc"] for f in register))}<td></td><td></td><td></td><td></td></tr>'
         )
     else:
-        trs = '<tr><td colspan="11">aucune facture — ajouter <code>factures</code> dans facturation.yml</td></tr>'
+        trs = '<tr><td colspan="12">aucune facture — ajouter <code>factures</code> dans facturation.yml</td></tr>'
 
     quarters = {}
     for f in register:
@@ -3025,6 +3037,7 @@ def suivi_factures_page(secret_path):
     return SUIVI_FACTURES_HTML.format(
         menu=_menu_bar(prefix, "facturation"),
         tabs=_facturation_tabs(prefix, "factures"),
+        flash=_flash(),
         rows=trs,
         quarters=quarter_trs,
         version=APP_VERSION,
@@ -3278,25 +3291,77 @@ def facturation_page(secret_path):
     )
 
 
-def _save_invoice(invoice):
-    """Ajoute `invoice` à facturation.yml (une ligne en fin de `factures:`),
-    après sauvegarde horodatée dans DATA/bckp/. Si le fichier écrit ne se relit
-    pas, la sauvegarde est remise en place et l'erreur remonte."""
+def _flash():
+    """Message après une action (?ok= / ?err=)."""
+    if request.args.get("ok"):
+        return f'<p class="flash ok">{html.escape(request.args["ok"])}</p>'
+    if request.args.get("err"):
+        return f'<p class="flash err">{html.escape(request.args["err"])}</p>'
+    return ""
+
+
+def _rewrite_facturation(transform, written_ok):
+    """Réécrit facturation.yml avec `transform(texte)`, après sauvegarde
+    horodatée dans DATA/bckp/. Si le fichier écrit ne se relit pas ou ne
+    vérifie pas `written_ok(contenu)`, la sauvegarde est remise en place et
+    l'erreur remonte."""
     with open(FACTURATION_PATH, encoding="utf-8") as f:
         text = f.read()
+    new_text = transform(text)
     backup_dir = os.path.join(os.path.dirname(FACTURATION_PATH), "bckp")
     os.makedirs(backup_dir, exist_ok=True)
     backup = os.path.join(
         backup_dir, f"facturation_{datetime.now():%Y%m%d_%H%M%S}.yml")
     shutil.copy2(FACTURATION_PATH, backup)
-    new_text = suivi.append_invoice(text, suivi.invoice_yaml_line(invoice))
     with open(FACTURATION_PATH, "w", encoding="utf-8") as f:
         f.write(new_text)
-    written = suivi.load_facturation(FACTURATION_PATH)
-    if not any(str(f["id"]) == invoice["id"]
-               for f in written.get("factures") or []):
+    try:
+        ok = written_ok(suivi.load_facturation(FACTURATION_PATH))
+    except Exception:
+        ok = False
+    if not ok:
         shutil.copy2(backup, FACTURATION_PATH)
         raise ValueError("facturation.yml illisible après écriture, restauré")
+
+
+def _invoice_ids(facturation):
+    return {str(f["id"]) for f in facturation.get("factures") or []}
+
+
+def _save_invoice(invoice):
+    """Ajoute `invoice` à facturation.yml (une ligne en fin de `factures:`)."""
+    _rewrite_facturation(
+        lambda text: suivi.append_invoice(
+            text, suivi.invoice_yaml_line(invoice)),
+        lambda written: invoice["id"] in _invoice_ids(written),
+    )
+
+
+@app.post("/facturation/factures/supprimer", defaults={"secret_path": ""})
+@app.post("/<path:secret_path>/facturation/factures/supprimer")
+def facturation_supprimer(secret_path):
+    """Retire une facture impayée de facturation.yml (bouton du registre),
+    puis revient sur le registre avec un message (?ok= / ?err=)."""
+    if SECRET and secret_path.strip("/") != SECRET:
+        return "not found\n", 404
+    prefix = f"/{secret_path.strip('/')}" if secret_path.strip("/") else ""
+    back = f"{prefix}/facturation/factures"
+    invoice_id = request.form.get("id", "").strip()
+    facturation = suivi.load_facturation(FACTURATION_PATH)
+    invoice = next((f for f in facturation.get("factures") or []
+                    if str(f["id"]) == invoice_id), None)
+    if invoice is None:
+        return redirect(f"{back}?err={quote(f'{invoice_id} introuvable')}")
+    if invoice.get("payee"):
+        return redirect(f"{back}?err={quote(f'{invoice_id} est payée : à corriger à la main')}")
+    try:
+        _rewrite_facturation(
+            lambda text: suivi.remove_invoice(text, invoice_id),
+            lambda written: invoice_id not in _invoice_ids(written),
+        )
+    except (OSError, ValueError) as exc:
+        return redirect(f"{back}?err={quote(str(exc))}")
+    return redirect(f"{back}?ok={quote(f'{invoice_id} supprimée')}")
 
 
 @app.post("/facturation/emettre", defaults={"secret_path": ""})

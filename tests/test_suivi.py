@@ -779,3 +779,37 @@ def test_closed_commandes_leave_the_total_but_their_gap_stays_shown(tmp_path):
     assert ("Écart des commandes soldées</td><td></td><td></td><td></td>"
             "<td></td><td></td><td></td>"
             '<td class="num neg">-0,50</td>') in page
+
+
+def test_remove_invoice_drops_only_its_line():
+    line = suivi.invoice_yaml_line(EMIT_INVOICE)
+    text = suivi.append_invoice(EMIT_YML, line)
+    assert suivi.remove_invoice(text, "FA20261008") == EMIT_YML
+    import pytest
+    with pytest.raises(ValueError):
+        suivi.remove_invoice(EMIT_YML, "FA20261008")
+
+
+def test_delete_button_removes_an_unpaid_invoice_only(tmp_path):
+    yml = tmp_path / "facturation.yml"
+    paid = EMIT_YML.replace("jours: 4, lots", 'jours: 4, payee: "2026-08-25", lots')
+    yml.write_text(suivi.append_invoice(
+        paid, suivi.invoice_yaml_line(EMIT_INVOICE)), encoding="utf-8")
+    webhook_receiver.FACTURATION_PATH = str(yml)
+    client = webhook_receiver.app.test_client()
+
+    page = client.get("/facturation/factures").get_data(as_text=True)
+    assert page.count('action="/facturation/factures/supprimer"') == 1
+    assert 'name="id" value="FA20261008"' in page      # l'impayée seulement
+
+    resp = client.post("/facturation/factures/supprimer",
+                       data={"id": "FA20260803"})        # payée : refusé
+    assert "err=" in resp.headers["Location"]
+    resp = client.post("/facturation/factures/supprimer",
+                       data={"id": "FA20261008"})
+    assert resp.headers["Location"].endswith(
+        "/facturation/factures?ok=FA20261008%20supprim%C3%A9e")
+    assert yml.read_text(encoding="utf-8") == paid
+    assert len(list((tmp_path / "bckp").iterdir())) == 1
+    page = client.get(resp.headers["Location"]).get_data(as_text=True)
+    assert '<p class="flash ok">FA20261008 supprimée</p>' in page

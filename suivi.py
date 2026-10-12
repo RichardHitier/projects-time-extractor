@@ -691,3 +691,17 @@ def invoice_lines(facturation, invoice_id):
     ht = float(invoice["jours"]) * tjm
     return {"lignes": lines, "ht": ht, "tva": ht * TVA_RATE,
             "ttc": ht * (1 + TVA_RATE)}
+
+
+def remove_invoice(text, invoice_id):
+    """`text` (facturation.yml) sans la ligne de la facture `invoice_id` (une
+    facture par ligne, style « flow »), le reste intact. ValueError si la
+    ligne n'est pas trouvée."""
+    pattern = re.compile(r"^\s*-\s*\{\s*id:\s*" + re.escape(invoice_id)
+                         + r"\s*,")
+    lines = text.splitlines(keepends=True)
+    kept = [line for line in lines if not pattern.match(line)]
+    if len(kept) != len(lines) - 1:
+        raise ValueError(f"{invoice_id} : ligne introuvable dans "
+                         "facturation.yml")
+    return "".join(kept)
