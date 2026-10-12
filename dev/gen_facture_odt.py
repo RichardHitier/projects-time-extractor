@@ -1,4 +1,5 @@
-"""Throwaway: fill an invoice .odt template from facturation.yml, then PDF.
+"""Throwaway: fill an invoice .odt template from facturation.yml, then PDF;
+also the delivery note (BL, same document, other title and number).
 
     workon time_tracking && python dev/gen_facture_odt.py FA20261008 \
         TEMPLATE.odt OUTDIR
@@ -17,6 +18,7 @@ import yaml
 
 FACTURATION = "webhook-data/facturation.yml"
 TVA_RATE = 0.20
+TITLES = {"FA": "Facture", "BL": "Bon de Livraison"}
 
 
 def eur(value):
@@ -33,8 +35,8 @@ def set_cell(cell, value, text):
                   flags=re.S)
 
 
-def fill(xml, invoice, commande, labels):
-    number = f"{invoice['id']}_CL"
+def fill(xml, invoice, commande, labels, kind="FA"):
+    number = f"{kind}{invoice['id'][2:]}_CL"      # FA20261008 → BL20261008_CL
     # issue date = the date in the number (FA20261008 → 08/10/2026)
     day = f"{invoice['id'][2:6]}-{invoice['id'][6:8]}-{invoice['id'][8:10]}"
     date = f"{day[8:10]}/{day[5:7]}/{day[:4]}"
@@ -43,6 +45,10 @@ def fill(xml, invoice, commande, labels):
     xml = re.sub(r"(n°[\s\u00a0]+:[\s\u00a0]*</text:span>).*?(</text:p>)",
                  rf'\1<text:span text:style-name="T10">{number}</text:span>\2',
                  xml, count=1, flags=re.S)
+    # title word before " n° : " (« Facture » → « Bon de Livraison »)
+    xml = re.sub(r"(<text:span[^>]*>)Facture(</text:span>"
+                 r"<text:span[^>]*>[\s\u00a0]*n°)",
+                 rf"\g<1>{TITLES[kind]}\2", xml, count=1)
     xml = re.sub(r"(Date[\s\u00a0]+:[\s\u00a0]*).*?(<text:line-break/>Réf)",
                  rf"\g<1>{date}\2", xml, count=1, flags=re.S)
     xml = re.sub(r"(Bon de Commande : <text:span[^>]*>)[^<]*",
@@ -101,18 +107,23 @@ def main(invoice_id, template, outdir):
                     if c["nom"] == invoice["commande"])
     labels = data["lots"][commande["projet"]]
 
-    out = Path(outdir) / f"{invoice_id}_CL.odt"
-    with zipfile.ZipFile(template) as src, zipfile.ZipFile(out, "w") as dst:
-        for item in src.infolist():
-            content = src.read(item.filename)
-            if item.filename == "content.xml":
-                content = fill(content.decode("utf-8"), invoice, commande,
-                               labels).encode("utf-8")
-            # mimetype must stay first and uncompressed (ODF rule)
-            dst.writestr(item, content, compress_type=item.compress_type)
+    outputs = []
+    for kind in TITLES:
+        out = Path(outdir) / f"{kind}{invoice_id[2:]}_CL.odt"
+        with zipfile.ZipFile(template) as src, \
+                zipfile.ZipFile(out, "w") as dst:
+            for item in src.infolist():
+                content = src.read(item.filename)
+                if item.filename == "content.xml":
+                    content = fill(content.decode("utf-8"), invoice,
+                                   commande, labels, kind).encode("utf-8")
+                # mimetype must stay first and uncompressed (ODF rule)
+                dst.writestr(item, content, compress_type=item.compress_type)
+        outputs.append(out)
     subprocess.run(["soffice", "--headless", "--convert-to", "pdf",
-                    "--outdir", str(outdir), str(out)], check=True)
-    print(out, out.with_suffix(".pdf"))
+                    "--outdir", str(outdir), *map(str, outputs)], check=True)
+    for out in outputs:
+        print(out, out.with_suffix(".pdf"))
 
 
 if __name__ == "__main__":
