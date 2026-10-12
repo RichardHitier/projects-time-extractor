@@ -51,7 +51,7 @@ CSV_COLUMNS = ["date", "project", "task", "minutes", "startTime", "endTime"]
 EXPORT_TYPES = {"finish", "pause"}
 SECRET = os.environ.get("WEBHOOK_SECRET", "").strip("/")
 PORT = int(os.environ.get("WEBHOOK_PORT", "5000"))
-APP_VERSION = "0.46.0"  # affiché en pied de page (miroir de pyproject.toml)
+APP_VERSION = "0.46.1"  # affiché en pied de page (miroir de pyproject.toml)
 
 BILLABLE_PROJECTS = {p.lower() for p in _config.get("BILLABLE_PROJECTS", [])}
 BILLABLE_MAX_HOURS = 4
@@ -2999,7 +2999,9 @@ def suivi_factures_page(secret_path):
            else ('<td class="todo">à déclarer</td>' if f["payee"] else "<td></td>"))
         + ("<td></td>" if f["payee"] else
            f'<td><form method="post" action="{prefix}/facturation/factures/supprimer" '
-           f'onsubmit="return confirm(\'Supprimer {html.escape(f["id"])} de '
+           f'onsubmit="return confirm(\'Supprimer {html.escape(f["id"])} '
+           f'({html.escape(f["commande"])}, '
+           f'{suivi.format_jours(f["jours"], trim=True)} j) de '
            f'facturation.yml ?\')"><input type="hidden" name="id" '
            f'value="{html.escape(f["id"])}"><button class="del" '
            'title="supprimer cette facture impayée">supprimer</button></form></td>')

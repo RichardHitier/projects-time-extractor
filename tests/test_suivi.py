@@ -801,6 +801,7 @@ def test_delete_button_removes_an_unpaid_invoice_only(tmp_path):
     page = client.get("/facturation/factures").get_data(as_text=True)
     assert page.count('action="/facturation/factures/supprimer"') == 1
     assert 'name="id" value="FA20261008"' in page      # l'impayée seulement
+    assert "Supprimer FA20261008 (calipso_c, 12 j) de facturation.yml ?" in page
 
     resp = client.post("/facturation/factures/supprimer",
                        data={"id": "FA20260803"})        # payée : refusé
