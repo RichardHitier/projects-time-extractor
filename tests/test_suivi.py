@@ -734,3 +734,48 @@ def test_invoice_date_comes_from_the_number():
                                  {**EMIT_INVOICE, "date": "2026-10-09"})
     assert errors == ["date 2026-10-09 ≠ date du n° 2026-10-08"]
 
+
+
+def test_commande_summary_marks_fully_invoiced_commandes_as_closed():
+    commandes = [
+        {"nom": "a", "projet": "calipso", "tjm": 100, "devis": 2},
+        {"nom": "b", "projet": "calipso", "tjm": 100, "devis": 5},
+    ]
+    factures = [{"commande": "a", "jours": 2}, {"commande": "b", "jours": 1}]
+    summary = suivi.commande_summary(commandes, factures, {"a": 1.5, "b": 3})
+    assert [(c["nom"], c["soldee"], c["reste_a_facturer"]) for c in summary] \
+        == [("a", True, -0.5), ("b", False, 2)]
+
+
+def test_closed_commandes_leave_the_total_but_their_gap_stays_shown(tmp_path):
+    csv_path = tmp_path / "pomofocus_webhook.csv"
+    with open(csv_path, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=webhook_receiver.CSV_COLUMNS)
+        writer.writeheader()
+        # a : 1,5 j exécutés, 2 facturés, soldée ; b : 3 j, 1 facturé
+        writer.writerows([row("20260702", "calipso_x", "t", 720),
+                          row("20260902", "calipso_x", "t", 1440)])
+    yml = tmp_path / "facturation.yml"
+    yml.write_text(
+        "commandes:\n"
+        "  - {nom: a, projet: calipso, tjm: 100, devis: 2,"
+        " debut: '2026-07-01'}\n"
+        "  - {nom: b, projet: calipso, tjm: 100, devis: 5,"
+        " debut: '2026-09-01'}\n"
+        "factures:\n"
+        "  - {id: FA20260710, date: '2026-07-10', commande: a, jours: 2}\n"
+        "  - {id: FA20260910, date: '2026-09-10', commande: b, jours: 1}\n",
+        encoding="utf-8",
+    )
+    webhook_receiver.CSV_PATH = str(csv_path)
+    webhook_receiver.FACTURATION_PATH = str(yml)
+    client = webhook_receiver.app.test_client()
+
+    total = webhook_receiver._format_eur(200)       # b seule : 2 j × 100
+    assert client.get("/api/rows").get_json()["billable_total"] == total
+    page = client.get("/suivi/synthese").get_data(as_text=True)
+    assert '<span class="tag">soldée</span>' in page
+    assert "À facturer (commandes ouvertes)" in page
+    assert ("Écart des commandes soldées</td><td></td><td></td><td></td>"
+            "<td></td><td></td><td></td>"
+            '<td class="num neg">-0,50</td>') in page

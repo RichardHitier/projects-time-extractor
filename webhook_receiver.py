@@ -51,7 +51,7 @@ CSV_COLUMNS = ["date", "project", "task", "minutes", "startTime", "endTime"]
 EXPORT_TYPES = {"finish", "pause"}
 SECRET = os.environ.get("WEBHOOK_SECRET", "").strip("/")
 PORT = int(os.environ.get("WEBHOOK_PORT", "5000"))
-APP_VERSION = "0.44.0"  # affiché en pied de page (miroir de pyproject.toml)
+APP_VERSION = "0.45.0"  # affiché en pied de page (miroir de pyproject.toml)
 
 BILLABLE_PROJECTS = {p.lower() for p in _config.get("BILLABLE_PROJECTS", [])}
 BILLABLE_MAX_HOURS = 4
@@ -2042,6 +2042,10 @@ SUIVI_SYNTHESE_HTML = """<!doctype html>
   td.empty {{ color: #777; }}
   td.ref {{ color: #777; font-size: .78rem; }}
   td.neg {{ color: #e0b050; }}
+  tr.soldee td {{ color: #888; }}
+  span.tag {{ font-size: .65rem; text-transform: uppercase; color: #999;
+    border: 1px solid #555; border-radius: 999px; padding: 0 .4rem; margin-left: .3rem; }}
+  tr.gap td {{ color: #bbb; font-style: italic; }}
   td.eur {{ color: #fff; font-weight: 700; }}
   table.cmds {{ margin-bottom: 2.2rem; }}
   .dot {{ display: inline-block; width: .6rem; height: .6rem; border-radius: 50%;
@@ -2842,10 +2846,12 @@ def _suivi_synthese(rows):
 
 
 def suivi_billable_total(rows):
-    """Reste à facturer HT, toutes commandes confondues : le Total de
-    /suivi/synthese, affiché aussi sur /live. Indépendant du cookie d'arrondi."""
+    """Reste à facturer HT des commandes ouvertes (les soldées n'ont plus rien
+    à facturer : leur reste est un écart, montré sur /suivi/synthese). Le
+    « À facturer » de la Synthèse, affiché aussi sur /live. Indépendant du
+    cookie d'arrondi."""
     _, _, summary = _suivi_synthese(rows)
-    return sum(c["reste_a_facturer_ht"] for c in summary)
+    return sum(c["reste_a_facturer_ht"] for c in summary if not c["soldee"])
 
 
 @app.get("/suivi/synthese", defaults={"secret_path": ""})
@@ -2892,7 +2898,11 @@ def suivi_synthese_page(secret_path):
         return f'<td class="{cls}{" eur" if eur else ""}">{text}</td>'
 
     cmd_trs = "".join(
-        f'<tr><td class="cmd">{_suivi_dot(c["nom"])}{html.escape(c["nom"])}</td>'
+        ('<tr class="soldee">' if c["soldee"] else "<tr>")
+        + f'<td class="cmd">{_suivi_dot(c["nom"])}{html.escape(c["nom"])}'
+        + (' <span class="tag">soldée</span>' if c["soldee"] else "")
+        + "</td>"
+        f''
         f'<td class="ref">{html.escape(c["ref"])}</td>'
         f'<td class="num">{_format_eur(c["tjm"])}</td>'
         f'{num(c["devis"])}<td class="num">{_format_eur(c["devis_ht"])}</td>'
@@ -2902,11 +2912,24 @@ def suivi_synthese_page(secret_path):
         for c in summary
     )
     if summary:
+        open_ht = sum(c["reste_a_facturer_ht"] for c in summary
+                      if not c["soldee"])
         cmd_trs += (
-            '<tr class="total"><td>Total</td><td></td><td></td><td></td><td></td>'
-            '<td></td><td></td><td></td>'
-            f'{num(sum(c["reste_a_facturer_ht"] for c in summary), eur=True)}<td></td></tr>'
+            '<tr class="total"><td>À facturer (commandes ouvertes)</td>'
+            '<td></td><td></td><td></td><td></td><td></td><td></td><td></td>'
+            f'{num(open_ht, eur=True)}<td></td></tr>'
         )
+        closed = [c for c in summary if c["soldee"]]
+        if closed:
+            # facturé ≠ exécuté sur les commandes soldées : < 0 = facturé
+            # au-delà du mesuré, > 0 = mesuré non facturé
+            gap = sum(c["reste_a_facturer_ht"] for c in closed)
+            gap_days = sum(c["reste_a_facturer"] for c in closed)
+            cmd_trs += (
+                '<tr class="gap"><td>Écart des commandes soldées</td>'
+                '<td></td><td></td><td></td><td></td><td></td><td></td>'
+                f'{num(gap_days)}{num(gap, eur=True)}<td></td></tr>'
+            )
     else:
         cmd_trs = (
             '<tr><td class="empty" colspan="10">aucune commande — ajouter '

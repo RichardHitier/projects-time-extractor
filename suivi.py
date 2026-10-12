@@ -169,7 +169,9 @@ def commande_summary(commandes, factures, executed):
 
     Facturé = somme des jours des factures de la commande ; reste à facturer =
     exécuté − facturé (négatif si facturé d'avance) ; reste à réaliser = devis
-    − exécuté (négatif si dépassement de commande).
+    − exécuté (négatif si dépassement de commande). Une commande est soldée
+    quand tout son devis est facturé : son reste à facturer n'est plus à
+    facturer, c'est un écart (sur- ou sous-facturation) à garder en vue.
     """
     billed = {}
     for facture in factures:
@@ -193,6 +195,7 @@ def commande_summary(commandes, factures, executed):
             "reste_a_facturer": to_bill,
             "reste_a_facturer_ht": to_bill * tjm,
             "reste_a_realiser": devis - done,
+            "soldee": devis > 0 and billed.get(name, 0) >= devis - 1e-9,
         })
     return summary
 
