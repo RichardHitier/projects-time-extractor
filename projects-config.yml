@@ -50,3 +50,7 @@ perso:
   - /home/richard/01DEV/chevres/.git
   - /home/richard/01DEV/time-tracker/.git
   - /home/richard/01DEV/www.co-libri.org/.git
+extern:
+  git_dirs: []
+  pom_project: EXTERN
+  color: "#FFFFFF"
