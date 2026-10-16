@@ -51,7 +51,7 @@ CSV_COLUMNS = ["date", "project", "task", "minutes", "startTime", "endTime"]
 EXPORT_TYPES = {"finish", "pause"}
 SECRET = os.environ.get("WEBHOOK_SECRET", "").strip("/")
 PORT = int(os.environ.get("WEBHOOK_PORT", "5000"))
-APP_VERSION = "0.49.1"  # affiché en pied de page (miroir de pyproject.toml)
+APP_VERSION = "0.50.0"  # affiché en pied de page (miroir de pyproject.toml)
 
 BILLABLE_PROJECTS = {p.lower() for p in _config.get("BILLABLE_PROJECTS", [])}
 BILLABLE_MAX_HOURS = 4
@@ -1089,19 +1089,20 @@ def _project_config_colors():
 _PROJECT_CONFIG_COLORS = _project_config_colors()
 
 
-def _swimlane_only_prefixes():
-    """Lowercased pom_project names flagged `swimlane_only` in projects-config.yml:
-    drawn on /swimlane, left out of activity bars and work-time totals."""
+def _not_working_prefixes():
+    """Lowercased pom_project names flagged `not_working_time` in
+    projects-config.yml: drawn on /swimlane, left out of every work-time
+    figure (activity bars, weekly totals, swimlane day totals)."""
     names = set()
     for data in (load_projects() or {}).values():
-        if not isinstance(data, dict) or not data.get("swimlane_only"):
+        if not isinstance(data, dict) or not data.get("not_working_time"):
             continue
         pom = data.get("pom_project")
         names.update(n.lower() for n in ([pom] if isinstance(pom, str) else (pom or [])))
     return names
 
 
-_SWIMLANE_ONLY_PREFIXES = _swimlane_only_prefixes()
+_NOT_WORKING_PREFIXES = _not_working_prefixes()
 
 
 def _project_prefix(project):
@@ -1135,13 +1136,13 @@ def _ordered_projects(prefixes):
 
 def activity_by_project(rows, day):
     """{project_prefix: minutes} for `day`, all projects except nan/empty and
-    swimlane-only ones."""
+    not-working-time ones."""
     totals = {}
     for row in rows:
         if row.get("date") != day:
             continue
         prefix = _project_prefix(row.get("project"))
-        if not prefix or prefix == "nan" or prefix in _SWIMLANE_ONLY_PREFIXES:
+        if not prefix or prefix == "nan" or prefix in _NOT_WORKING_PREFIXES:
             continue
         totals[prefix] = totals.get(prefix, 0) + int(row.get("minutes") or 0)
     return totals
@@ -1456,7 +1457,9 @@ def render_swimlane_svg(days):
             f'<text x="{label_x}" y="{y + row_h - 7}" font-family="monospace" '
             f'font-size="12" fill="{label_fill}">{label}</text>'
         )
-        total_minutes = sum(s[2] for s in sessions)
+        total_minutes = sum(
+            s[2] for s in sessions if s[-1] not in _NOT_WORKING_PREFIXES
+        )
         total_h, total_m = divmod(total_minutes, 60)
         total_text_x = bar_x + bar_w + 12
         tracks.append(

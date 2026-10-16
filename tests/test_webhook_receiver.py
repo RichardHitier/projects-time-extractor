@@ -637,18 +637,33 @@ def _write_rows(csv_path, rows):
             writer.writerow(row)
 
 
-def test_swimlane_only_project_is_left_out_of_activity_but_drawn_on_swimlane():
+def test_not_working_project_is_left_out_of_activity_but_drawn_on_swimlane():
     rows = [
         {"date": "20260629", "project": "extern_cuisine", "task": "t",
          "minutes": "60", "startTime": "10:00", "endTime": "11:00"},
         {"date": "20260629", "project": "perso", "task": "t",
          "minutes": "30", "startTime": "14:00", "endTime": "14:30"},
     ]
-    assert "extern" in webhook_receiver._SWIMLANE_ONLY_PREFIXES
+    assert "extern" in webhook_receiver._NOT_WORKING_PREFIXES
 
     assert webhook_receiver.activity_by_project(rows, "20260629") == {"perso": 30}
     _, _, sessions = webhook_receiver.swimlane_days(rows, date(2026, 6, 29), n=1)[0]
     assert {prefix for *_, prefix in sessions} == {"extern", "perso"}
+
+
+def test_swimlane_day_total_leaves_out_not_working_time():
+    rows = [
+        {"date": "20260629", "project": "extern_cuisine", "task": "t",
+         "minutes": "60", "startTime": "10:00", "endTime": "11:00"},
+        {"date": "20260629", "project": "perso", "task": "t",
+         "minutes": "30", "startTime": "14:00", "endTime": "14:30"},
+    ]
+    days = webhook_receiver.swimlane_days(rows, date(2026, 6, 29), n=1)
+
+    svg = webhook_receiver.render_swimlane_svg(days)
+
+    assert ">0:30</text>" in svg
+    assert ">1:30</text>" not in svg
 
 
 def test_swimlane_segment_tooltip_shows_project_subproject_task_minutes():
