@@ -651,6 +651,34 @@ def test_not_working_project_is_left_out_of_activity_but_drawn_on_swimlane():
     assert {prefix for *_, prefix in sessions} == {"extern", "perso"}
 
 
+def test_not_working_project_is_white_whatever_its_config_color(monkeypatch):
+    monkeypatch.setattr(webhook_receiver, "_NOT_WORKING_PREFIXES", {"conge"})
+    monkeypatch.setattr(webhook_receiver, "_PROJECT_CONFIG_COLORS", {"conge": "#123456"})
+
+    assert webhook_receiver.project_color("conge") == "#FFFFFF"
+
+
+def test_not_working_project_in_swimlane_legend_only(tmp_path):
+    csv_path = tmp_path / "pomofocus_webhook.csv"
+    today = date.today().strftime("%Y%m%d")
+    _write_rows(csv_path, [
+        {"date": today, "project": "extern_cuisine", "task": "t",
+         "minutes": "60", "startTime": "10:00", "endTime": "11:00"},
+        {"date": today, "project": "perso", "task": "t",
+         "minutes": "30", "startTime": "14:00", "endTime": "14:30"},
+    ])
+    webhook_receiver.CSV_PATH = str(csv_path)
+    client = webhook_receiver.app.test_client()
+
+    live_legend = client.get("/activity-legend.svg").get_data(as_text=True)
+    assert ">perso</text>" in live_legend
+    assert ">extern</text>" not in live_legend
+
+    swimlane = client.get("/swimlane").get_data(as_text=True)
+    swimlane_legend = swimlane.split('<div id="legend">', 1)[1]
+    assert ">extern</text>" in swimlane_legend
+
+
 def test_swimlane_day_total_leaves_out_not_working_time():
     rows = [
         {"date": "20260629", "project": "extern_cuisine", "task": "t",

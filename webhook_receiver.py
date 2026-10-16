@@ -51,7 +51,7 @@ CSV_COLUMNS = ["date", "project", "task", "minutes", "startTime", "endTime"]
 EXPORT_TYPES = {"finish", "pause"}
 SECRET = os.environ.get("WEBHOOK_SECRET", "").strip("/")
 PORT = int(os.environ.get("WEBHOOK_PORT", "5000"))
-APP_VERSION = "0.50.0"  # affiché en pied de page (miroir de pyproject.toml)
+APP_VERSION = "0.51.0"  # affiché en pied de page (miroir de pyproject.toml)
 
 BILLABLE_PROJECTS = {p.lower() for p in _config.get("BILLABLE_PROJECTS", [])}
 BILLABLE_MAX_HOURS = 4
@@ -1115,9 +1115,15 @@ def _project_prefix(project):
 _PALETTE_GREY_INDICES = (14, 15)
 
 
+NOT_WORKING_COLOR = "#FFFFFF"  # tout projet not_working_time, quelle que soit sa couleur en config
+
+
 def project_color(prefix):
     """Same rule as core.plots._project_color_map: config color when defined,
-    else a stable md5 hash into the tab20+tab20b palette, grey slots skipped."""
+    else a stable md5 hash into the tab20+tab20b palette, grey slots skipped.
+    Not-working-time projects are always white."""
+    if prefix in _NOT_WORKING_PREFIXES:
+        return NOT_WORKING_COLOR
     if prefix in _PROJECT_CONFIG_COLORS:
         return _PROJECT_CONFIG_COLORS[prefix]
     idx = int(hashlib.md5(prefix.encode()).hexdigest(), 16) % len(ACTIVITY_PALETTE)
@@ -2816,7 +2822,7 @@ def activity_legend_svg(secret_path):
     for r in rows:
         if week_start <= r["date"] <= week_end:
             prefix = _project_prefix(r.get("project"))
-            if prefix and prefix != "nan":
+            if prefix and prefix != "nan" and prefix not in _NOT_WORKING_PREFIXES:
                 prefixes.add(prefix)
     svg = render_activity_legend_svg(_ordered_projects(prefixes))
     return Response(svg, mimetype="image/svg+xml", headers={"Cache-Control": "no-store"})
