@@ -51,7 +51,7 @@ CSV_COLUMNS = ["date", "project", "task", "minutes", "startTime", "endTime"]
 EXPORT_TYPES = {"finish", "pause"}
 SECRET = os.environ.get("WEBHOOK_SECRET", "").strip("/")
 PORT = int(os.environ.get("WEBHOOK_PORT", "5000"))
-APP_VERSION = "0.49.0"  # affiché en pied de page (miroir de pyproject.toml)
+APP_VERSION = "0.49.1"  # affiché en pied de page (miroir de pyproject.toml)
 
 BILLABLE_PROJECTS = {p.lower() for p in _config.get("BILLABLE_PROJECTS", [])}
 BILLABLE_MAX_HOURS = 4
@@ -1482,10 +1482,7 @@ def render_swimlane_svg(days):
                 continue
             # infobulle native au survol (<title>), le SVG étant inline dans la page
             _, _, sub = project.partition("_")
-            tip = html.escape(
-                f"projet : {prefix}\nsous-projet : {sub or '—'}\n"
-                f"description : {task or '—'}\ndurée : {minutes} min"
-            )
+            tip = html.escape(f"{prefix}\n{sub or '—'}\n{task or '—'}\n{minutes} min")
             bars.append(
                 f'<rect x="{x0:.1f}" y="{y + 3}" width="{x1 - x0:.1f}" '
                 f'height="{row_h - 6}" rx="2" fill="{project_color(prefix)}">'
