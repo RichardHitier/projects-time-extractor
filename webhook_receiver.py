@@ -51,7 +51,7 @@ CSV_COLUMNS = ["date", "project", "task", "minutes", "startTime", "endTime"]
 EXPORT_TYPES = {"finish", "pause"}
 SECRET = os.environ.get("WEBHOOK_SECRET", "").strip("/")
 PORT = int(os.environ.get("WEBHOOK_PORT", "5000"))
-APP_VERSION = "0.48.0"  # affiché en pied de page (miroir de pyproject.toml)
+APP_VERSION = "0.49.0"  # affiché en pied de page (miroir de pyproject.toml)
 
 BILLABLE_PROJECTS = {p.lower() for p in _config.get("BILLABLE_PROJECTS", [])}
 BILLABLE_MAX_HOURS = 4
@@ -1422,7 +1422,8 @@ def swimlane_days(rows, last_day, n=SWIMLANE_DAYS):
             minutes = int(row.get("minutes") or 0)
             if end_h <= start_h:  # passage minuit / trame courte, cf. core.plots
                 end_h = start_h + minutes / 60
-            sessions.append((start_h, end_h, minutes, prefix))
+            sessions.append((start_h, end_h, minutes, row.get("project") or "",
+                             row.get("task") or "", prefix))
         label = f"{_FR_WEEKDAYS[day.weekday()][:3].lower()}. {day.strftime('%d/%m')}"
         days.append((label, day.weekday() >= 5, sessions))
     return days
@@ -1455,7 +1456,7 @@ def render_swimlane_svg(days):
             f'<text x="{label_x}" y="{y + row_h - 7}" font-family="monospace" '
             f'font-size="12" fill="{label_fill}">{label}</text>'
         )
-        total_minutes = sum(minutes for _, _, minutes, _ in sessions)
+        total_minutes = sum(s[2] for s in sessions)
         total_h, total_m = divmod(total_minutes, 60)
         total_text_x = bar_x + bar_w + 12
         tracks.append(
@@ -1475,17 +1476,24 @@ def render_swimlane_svg(days):
                 f'<rect x="{mini_x}" y="{mini_y}" width="{mini_w * ratio:.1f}" '
                 f'height="{mini_h}" rx="3" fill="#9d9d93"/>'
             )
-        for start_h, end_h, minutes, prefix in sessions:
+        for start_h, end_h, minutes, project, task, prefix in sessions:
             x0, x1 = hx(start_h), hx(end_h)
             if x1 - x0 < 0.5:
                 continue
+            # infobulle native au survol (<title>), le SVG étant inline dans la page
+            _, _, sub = project.partition("_")
+            tip = html.escape(
+                f"projet : {prefix}\nsous-projet : {sub or '—'}\n"
+                f"description : {task or '—'}\ndurée : {minutes} min"
+            )
             bars.append(
                 f'<rect x="{x0:.1f}" y="{y + 3}" width="{x1 - x0:.1f}" '
-                f'height="{row_h - 6}" rx="2" fill="{project_color(prefix)}"/>'
+                f'height="{row_h - 6}" rx="2" fill="{project_color(prefix)}">'
+                f"<title>{tip}</title></rect>"
             )
             if x1 - x0 > 24:  # ~30 min : assez large pour un label lisible
                 bars.append(
-                    f'<text x="{(x0 + x1) / 2:.1f}" y="{y + row_h - 8}" '
+                    f'<text x="{(x0 + x1) / 2:.1f}" y="{y + row_h - 8}" pointer-events="none" '
                     f'text-anchor="middle" font-family="system-ui, sans-serif" '
                     f'font-size="9" fill="#ffffff" font-weight="bold">{minutes}m</text>'
                 )
