@@ -1047,6 +1047,53 @@ def test_rows_post_delete_removes_the_row(tmp_path):
     assert "Ligne supprimée." in page
 
 
+def test_rows_post_add_appends_a_row_with_computed_minutes(tmp_path):
+    csv_path = tmp_path / "pomofocus_webhook.csv"
+    _write_rows(csv_path, [ROW])
+    webhook_receiver.CSV_PATH = str(csv_path)
+    client = webhook_receiver.app.test_client()
+
+    assert 'name="action" value="add"' in client.get("/rows").get_data(as_text=True)
+
+    response = client.post("/rows", data={
+        "action": "add", "date": "2026-07-02",
+        "project": "extern_cuisine", "task": "",
+        "startTime": "10:00", "endTime": "11:15",
+    })
+
+    assert response.status_code == 302
+    assert response.headers["Location"] == "/rows?ok=added"
+    assert read_rows(csv_path) == [ROW, {
+        "date": "20260702", "project": "extern_cuisine", "task": "",
+        "minutes": "75", "startTime": "10:00", "endTime": "11:15",
+    }]
+    assert "Ligne ajoutée." in client.get("/rows?ok=added").get_data(as_text=True)
+
+
+@pytest.mark.parametrize("fields", [
+    # même clé que ROW : refusé plutôt qu'écrasé
+    {"date": "2026-07-01", "project": "calipso", "task": "vieux nom",
+     "startTime": "09:00", "endTime": "09:40"},
+    {"date": "2026-07-02", "project": "perso", "task": "t",
+     "startTime": "11:00", "endTime": "10:00"},
+    {"date": "2026-07-02", "project": "", "task": "t",
+     "startTime": "10:00", "endTime": "11:00"},
+    {"date": "02/07/2026", "project": "perso", "task": "t",
+     "startTime": "10:00", "endTime": "11:00"},
+])
+def test_rows_post_add_rejects_invalid_input_without_writing(tmp_path, fields):
+    csv_path = tmp_path / "pomofocus_webhook.csv"
+    _write_rows(csv_path, [ROW])
+    webhook_receiver.CSV_PATH = str(csv_path)
+
+    response = webhook_receiver.app.test_client().post(
+        "/rows", data={"action": "add", **fields}
+    )
+
+    assert response.headers["Location"].startswith("/rows?err=")
+    assert read_rows(csv_path) == [ROW]
+
+
 # --- reste à facturer (/live, /suivi/synthese) ------------------------------
 
 def test_projects_redirects_to_facturation_activite():

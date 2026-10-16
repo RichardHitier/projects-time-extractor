@@ -51,7 +51,7 @@ CSV_COLUMNS = ["date", "project", "task", "minutes", "startTime", "endTime"]
 EXPORT_TYPES = {"finish", "pause"}
 SECRET = os.environ.get("WEBHOOK_SECRET", "").strip("/")
 PORT = int(os.environ.get("WEBHOOK_PORT", "5000"))
-APP_VERSION = "0.47.0"  # affiché en pied de page (miroir de pyproject.toml)
+APP_VERSION = "0.48.0"  # affiché en pied de page (miroir de pyproject.toml)
 
 BILLABLE_PROJECTS = {p.lower() for p in _config.get("BILLABLE_PROJECTS", [])}
 BILLABLE_MAX_HOURS = 4
@@ -226,6 +226,45 @@ def update_csv_row(key, project, task, start, end, csv_path=None):
             return rows[index]
 
     raise RowEditError("ligne introuvable (modifiée entre-temps ?)")
+
+
+def add_csv_row(date, project, task, start, end, csv_path=None):
+    """Append a hand-entered row (/rows add form). `date` is YYYY-MM-DD as sent
+    by <input type="date">; `minutes` is computed from start/end, never typed.
+    Raises RowEditError without writing on invalid input or if a row with the
+    same key (date, startTime, project, task) already exists."""
+    if csv_path is None:
+        csv_path = CSV_PATH
+
+    try:
+        day = datetime.strptime(date, "%Y-%m-%d").strftime("%Y%m%d")
+    except ValueError:
+        raise RowEditError("date invalide (format attendu AAAA-MM-JJ)") from None
+    if not project:
+        raise RowEditError("le projet est obligatoire")
+    start_h = _hhmm_to_hours(start)
+    end_h = _hhmm_to_hours(end)
+    if start_h is None or end_h is None:
+        raise RowEditError("horaires invalides (format attendu HH:MM)")
+    if end_h <= start_h:
+        raise RowEditError("la fin doit être après le début")
+
+    rows = _read_csv_rows(csv_path)
+    key = (day, start, project, task)
+    if any((r["date"], r["startTime"], r["project"], r["task"]) == key for r in rows):
+        raise RowEditError("cette ligne existe déjà")
+
+    row = {
+        "date": day,
+        "project": project,
+        "task": task,
+        "minutes": round((end_h - start_h) * 60),
+        "startTime": start,
+        "endTime": end,
+    }
+    rows.append(row)
+    _write_csv_rows(merge_contiguous_sessions(rows), csv_path)
+    return row
 
 
 def delete_csv_row(key, csv_path=None):
@@ -1920,6 +1959,8 @@ ROWS_HTML = """<!doctype html>
     padding: .3rem .4rem; font: inherit; width: 100%; }}
   input:focus {{ outline: none; border-color: #3987e5; }}
   input.time {{ width: 5.5rem; }}
+  input[type=date] {{ width: 9rem; color-scheme: dark; }}
+  tr.add td {{ border-bottom: 1px solid #333; padding-bottom: .6rem; }}
   button {{ background: #2e2e2b; border: 0; border-radius: 999px; color: #bbb; cursor: pointer;
     padding: .35rem .9rem; font-size: .75rem; text-transform: uppercase; transition: background .15s ease; }}
   button:hover {{ background: #3987e5; color: #fff; }}
@@ -2346,6 +2387,30 @@ def _rows_markup(rows):
     return "\n".join(forms), "\n".join(trs)
 
 
+def _rows_add_markup(today=None):
+    """(form, tr) — empty row on top of /rows to add a session by hand, same
+    `form=` technique as _rows_markup. Date defaults to `today`."""
+    if today is None:
+        today = datetime.now().date()
+    form = (
+        '<form class="rowform" id="add" method="post">'
+        '<input type="hidden" name="action" value="add">'
+        "</form>"
+    )
+    tr = (
+        '<tr class="add">'
+        f'<td class="date"><input form="add" type="date" name="date" value="{today.isoformat()}" required></td>'
+        '<td><input form="add" name="project" placeholder="projet_sousprojet" required></td>'
+        '<td><input form="add" name="task" placeholder="tâche"></td>'
+        '<td><input form="add" class="time" name="startTime" placeholder="HH:MM" required></td>'
+        '<td><input form="add" class="time" name="endTime" placeholder="HH:MM" required></td>'
+        '<td class="dur" id="dur-add">—</td>'
+        '<td><button form="add" type="submit">Ajouter</button></td>'
+        "</tr>"
+    )
+    return form, tr
+
+
 @app.get("/swimlane", defaults={"secret_path": ""})
 @app.get("/<path:secret_path>/swimlane")
 def swimlane(secret_path):
@@ -2755,6 +2820,8 @@ def _rows_flash():
     ok = request.args.get("ok")
     if ok == "deleted":
         return '<p class="flash ok">Ligne supprimée.</p>'
+    if ok == "added":
+        return '<p class="flash ok">Ligne ajoutée.</p>'
     if ok:
         return '<p class="flash ok">Ligne enregistrée.</p>'
     err = request.args.get("err")
@@ -3630,12 +3697,13 @@ def rows_page(secret_path):
     rows.sort(key=lambda row: (row["date"], row["startTime"]), reverse=True)
     rows = rows[:n]
     forms, trs = _rows_markup(rows)
+    add_form, add_tr = _rows_add_markup()
     return ROWS_HTML.format(
         count=len(rows),
         menu=_menu_bar(prefix, "rows"),
         flash=_rows_flash(),
-        forms=forms,
-        rows=trs,
+        forms=f"{add_form}\n{forms}",
+        rows=f"{add_tr}\n{trs}",
         version=APP_VERSION,
     )
 
@@ -3654,6 +3722,15 @@ def rows_edit(secret_path):
         form.get("key_task", ""),
     )
     try:
+        if form.get("action") == "add":
+            add_csv_row(
+                form.get("date", "").strip(),
+                form.get("project", "").strip(),
+                form.get("task", "").strip(),
+                form.get("startTime", "").strip(),
+                form.get("endTime", "").strip(),
+            )
+            return redirect(f"{prefix}/rows?ok=added")
         if form.get("action") == "delete":
             delete_csv_row(key)
             return redirect(f"{prefix}/rows?ok=deleted")
