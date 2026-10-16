@@ -54,3 +54,4 @@ extern:
   git_dirs: []
   pom_project: EXTERN
   color: "#FFFFFF"
+  swimlane_only: true

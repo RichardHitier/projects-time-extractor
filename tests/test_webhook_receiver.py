@@ -637,6 +637,20 @@ def _write_rows(csv_path, rows):
             writer.writerow(row)
 
 
+def test_swimlane_only_project_is_left_out_of_activity_but_drawn_on_swimlane():
+    rows = [
+        {"date": "20260629", "project": "extern_cuisine", "task": "t",
+         "minutes": "60", "startTime": "10:00", "endTime": "11:00"},
+        {"date": "20260629", "project": "perso", "task": "t",
+         "minutes": "30", "startTime": "14:00", "endTime": "14:30"},
+    ]
+    assert "extern" in webhook_receiver._SWIMLANE_ONLY_PREFIXES
+
+    assert webhook_receiver.activity_by_project(rows, "20260629") == {"perso": 30}
+    _, _, sessions = webhook_receiver.swimlane_days(rows, date(2026, 6, 29), n=1)[0]
+    assert {prefix for *_, prefix in sessions} == {"extern", "perso"}
+
+
 def test_recent_week_totals_sums_a_whole_week_into_one_row(tmp_path):
     csv_path = tmp_path / "pomofocus_webhook.csv"
     _write_rows(csv_path, [
