@@ -51,7 +51,7 @@ CSV_COLUMNS = ["date", "project", "task", "minutes", "startTime", "endTime"]
 EXPORT_TYPES = {"finish", "pause"}
 SECRET = os.environ.get("WEBHOOK_SECRET", "").strip("/")
 PORT = int(os.environ.get("WEBHOOK_PORT", "5000"))
-APP_VERSION = "0.51.0"  # affiché en pied de page (miroir de pyproject.toml)
+APP_VERSION = "0.52.0"  # affiché en pied de page (miroir de pyproject.toml)
 
 BILLABLE_PROJECTS = {p.lower() for p in _config.get("BILLABLE_PROJECTS", [])}
 BILLABLE_MAX_HOURS = 4
@@ -1611,15 +1611,20 @@ LIVE_HTML = """<!doctype html>
   tr.new {{ animation: flash 2s ease-out; }}
   @keyframes flash {{ from {{ background: #2a5; }} to {{ background: transparent; }} }}
   #current-box {{
-    border: 1px solid #2a5; border-radius: 6px; padding: .8rem 1rem; margin-bottom: 1.5rem;
+    --c: #2a5;
+    border: 1px solid var(--c); border-left: 6px solid var(--c); border-radius: 6px;
+    background: color-mix(in srgb, var(--c) 10%, transparent);
+    animation: breathe 2.5s ease-in-out infinite;
+    padding: .8rem 1rem; margin-bottom: 1.5rem;
     box-sizing: border-box; min-height: 5.4rem;
   }}
+  @keyframes breathe {{ 50% {{ background: color-mix(in srgb, var(--c) 35%, transparent); }} }}
   #current-box.empty {{ display: flex; align-items: center; color: #666; font-style: italic;
-    border-color: #9d9d93; }}
+    border: 1px solid #9d9d93; background: none; animation: none; }}
   #current-box table {{ margin-top: .3rem; }}
-  .dot {{ display: inline-block; width: .5rem; height: .5rem; border-radius: 50%; background: #2a5;
-          animation: pulse 1.5s ease-in-out infinite; margin-right: .4rem; }}
-  @keyframes pulse {{ 50% {{ opacity: .3; }} }}
+  .dot {{ display: inline-block; width: .5rem; height: .5rem; border-radius: 50%; background: var(--c);
+          animation: pulse 2.5s ease-in-out infinite; margin-right: .4rem; }}
+  @keyframes pulse {{ 0%, 100% {{ opacity: .3; }} 50% {{ opacity: 1; }} }}
   #status {{ color: #666; font-size: .8rem; margin-top: 1rem; }}
   .charts-row {{ display: flex; flex-wrap: wrap; gap: 1rem; margin-bottom: 1rem;
     align-items: flex-start; justify-content: center; }}
@@ -1704,13 +1709,17 @@ async function poll() {{
   const box = document.getElementById("current-box");
   if (box) {{
     if (data.current) {{
-      box.className = "";
-      box.style.borderColor = data.current.color;
-      box.innerHTML = `<span class="dot" style="background:${{data.current.color}}"></span>${{data.current.project}} — ${{data.current.task}}` +
-        `<table><tbody><tr>${{rowHtml(data.current)}}</tr></tbody></table>`;
+      if (box.className === "empty") {{
+        box.className = "";
+        box.innerHTML = `<span class="dot"></span><span class="label"></span>` +
+          `<table><tbody><tr></tr></tbody></table>`;
+      }}
+      box.style.setProperty("--c", data.current.color);
+      box.querySelector(".label").textContent = `${{data.current.project}} — ${{data.current.task}}`;
+      box.querySelector("tr").innerHTML = rowHtml(data.current);
     }} else {{
       box.className = "empty";
-      box.style.borderColor = "";
+      box.style.removeProperty("--c");
       box.textContent = "aucune tâche en cours";
     }}
   }}
