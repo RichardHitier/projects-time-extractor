@@ -1043,6 +1043,41 @@ def test_update_csv_row_rejects_end_before_start_without_writing(tmp_path):
     assert read_rows(csv_path) == [ROW]
 
 
+def test_normalize_hhmm_pads_and_rejects_out_of_range():
+    assert webhook_receiver._normalize_hhmm("7:00") == "07:00"
+    assert webhook_receiver._normalize_hhmm("7:5") == "07:05"
+    assert webhook_receiver._normalize_hhmm("15:30") == "15:30"
+    assert webhook_receiver._normalize_hhmm("25:00") is None
+    assert webhook_receiver._normalize_hhmm("7:75") is None
+    assert webhook_receiver._normalize_hhmm("7h00") is None
+    assert webhook_receiver._normalize_hhmm("") is None
+
+
+def test_add_csv_row_pads_hand_typed_hours_so_text_sort_stays_chronological(tmp_path):
+    csv_path = tmp_path / "pomofocus_webhook.csv"
+    afternoon = {**ROW, "startTime": "15:30", "endTime": "16:00", "minutes": "30"}
+    _write_rows(csv_path, [afternoon])
+
+    row = webhook_receiver.add_csv_row("2026-07-01", "extern", "t", "7:00", "8:30", csv_path)
+
+    assert (row["startTime"], row["endTime"], row["minutes"]) == ("07:00", "08:30", 90)
+    starts = sorted((r["startTime"] for r in read_rows(csv_path)), reverse=True)
+    assert starts == ["15:30", "07:00"]
+
+
+def test_update_csv_row_pads_hand_typed_hours(tmp_path):
+    csv_path = tmp_path / "pomofocus_webhook.csv"
+    _write_rows(csv_path, [ROW])
+
+    webhook_receiver.update_csv_row(
+        ("20260701", "09:00", "calipso", "vieux nom"),
+        "calipso", "vieux nom", "9:00", "9:40", csv_path,
+    )
+
+    assert read_rows(csv_path)[0]["startTime"] == "09:00"
+    assert read_rows(csv_path)[0]["endTime"] == "09:40"
+
+
 def test_delete_csv_row_removes_only_the_matching_row(tmp_path):
     csv_path = tmp_path / "pomofocus_webhook.csv"
     other = {**ROW, "startTime": "14:00", "endTime": "15:00", "minutes": "60"}

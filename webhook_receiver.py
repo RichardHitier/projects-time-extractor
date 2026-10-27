@@ -51,7 +51,7 @@ CSV_COLUMNS = ["date", "project", "task", "minutes", "startTime", "endTime"]
 EXPORT_TYPES = {"finish", "pause"}
 SECRET = os.environ.get("WEBHOOK_SECRET", "").strip("/")
 PORT = int(os.environ.get("WEBHOOK_PORT", "5000"))
-APP_VERSION = "0.54.0"  # affiché en pied de page (miroir de pyproject.toml)
+APP_VERSION = "0.54.1"  # affiché en pied de page (miroir de pyproject.toml)
 
 BILLABLE_PROJECTS = {p.lower() for p in _config.get("BILLABLE_PROJECTS", [])}
 BILLABLE_MAX_HOURS = 4
@@ -198,10 +198,10 @@ def update_csv_row(key, project, task, start, end, csv_path=None):
     if csv_path is None:
         csv_path = CSV_PATH
 
-    start_h = _hhmm_to_hours(start)
-    end_h = _hhmm_to_hours(end)
-    if start_h is None or end_h is None:
+    start, end = _normalize_hhmm(start), _normalize_hhmm(end)
+    if start is None or end is None:
         raise RowEditError("horaires invalides (format attendu HH:MM)")
+    start_h, end_h = _hhmm_to_hours(start), _hhmm_to_hours(end)
     if end_h <= start_h:
         raise RowEditError("la fin doit être après le début")
 
@@ -242,10 +242,10 @@ def add_csv_row(date, project, task, start, end, csv_path=None):
         raise RowEditError("date invalide (format attendu AAAA-MM-JJ)") from None
     if not project:
         raise RowEditError("le projet est obligatoire")
-    start_h = _hhmm_to_hours(start)
-    end_h = _hhmm_to_hours(end)
-    if start_h is None or end_h is None:
+    start, end = _normalize_hhmm(start), _normalize_hhmm(end)
+    if start is None or end is None:
         raise RowEditError("horaires invalides (format attendu HH:MM)")
+    start_h, end_h = _hhmm_to_hours(start), _hhmm_to_hours(end)
     if end_h <= start_h:
         raise RowEditError("la fin doit être après le début")
 
@@ -1455,6 +1455,19 @@ def _hhmm_to_hours(value):
         return int(h) + int(m) / 60
     except (ValueError, AttributeError):
         return None
+
+
+def _normalize_hhmm(value):
+    """'7:00' -> '07:00' : heure saisie à la main remise au format HH:MM du
+    CSV, pour que le tri texte sur startTime reste chronologique. None si
+    illisible ou hors 00:00..23:59."""
+    try:
+        h, m = (int(part) for part in value.split(":"))
+    except (ValueError, AttributeError):
+        return None
+    if not (0 <= h <= 23 and 0 <= m <= 59):
+        return None
+    return f"{h:02d}:{m:02d}"
 
 
 def swimlane_days(rows, last_day, n=SWIMLANE_DAYS):
