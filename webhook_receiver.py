@@ -51,7 +51,7 @@ CSV_COLUMNS = ["date", "project", "task", "minutes", "startTime", "endTime"]
 EXPORT_TYPES = {"finish", "pause"}
 SECRET = os.environ.get("WEBHOOK_SECRET", "").strip("/")
 PORT = int(os.environ.get("WEBHOOK_PORT", "5000"))
-APP_VERSION = "0.53.0"  # affiché en pied de page (miroir de pyproject.toml)
+APP_VERSION = "0.54.0"  # affiché en pied de page (miroir de pyproject.toml)
 
 BILLABLE_PROJECTS = {p.lower() for p in _config.get("BILLABLE_PROJECTS", [])}
 BILLABLE_MAX_HOURS = 4
@@ -967,7 +967,7 @@ def _track_rect(x, y, w, h, rx, fill, stroke=None):
     return f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="{rx}" fill="{fill}"{edge}/>'
 
 
-def render_week_svg(day_hours, max_hours=BILLABLE_MAX_HOURS, week_max_hours=BILLABLE_WEEK_MAX_HOURS, highlight_label=None, current_hours=0.0, title_label="SEMAINE", show_header=True, month_groups=None, bar_start=None, show_title=True, title_totals=True, title_sep=" : ", future_labels=()):
+def render_week_svg(day_hours, max_hours=BILLABLE_MAX_HOURS, week_max_hours=BILLABLE_WEEK_MAX_HOURS, highlight_label=None, current_hours=0.0, title_label="SEMAINE", show_header=True, month_groups=None, bar_start=None, show_title=True, title_totals=True, title_sep=" : ", future_labels=(), tick_hours=None):
     """Render a "SEMAINE : total / Nh" header, then one bar per
     (day_label, hours) pair, most recent first. `show_header=False` drops the
     total header bar (and its vertical space) — /months shows weeks, whose total
@@ -986,6 +986,10 @@ def render_week_svg(day_hours, max_hours=BILLABLE_MAX_HOURS, week_max_hours=BILL
     `future_labels` : étiquettes des jours pas encore advenus (semaine en cours
     de /weeks), rendus en FUTURE_COLORS pour ne pas se lire comme un jour écoulé
     sans heures.
+
+    `tick_hours` (/live : 0.5) découpe chaque barre en crans de cette durée —
+    8 demi-heures sur 4h — par de fins traits sombres tracés par-dessus le
+    remplissage, pour compter l'avancée de la journée en pomodoros.
 
     Rows are labelled, not dated: /months passes weeks rather than days, hence
     `title_label` for the SVG tooltip.
@@ -1031,6 +1035,15 @@ def render_week_svg(day_hours, max_hours=BILLABLE_MAX_HOURS, week_max_hours=BILL
                     f'width="{hatch_w:.1f}" height="{inner_h}" '
                     f'fill="url(#{_BILLABLE_HATCH_ID})"/>'
                 )
+        ticks_svg = ""
+        if tick_hours:
+            n = round(max_hours / tick_hours)
+            ticks_svg = "".join(
+                f'<line x1="{bar_x + inset + inner_w * k / n:.1f}" y1="{y + inset}" '
+                f'x2="{bar_x + inset + inner_w * k / n:.1f}" y2="{y + inset + inner_h}" '
+                f'stroke="#1a1a19" stroke-width="2"/>'
+                for k in range(1, n)
+            )
         overflow_rect = ""
         if ratio > 1:
             overflow_w = overflow_max * min(ratio - 1, 1)
@@ -1064,6 +1077,7 @@ def render_week_svg(day_hours, max_hours=BILLABLE_MAX_HOURS, week_max_hours=BILL
   {track}
   {fill_rect}
   {hatch_rect}
+  {ticks_svg}
   <line x1="{bar_x + bar_w}" y1="{y - 2}" x2="{bar_x + bar_w}" y2="{y + row_h + 2}" stroke="{marker_color}" stroke-width="2"/>
   {overflow_rect}
   {frames}
@@ -2851,6 +2865,7 @@ def billable_week_svg(secret_path):
         day_hours, highlight_label=highlight, current_hours=current_hours,
         bar_start=DAY_BAR_START_X, title_label="FACTURABLE",
         title_totals=True, title_sep=" ", future_labels=future_day_labels(monday),
+        tick_hours=0.5,
     )
     return Response(svg, mimetype="image/svg+xml", headers={"Cache-Control": "no-store"})
 

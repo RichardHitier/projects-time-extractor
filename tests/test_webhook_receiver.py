@@ -784,6 +784,17 @@ def test_month_page_defaults_and_clamps_the_week_count(tmp_path):
     assert "/months?n=1" not in too_few    # borne basse : plus de lien "−1"
 
 
+def test_week_svg_tick_hours_splits_each_bar_into_half_hours():
+    days = [("Lundi 13/07", 1.5), ("Mardi 14/07", 0.0)]
+
+    ticked = webhook_receiver.render_week_svg(days, tick_hours=0.5)
+    plain = webhook_receiver.render_week_svg(days)
+
+    # 4h / 0,5h = 8 crans, soit 7 traits internes par barre
+    assert ticked.count('stroke="#1a1a19"') == 7 * len(days)
+    assert 'stroke="#1a1a19"' not in plain
+
+
 def test_week_charts_show_a_visible_title_not_only_a_tooltip(tmp_path):
     # le titre doit vivre DANS le SVG : sur /live les graphes sont des <img>, la
     # page HTML ignore donc les totaux
