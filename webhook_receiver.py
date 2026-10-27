@@ -51,7 +51,7 @@ CSV_COLUMNS = ["date", "project", "task", "minutes", "startTime", "endTime"]
 EXPORT_TYPES = {"finish", "pause"}
 SECRET = os.environ.get("WEBHOOK_SECRET", "").strip("/")
 PORT = int(os.environ.get("WEBHOOK_PORT", "5000"))
-APP_VERSION = "0.52.0"  # affiché en pied de page (miroir de pyproject.toml)
+APP_VERSION = "0.53.0"  # affiché en pied de page (miroir de pyproject.toml)
 
 BILLABLE_PROJECTS = {p.lower() for p in _config.get("BILLABLE_PROJECTS", [])}
 BILLABLE_MAX_HOURS = 4
@@ -569,6 +569,12 @@ def _format_hm(hours):
     return f"{h}:{m:02d}"
 
 
+def _format_signed_hm(hours):
+    """« +4:10 » / « −17:22 » : `_format_hm` signé (signe moins U+2212)."""
+    sign = "−" if round(hours * 60) < 0 else "+"
+    return f"{sign}{_format_hm(abs(hours))}"
+
+
 def _format_eur(amount):
     """« 1 234 € » : espace fine insécable (U+202F) en séparateur de
     milliers et devant le €, échappée pour rester lisible à la relecture."""
@@ -619,6 +625,9 @@ BILLABLE_WEEK_MAX_HOURS = 20
 YEAR_WEEKS_FULL = 52        # /years : vue « 52 semaines », une vraie semaine calendaire par carré
 YEAR_WEEKS_OBJECTIVE = 40   # /years : vue « 40 semaines », jauge d'objectif, un carré = 20h
 YEAR_OBJECTIVE_HOURS = YEAR_WEEKS_OBJECTIVE * BILLABLE_WEEK_MAX_HOURS  # 800h
+YEAR_WEEKS_VACATION = YEAR_WEEKS_FULL - YEAR_WEEKS_OBJECTIVE  # /years : 12 semaines de congés, carrés verts
+YEAR_VACATION_FILL = "#4caf6e"  # congés restants
+YEAR_VACATION_BG = "#2b3a2f"    # congés consommés : fond vert grisé, distinct du gris des carrés facturables
 
 
 def fiscal_year_bounds(today=None, offset=0):
@@ -673,6 +682,32 @@ def year_objective_fractions(total_hours, count=YEAR_WEEKS_OBJECTIVE, threshold=
         fractions.append(max(0.0, min(1.0, remaining / threshold)))
         remaining -= threshold
     return fractions
+
+
+def year_elapsed_weeks(start_monday, today, weeks=YEAR_WEEKS_FULL):
+    """Semaines écoulées de l'année fiscale à `today` (inclus) : les semaines
+    complètes, plus la semaine en cours au prorata de ses jours ouvrés
+    (lundi = 1/5 ... vendredi = 5/5, le week-end ne compte pas davantage).
+    Borné à [0, weeks] : une année passée vaut `weeks`."""
+    days = (today - start_monday).days
+    if days < 0:
+        return 0.0
+    full_weeks, weekday = divmod(days, 7)
+    return min(float(weeks), full_weeks + min(weekday + 1, 5) / 5)
+
+
+def year_vacation_hours(total_hours, elapsed_weeks, count=YEAR_WEEKS_VACATION, threshold=BILLABLE_WEEK_MAX_HOURS):
+    """Stock de congés restant, en heures : `count` x `threshold` au départ
+    (12 x 20h = 240h), diminué du retard pris sur `threshold` heures par
+    semaine écoulée. Une avance ne le fait pas dépasser le stock de départ."""
+    lag = max(0.0, elapsed_weeks * threshold - total_hours)
+    return max(0.0, count * threshold - lag)
+
+
+def year_target_hours(elapsed_weeks, weeks=YEAR_WEEKS_FULL, objective=YEAR_OBJECTIVE_HOURS):
+    """Objectif à date : la part `elapsed_weeks / weeks` de l'objectif annuel,
+    soit un rythme de 800h / 52 = 15:23 par semaine."""
+    return objective * elapsed_weeks / weeks
 
 
 # Colonne des heures (chiffres à droite des barres) : alignée à droite sur cette
@@ -1309,11 +1344,13 @@ def render_activity_week_svg(days, max_hours=ACTIVITY_MAX_HOURS, uid="", highlig
 </svg>"""
 
 
-def render_year_grid_svg(fractions, cols, labels=None, current_index=None, uid="", numbers=None):
+def render_year_grid_svg(fractions, cols, labels=None, current_index=None, uid="", numbers=None,
+                         fill_colors=None, bg_colors=None):
     """Grille de carrés (/years) : un carré par entrée de `fractions` (0..1),
-    rempli en hauteur proportionnelle (ancré en bas) dans le même bleu
-    (`#3987e5`), qu'il représente une vraie semaine (vue 52) ou un cran de
-    l'objectif (vue 40). Chaque carré porte au-dessus son numéro, pris dans
+    rempli en hauteur proportionnelle (ancré en bas), en bleu (`#3987e5`)
+    sur fond gris par défaut — `fill_colors` / `bg_colors` (une couleur par
+    carré) les remplacent, pour les carrés verts de congés de la vue 40 + 12.
+    Chaque carré porte au-dessus son numéro, pris dans
     `numbers` si fourni (numéros de semaine ISO en vue 52), sinon 1..N.
     `current_index` cercle le carré courant d'un liseré blanc (vue 52
     seulement). `uid` évite les collisions d'id de clipPath si plusieurs
@@ -1336,7 +1373,7 @@ def render_year_grid_svg(fractions, cols, labels=None, current_index=None, uid="
         )
         parts.append(
             f'<rect x="{x}" y="{y}" width="{cell}" height="{cell}" rx="{rx:.1f}" '
-            f'fill="#2e2e2b">{title}</rect>'
+            f'fill="{bg_colors[i] if bg_colors else "#2e2e2b"}">{title}</rect>'
         )
         frac = max(0.0, min(1.0, frac))
         if frac > 0:
@@ -1347,7 +1384,7 @@ def render_year_grid_svg(fractions, cols, labels=None, current_index=None, uid="
                 f'<clipPath id="{clip_id}"><rect x="{x}" y="{y}" width="{cell}" '
                 f'height="{cell}" rx="{rx:.1f}"/></clipPath>'
                 f'<rect x="{x}" y="{fy:.2f}" width="{cell}" height="{fh:.2f}" '
-                f'fill="#3987e5" clip-path="url(#{clip_id})"/>'
+                f'fill="{fill_colors[i] if fill_colors else "#3987e5"}" clip-path="url(#{clip_id})"/>'
             )
         if current_index == i:
             parts.append(
@@ -1830,6 +1867,9 @@ YEARS_HTML = """<!doctype html>
   .grid-col {{ display: flex; flex-direction: column; gap: .6rem; flex: none; }}
   .grid-col svg {{ display: block; max-width: 100%; height: auto; }}
   .progress-wrap {{ width: 100%; }}
+  .progress-bar {{ position: relative; }}
+  .progress-cursor {{ position: absolute; top: -4px; bottom: -4px; width: 2px; margin-left: -1px;
+    background: #fff; border-radius: 1px; }}
   .progress-track {{ background: #2e2e2b; border-radius: 999px; height: 11px; overflow: hidden; }}
   .progress-fill {{ background: #3987e5; height: 100%; border-radius: 999px; }}
   .progress-label {{ display: flex; justify-content: space-between; font-size: .72rem; color: #bbb; margin-top: .35rem; }}
@@ -1848,7 +1888,7 @@ YEARS_HTML = """<!doctype html>
 <body>
 {menu}
 <div class="weeknav">{nav}</div>
-<div class="section-title"><h2>40 semaines</h2><span class="hint">chaque carré = 20h, objectif {objective}h</span></div>
+<div class="section-title"><h2>40 + 12 semaines</h2><span class="hint">chaque carré = 20h, objectif {objective}h, {count_vacation} semaines de congés</span></div>
 <div class="layout-row">
   <div class="grid-col">
     {grid40}
@@ -1857,6 +1897,7 @@ YEARS_HTML = """<!doctype html>
     <div class="row"><span class="label">Carrés pleins</span><span class="value">{full40} / {count40}</span></div>
     <div class="row"><span class="label">Heures cumulées</span><span class="value">{hours} <small>/ {objective}h</small></span></div>
     <div class="row"><span class="label">Jours facturables</span><span class="value">{days} / {objective_days}</span></div>
+    <div class="row"><span class="label">Congés restants</span><span class="value">{vacation_weeks} / {count_vacation} <small>sem.</small></span></div>
   </div>
 </div>
 <div class="legend">{legend40}</div>
@@ -1865,8 +1906,11 @@ YEARS_HTML = """<!doctype html>
   <div class="grid-col">
     {grid52}
     <div class="progress-wrap">
-      <div class="progress-track"><div class="progress-fill" style="width:{pct}%"></div></div>
-      <div class="progress-label"><span>{hours} / {objective}h</span><strong>{pct}&nbsp;%</strong></div>
+      <div class="progress-bar">
+        <div class="progress-track"><div class="progress-fill" style="width:{fill_pct}%"></div></div>
+        <div class="progress-cursor" style="left:{target_pct}%" title="Objectif à date : {target}"></div>
+      </div>
+      <div class="progress-label"><span>{hours} / {objective}h</span><span>objectif à date {target} · {gap}</span><strong>{pct}&nbsp;%</strong></div>
     </div>
   </div>
 </div>
@@ -2695,9 +2739,25 @@ def years(secret_path):
                 current_index = i
                 break
 
+    elapsed_weeks = year_elapsed_weeks(start_monday, today)
+    vacation_hours = year_vacation_hours(total_hours, elapsed_weeks)
+    target_hours = year_target_hours(elapsed_weeks)
+
+    # Vue 40 + 12 : les 40 carrés facturables, puis les 12 de congés (verts),
+    # pleins au départ et vidés par la droite du retard pris sur 20h/semaine.
     fractions40 = year_objective_fractions(total_hours)
+    fractions_vacation = year_objective_fractions(vacation_hours, count=YEAR_WEEKS_VACATION)
     labels40 = [f"Carré {i + 1} : {round(f * 100)}%" for i, f in enumerate(fractions40)]
-    grid40 = render_year_grid_svg(fractions40, 8, labels=labels40, uid="40")
+    labels_vacation = [f"Congés V{i + 1} : {round(f * 100)}%" for i, f in enumerate(fractions_vacation)]
+    grid40 = render_year_grid_svg(
+        fractions40 + fractions_vacation,
+        13,
+        labels=labels40 + labels_vacation,
+        uid="40",
+        numbers=list(range(1, YEAR_WEEKS_OBJECTIVE + 1)) + [f"V{i + 1}" for i in range(YEAR_WEEKS_VACATION)],
+        fill_colors=["#3987e5"] * YEAR_WEEKS_OBJECTIVE + [YEAR_VACATION_FILL] * YEAR_WEEKS_VACATION,
+        bg_colors=["#2e2e2b"] * YEAR_WEEKS_OBJECTIVE + [YEAR_VACATION_BG] * YEAR_WEEKS_VACATION,
+    )
 
     fractions52 = year_week_fractions([hours for _, _, hours in weeks])
     # Vrais numéros de semaine ISO (36, 37... 52, [53,] 1, 2...), l'année fiscale commençant en septembre.
@@ -2722,12 +2782,16 @@ def years(secret_path):
         '<span><span class="sw" style="background:#2e2e2b"></span>vide</span>'
         '<span><span class="sw" style="background:linear-gradient(90deg,#3987e5 50%,#2e2e2b 50%)"></span>carré partiel (reste &lt; 20h)</span>'
         '<span><span class="sw" style="background:#3987e5"></span>carré plein (20h)</span>'
+        f'<span><span class="sw" style="background:{YEAR_VACATION_FILL}"></span>congés restants</span>'
+        f'<span><span class="sw" style="background:{YEAR_VACATION_BG}"></span>congés consommés (retard sur 20h/sem.)</span>'
     )
     legend52 = (
         '<span><span class="sw" style="background:#2e2e2b"></span>0 h</span>'
         '<span><span class="sw" style="background:linear-gradient(90deg,#3987e5 50%,#2e2e2b 50%)"></span>1–19 h</span>'
         '<span><span class="sw" style="background:#3987e5"></span>&#8805; 20 h</span>'
         '<span><span class="sw cur"></span>semaine en cours</span>'
+        '<span><span class="sw" style="background:#fff;width:2px;height:11px;vertical-align:middle"></span>'
+        f'objectif à date ({_format_hm(YEAR_OBJECTIVE_HOURS / YEAR_WEEKS_FULL)}/sem.)</span>'
     )
 
     pct = min(100, round(100 * total_hours / YEAR_OBJECTIVE_HOURS)) if YEAR_OBJECTIVE_HOURS else 0
@@ -2746,6 +2810,14 @@ def years(secret_path):
         days=round(total_hours / HOURS_PER_DAY),
         objective_days=round(YEAR_OBJECTIVE_HOURS / HOURS_PER_DAY),
         pct=pct,
+        # Barre et curseur au pourcentage exact : `pct` arrondi décalerait le
+        # bleu face au curseur quand les deux sont proches.
+        fill_pct=f"{min(100.0, 100 * total_hours / YEAR_OBJECTIVE_HOURS):.2f}",
+        target_pct=f"{min(100.0, 100 * target_hours / YEAR_OBJECTIVE_HOURS):.2f}",
+        target=_format_hm(target_hours),
+        gap=_format_signed_hm(total_hours - target_hours),
+        vacation_weeks=f"{vacation_hours / BILLABLE_WEEK_MAX_HOURS:.1f}".replace(".", ","),
+        count_vacation=YEAR_WEEKS_VACATION,
         version=APP_VERSION,
     )
 

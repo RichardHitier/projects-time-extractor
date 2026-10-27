@@ -1273,11 +1273,24 @@ def test_years_page_shows_both_40_and_52_grids(tmp_path):
 
     page = client.get("/years").get_data(as_text=True)
 
-    assert "40 semaines" in page and "52 semaines" in page
+    assert "40 + 12 semaines" in page and "52 semaines" in page
     assert "objectif 800h" in page
     assert f"/ {webhook_receiver.YEAR_OBJECTIVE_HOURS}h" in page
     assert "semaine en cours" in page
-    assert page.count("<rect") >= webhook_receiver.YEAR_WEEKS_OBJECTIVE + webhook_receiver.YEAR_WEEKS_FULL
+    assert page.count("<rect") >= 2 * webhook_receiver.YEAR_WEEKS_FULL
+
+
+def test_years_page_shows_vacation_squares_and_target_cursor(tmp_path):
+    webhook_receiver.CSV_PATH = str(tmp_path / "pomofocus_webhook.csv")
+    client = webhook_receiver.app.test_client()
+
+    page = client.get("/years").get_data(as_text=True)
+
+    assert ">V1</text>" in page and ">V12</text>" in page
+    assert webhook_receiver.YEAR_VACATION_FILL in page
+    assert "Congés restants" in page
+    assert "progress-cursor" in page
+    assert "objectif à date" in page
 
 
 def test_year_grid_uses_given_numbers_above_squares():
@@ -1286,6 +1299,44 @@ def test_year_grid_uses_given_numbers_above_squares():
     assert ">52</text>" in svg
     assert ">1</text>" in svg and ">2</text>" in svg
     assert ">3</text>" not in svg
+
+
+def test_year_grid_uses_given_colors_per_square():
+    svg = webhook_receiver.render_year_grid_svg(
+        [1.0, 0.5], 2, fill_colors=["#111111", "#222222"], bg_colors=["#333333", "#444444"]
+    )
+
+    assert 'fill="#111111"' in svg and 'fill="#222222"' in svg
+    assert 'fill="#333333"' in svg and 'fill="#444444"' in svg
+    assert "#3987e5" not in svg and "#2e2e2b" not in svg
+
+
+def test_year_elapsed_weeks_prorates_the_current_week_on_working_days():
+    start = date(2026, 8, 31)  # lundi
+
+    assert webhook_receiver.year_elapsed_weeks(start, date(2026, 8, 31)) == pytest.approx(0.2)
+    assert webhook_receiver.year_elapsed_weeks(start, date(2026, 10, 27)) == pytest.approx(8.4)  # mardi, 9e semaine
+    assert webhook_receiver.year_elapsed_weeks(start, date(2026, 10, 31)) == pytest.approx(9.0)  # samedi
+    assert webhook_receiver.year_elapsed_weeks(start, date(2028, 1, 1)) == 52.0
+    assert webhook_receiver.year_elapsed_weeks(start, date(2026, 8, 1)) == 0.0
+
+
+def test_year_vacation_hours_is_the_stock_minus_the_lag_on_20h_per_week():
+    assert webhook_receiver.year_vacation_hours(200, 9) == 240        # en avance : stock intact
+    assert webhook_receiver.year_vacation_hours(150, 9) == pytest.approx(210)   # 30h de retard
+    assert webhook_receiver.year_vacation_hours(0, 30) == 0.0         # stock épuisé
+
+
+def test_year_target_hours_follows_800h_over_52_weeks():
+    assert webhook_receiver.year_target_hours(0) == 0
+    assert webhook_receiver.year_target_hours(26) == pytest.approx(400)
+    assert webhook_receiver.year_target_hours(52) == pytest.approx(800)
+
+
+def test_format_signed_hm():
+    assert webhook_receiver._format_signed_hm(4 + 10 / 60) == "+4:10"
+    assert webhook_receiver._format_signed_hm(-(17 + 22 / 60)) == "−17:22"
+    assert webhook_receiver._format_signed_hm(0) == "+0:00"
 
 
 def test_years_page_next_year_link_is_disabled_on_the_current_fiscal_year(tmp_path):
