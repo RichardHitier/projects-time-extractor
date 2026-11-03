@@ -1078,6 +1078,32 @@ def test_update_csv_row_pads_hand_typed_hours(tmp_path):
     assert read_rows(csv_path)[0]["endTime"] == "09:40"
 
 
+def test_update_csv_row_moves_row_to_new_date(tmp_path):
+    csv_path = tmp_path / "pomofocus_webhook.csv"
+    _write_rows(csv_path, [ROW])
+
+    webhook_receiver.update_csv_row(
+        ("20260701", "09:00", "calipso", "vieux nom"),
+        "calipso", "vieux nom", "09:00", "09:40", csv_path, date="2026-07-02",
+    )
+
+    row = read_rows(csv_path)[0]
+    assert (row["date"], row["minutes"]) == ("20260702", "40")
+
+
+def test_update_csv_row_rejects_bad_date_without_writing(tmp_path):
+    csv_path = tmp_path / "pomofocus_webhook.csv"
+    _write_rows(csv_path, [ROW])
+
+    with pytest.raises(webhook_receiver.RowEditError):
+        webhook_receiver.update_csv_row(
+            ("20260701", "09:00", "calipso", "vieux nom"),
+            "calipso", "vieux nom", "09:00", "09:40", csv_path, date="02/07/2026",
+        )
+
+    assert read_rows(csv_path) == [ROW]
+
+
 def test_delete_csv_row_removes_only_the_matching_row(tmp_path):
     csv_path = tmp_path / "pomofocus_webhook.csv"
     other = {**ROW, "startTime": "14:00", "endTime": "15:00", "minutes": "60"}

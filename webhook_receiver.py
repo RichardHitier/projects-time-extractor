@@ -51,7 +51,7 @@ CSV_COLUMNS = ["date", "project", "task", "minutes", "startTime", "endTime"]
 EXPORT_TYPES = {"finish", "pause"}
 SECRET = os.environ.get("WEBHOOK_SECRET", "").strip("/")
 PORT = int(os.environ.get("WEBHOOK_PORT", "5000"))
-APP_VERSION = "0.54.1"  # affiché en pied de page (miroir de pyproject.toml)
+APP_VERSION = "0.55.0"  # affiché en pied de page (miroir de pyproject.toml)
 
 BILLABLE_PROJECTS = {p.lower() for p in _config.get("BILLABLE_PROJECTS", [])}
 BILLABLE_MAX_HOURS = 4
@@ -189,14 +189,23 @@ class RowEditError(Exception):
     """Édition refusée : ligne introuvable ou horaires invalides."""
 
 
-def update_csv_row(key, project, task, start, end, csv_path=None):
+def update_csv_row(key, project, task, start, end, csv_path=None, date=None):
     """Remplace la ligne repérée par `key` (date, startTime, project, task —
     les valeurs d'AVANT l'édition, le CSV n'ayant pas d'identifiant) par les
     nouvelles valeurs. `minutes` est recalculé depuis start/end, jamais saisi.
     Lève RowEditError sans rien écrire si la ligne n'existe pas ou si les
-    horaires sont invalides."""
+    horaires sont invalides.
+    `date`, if given, is YYYY-MM-DD as sent by <input type="date">; otherwise
+    the row keeps its original date."""
     if csv_path is None:
         csv_path = CSV_PATH
+
+    day = None
+    if date:
+        try:
+            day = datetime.strptime(date, "%Y-%m-%d").strftime("%Y%m%d")
+        except ValueError:
+            raise RowEditError("date invalide (format attendu AAAA-MM-JJ)") from None
 
     start, end = _normalize_hhmm(start), _normalize_hhmm(end)
     if start is None or end is None:
@@ -215,7 +224,7 @@ def update_csv_row(key, project, task, start, end, csv_path=None):
         )
         if existing_key == tuple(key):
             rows[index] = {
-                "date": existing["date"],
+                "date": day or existing["date"],
                 "project": project,
                 "task": task,
                 "minutes": round((end_h - start_h) * 60),
@@ -2457,6 +2466,7 @@ def _rows_markup(rows):
     for index, row in enumerate(rows):
         uid = f"r{index}"
         cell = {k: html.escape(str(row.get(k, ""))) for k in CSV_COLUMNS}
+        iso_date = f"{cell['date'][:4]}-{cell['date'][4:6]}-{cell['date'][6:]}"
         forms.append(
             f'<form class="rowform" id="{uid}" method="post">'
             f'<input type="hidden" name="key_date" value="{cell["date"]}">'
@@ -2467,7 +2477,7 @@ def _rows_markup(rows):
         )
         trs.append(
             f"<tr>"
-            f'<td class="date">{cell["date"]}</td>'
+            f'<td class="date"><input form="{uid}" type="date" name="date" value="{iso_date}" required></td>'
             f'<td><input form="{uid}" name="project" value="{cell["project"]}"></td>'
             f'<td><input form="{uid}" name="task" value="{cell["task"]}"></td>'
             f'<td><input form="{uid}" class="time" name="startTime" value="{cell["startTime"]}"></td>'
@@ -3863,6 +3873,7 @@ def rows_edit(secret_path):
             form.get("task", "").strip(),
             form.get("startTime", "").strip(),
             form.get("endTime", "").strip(),
+            date=form.get("date", "").strip(),
         )
     except RowEditError as exc:
         return redirect(f"{prefix}/rows?err={quote(str(exc))}")
