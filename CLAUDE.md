@@ -105,3 +105,8 @@ CLI parses task descriptions in the form:
 The parquet cache (`DATA/histories.parquet`) must be deleted manually to force
 a re-parse when source data changes. `get_cached_histories()` checks for its
 existence before parsing.
+
+## Commits
+
+Exception to the global "no commit body" rule: in this repo, end commit
+messages with the `Co-Authored-By: Claude …` trailer below the title.
