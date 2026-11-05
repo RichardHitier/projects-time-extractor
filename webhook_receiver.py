@@ -51,7 +51,7 @@ CSV_COLUMNS = ["date", "project", "task", "minutes", "startTime", "endTime"]
 EXPORT_TYPES = {"finish", "pause"}
 SECRET = os.environ.get("WEBHOOK_SECRET", "").strip("/")
 PORT = int(os.environ.get("WEBHOOK_PORT", "5000"))
-APP_VERSION = "0.55.0"  # affiché en pied de page (miroir de pyproject.toml)
+APP_VERSION = "0.56.0"  # affiché en pied de page (miroir de pyproject.toml)
 
 BILLABLE_PROJECTS = {p.lower() for p in _config.get("BILLABLE_PROJECTS", [])}
 BILLABLE_MAX_HOURS = 4
@@ -1053,6 +1053,22 @@ def render_week_svg(day_hours, max_hours=BILLABLE_MAX_HOURS, week_max_hours=BILL
                 f'stroke="#1a1a19" stroke-width="2"/>'
                 for k in range(1, n)
             )
+        percent_svg = ""
+        if label == highlight_label and max_hours:
+            percent_text = f"{round(ratio * 100)} %"
+            percent_w = _text_width(percent_text, size=12) + 8
+            # Only drawn when it fits inside the solid fill. The backing rect, in
+            # the fill color, interrupts the half-hour ticks behind the digits.
+            if fill_w >= percent_w:
+                percent_x = bar_x + inset + fill_w / 2
+                percent_svg = (
+                    f'<rect x="{percent_x - percent_w / 2:.1f}" y="{y + inset}" '
+                    f'width="{percent_w:.1f}" height="{inner_h}" rx="{corner_radius}" '
+                    f'fill="#9d9d93"/>'
+                    f'<text x="{percent_x:.1f}" y="{y + row_h - 7}" text-anchor="middle" '
+                    f'font-family="system-ui, sans-serif" font-size="12" '
+                    f'font-weight="600" fill="#1a1a19">{percent_text}</text>'
+                )
         overflow_rect = ""
         if ratio > 1:
             overflow_w = overflow_max * min(ratio - 1, 1)
@@ -1087,6 +1103,7 @@ def render_week_svg(day_hours, max_hours=BILLABLE_MAX_HOURS, week_max_hours=BILL
   {fill_rect}
   {hatch_rect}
   {ticks_svg}
+  {percent_svg}
   <line x1="{bar_x + bar_w}" y1="{y - 2}" x2="{bar_x + bar_w}" y2="{y + row_h + 2}" stroke="{marker_color}" stroke-width="2"/>
   {overflow_rect}
   {frames}

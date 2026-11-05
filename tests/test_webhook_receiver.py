@@ -316,6 +316,27 @@ def test_render_week_svg_colors_today():
     assert 'stroke="#ffffff" stroke-width="1.5"' not in plain
 
 
+def test_render_week_svg_shows_percent_on_current_day_only():
+    svg = webhook_receiver.render_week_svg(
+        [("Jeudi", 1.0), ("Mercredi", 3.0)],
+        highlight_label="Jeudi",
+    )
+    assert ">25 %</text>" in svg
+    assert "75 %" not in svg
+    plain = webhook_receiver.render_week_svg([("Jeudi", 1.0)])
+    assert " %" not in plain
+
+
+def test_render_week_svg_percent_exceeds_100_past_the_daily_target():
+    svg = webhook_receiver.render_week_svg([("Jeudi", 5.0)], highlight_label="Jeudi")
+    assert ">125 %</text>" in svg
+
+
+def test_render_week_svg_hides_percent_when_it_does_not_fit_in_the_fill():
+    svg = webhook_receiver.render_week_svg([("Jeudi", 0.1)], highlight_label="Jeudi")
+    assert " %" not in svg
+
+
 def test_render_activity_week_svg_colors_today():
     svg = webhook_receiver.render_activity_week_svg(
         [("Mercredi", {"speasy": 60})], highlight_label="Mercredi"
