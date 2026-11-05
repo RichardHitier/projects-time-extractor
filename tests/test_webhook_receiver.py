@@ -1046,16 +1046,16 @@ def test_month_labels_write_totals_under_the_names_only_when_given():
     groups = [(0, 3, "Septembre", "26"), (4, 8, "Août", "26")]
 
     with_hours = webhook_receiver._month_labels_svg(
-        groups, top=12, row_h=22, row_gap=12, x=84, hours=[84.5, 0.0],
+        groups, top=12, row_h=22, row_gap=12, x=84, hours=[64.2, 64.7],
     )
     plain = webhook_receiver._month_labels_svg(
         groups, top=12, row_h=22, row_gap=12, x=84,
     )
 
     offset_x = 84 + webhook_receiver.MONTH_HOURS_OFFSET
-    assert re.search(rf'translate\({offset_x},[\d.]+\) rotate\(-90\)"[^>]*>84:30<', with_hours)
-    assert ">0:00<" in with_hours
-    assert ">84:30<" not in plain
+    assert re.search(rf'translate\({offset_x},[\d.]+\) rotate\(-90\)"[^>]*>64 h<', with_hours)
+    assert ">65 h<" in with_hours
+    assert " h<" not in plain
 
 
 def test_months_page_shows_month_totals_on_the_billable_chart_only(tmp_path):
@@ -1063,13 +1063,12 @@ def test_months_page_shows_month_totals_on_the_billable_chart_only(tmp_path):
     monday, _ = webhook_receiver.current_week_bounds()
     _write_rows(webhook_receiver.CSV_PATH, [
         {"date": monday.strftime("%Y%m%d"), "project": "speasy_x", "task": "t",
-         "minutes": "83", "startTime": "09:00", "endTime": "10:23"},
+         "minutes": "130", "startTime": "09:00", "endTime": "11:10"},
     ])
 
     page = webhook_receiver.app.test_client().get("/months?n=8").get_data(as_text=True)
 
-    # rotated text only: the week rows also print 1:23 on the right of their bars
-    assert len(re.findall(r'rotate\(-90\)"[^>]*>1:23<', page)) == 1
+    assert page.count(">2 h</text>") == 1
 
 
 ROW = {"date": "20260701", "project": "calipso", "task": "vieux nom",

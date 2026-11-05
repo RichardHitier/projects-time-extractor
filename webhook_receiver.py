@@ -51,7 +51,7 @@ CSV_COLUMNS = ["date", "project", "task", "minutes", "startTime", "endTime"]
 EXPORT_TYPES = {"finish", "pause"}
 SECRET = os.environ.get("WEBHOOK_SECRET", "").strip("/")
 PORT = int(os.environ.get("WEBHOOK_PORT", "5000"))
-APP_VERSION = "0.57.0"  # affiché en pied de page (miroir de pyproject.toml)
+APP_VERSION = "0.57.1"  # affiché en pied de page (miroir de pyproject.toml)
 
 BILLABLE_PROJECTS = {p.lower() for p in _config.get("BILLABLE_PROJECTS", [])}
 BILLABLE_MAX_HOURS = 4
@@ -907,8 +907,8 @@ MONTH_LABEL_GAP = 26  # écart entre le texte du mois et la barre
 MONTH_LABEL_WEIGHT = "normal"  # "normal" pour dégraisser
 MONTH_LABEL_COLOR = "#ffffff"  # étiquettes de semaine voisines : #c3c2b7
 # Month total, on a second rotated line under the month name.
-MONTH_HOURS_SIZE = 11
-MONTH_HOURS_OFFSET = 14  # from the month name's baseline, towards the bars
+MONTH_HOURS_SIZE = 15
+MONTH_HOURS_OFFSET = 17  # from the month name's baseline, towards the bars
 MONTH_HOURS_COLOR = "#c3c2b7"
 
 
@@ -959,7 +959,7 @@ def _month_labels_svg(groups, top, row_h, row_gap, x, hours=None):
                 f'<text transform="translate({x + MONTH_HOURS_OFFSET},{(y0 + y1) / 2:.1f}) rotate(-90)" '
                 f'text-anchor="middle" font-family="system-ui, sans-serif" '
                 f'font-size="{MONTH_HOURS_SIZE}" '
-                f'fill="{MONTH_HOURS_COLOR}">{_format_hm(hours[i])}</text>'
+                f'fill="{MONTH_HOURS_COLOR}">{round(hours[i])} h</text>'
             )
     return "".join(labels)
 
