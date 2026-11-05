@@ -1019,6 +1019,59 @@ def test_month_label_keeps_the_year_when_it_abbreviates_a_long_name(tmp_path):
     assert ">Sep. 25<" in labels
 
 
+def test_billable_hours_by_month_spans_calendar_months():
+    rows = [
+        {"date": "20260801", "project": "speasy_x", "minutes": "60"},
+        {"date": "20260831", "project": "speasy_x", "minutes": "30"},
+        # same week as 31/08, whose Monday is in August: still counts for September
+        {"date": "20260901", "project": "speasy_x", "minutes": "120"},
+        {"date": "20260930", "project": "speasy_x", "minutes": "60"},
+        {"date": "20260915", "project": "colibri_dev", "minutes": "600"},  # not billable
+        {"date": "20261001", "project": "speasy_x", "minutes": "45"},
+    ]
+    mondays = [date(2026, 9, 7), date(2026, 8, 31), date(2026, 8, 24)]
+
+    assert webhook_receiver.billable_hours_by_month(mondays, rows) == [3.0, 1.5]
+
+
+def test_billable_hours_by_month_applies_rounding_step():
+    rows = [{"date": "20260901", "project": "speasy_x", "task": "t", "minutes": "10"}]
+
+    hours = webhook_receiver.billable_hours_by_month([date(2026, 9, 7)], rows, step=30)
+
+    assert hours == [0.5]
+
+
+def test_month_labels_write_totals_under_the_names_only_when_given():
+    groups = [(0, 3, "Septembre", "26"), (4, 8, "Août", "26")]
+
+    with_hours = webhook_receiver._month_labels_svg(
+        groups, top=12, row_h=22, row_gap=12, x=84, hours=[84.5, 0.0],
+    )
+    plain = webhook_receiver._month_labels_svg(
+        groups, top=12, row_h=22, row_gap=12, x=84,
+    )
+
+    offset_x = 84 + webhook_receiver.MONTH_HOURS_OFFSET
+    assert re.search(rf'translate\({offset_x},[\d.]+\) rotate\(-90\)"[^>]*>84:30<', with_hours)
+    assert ">0:00<" in with_hours
+    assert ">84:30<" not in plain
+
+
+def test_months_page_shows_month_totals_on_the_billable_chart_only(tmp_path):
+    webhook_receiver.CSV_PATH = str(tmp_path / "pomofocus_webhook.csv")
+    monday, _ = webhook_receiver.current_week_bounds()
+    _write_rows(webhook_receiver.CSV_PATH, [
+        {"date": monday.strftime("%Y%m%d"), "project": "speasy_x", "task": "t",
+         "minutes": "83", "startTime": "09:00", "endTime": "10:23"},
+    ])
+
+    page = webhook_receiver.app.test_client().get("/months?n=8").get_data(as_text=True)
+
+    # rotated text only: the week rows also print 1:23 on the right of their bars
+    assert len(re.findall(r'rotate\(-90\)"[^>]*>1:23<', page)) == 1
+
+
 ROW = {"date": "20260701", "project": "calipso", "task": "vieux nom",
        "minutes": "25", "startTime": "09:00", "endTime": "09:25"}
 

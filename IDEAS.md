@@ -9,3 +9,4 @@
 - [2026-07-16] compteur euros (tarif différent selon projet, et montant calculé depuis les derniéres factures)
 - [2026-07-16] grosse feature : page projects/ montrant l'activité de chaque projet — à garder en tête pour le compteur euros, qui ajoutera de la config par projet facturable (TJM / projet)
 - [2026-07-31] **prochain gros chantier** : aligner `/projects` sur `suivi_chantiers.ods` (raisonner en commandes et en cumul facturé, pas en date de dernière facture). → chantier ouvert le 2026-08-05 : cadrage, décisions et découpage budgété dans `FACTURATION-CHANTIER.md` ; analyse de départ dans `FACTURATION.md`.
+- [2026-11-05] Vue par mois sous l'onglet « Années » : une barre par mois calendaire, à gauche le total facturé, à droite les proportions (comme la vue des semaines). L'actuel onglet « Années » serait renommé. Avantage : barre et total toujours égaux, plus de décalage dû aux semaines à cheval sur deux mois.

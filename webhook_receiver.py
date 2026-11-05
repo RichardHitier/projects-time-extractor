@@ -51,7 +51,7 @@ CSV_COLUMNS = ["date", "project", "task", "minutes", "startTime", "endTime"]
 EXPORT_TYPES = {"finish", "pause"}
 SECRET = os.environ.get("WEBHOOK_SECRET", "").strip("/")
 PORT = int(os.environ.get("WEBHOOK_PORT", "5000"))
-APP_VERSION = "0.56.0"  # affiché en pied de page (miroir de pyproject.toml)
+APP_VERSION = "0.57.0"  # affiché en pied de page (miroir de pyproject.toml)
 
 BILLABLE_PROJECTS = {p.lower() for p in _config.get("BILLABLE_PROJECTS", [])}
 BILLABLE_MAX_HOURS = 4
@@ -880,12 +880,36 @@ def month_row_groups(mondays):
     return groups
 
 
+def billable_hours_by_month(mondays, rows, step=0):
+    """Billable hours of each calendar month, from its 1st to its last day, one
+    entry per month_row_groups() group of the same `mondays`. Unlike the week
+    rows, a week straddling two months is split between them, so a month's total
+    may differ from the sum of the bars grouped under it."""
+    hours = []
+    previous = None
+    for monday in mondays:
+        key = (monday.year, monday.month)
+        if key == previous:
+            continue
+        previous = key
+        minutes, day = 0, monday.replace(day=1)
+        while day.month == monday.month:
+            minutes += billable_minutes(rows, day.strftime("%Y%m%d"), step=step)
+            day += timedelta(days=1)
+        hours.append(minutes / 60)
+    return hours
+
+
 # Étiquette de mois de /months (texte vertical dans la gouttière). Modifiables
 # à chaud : le conteneur monte le dossier, un simple rechargement suffit.
 MONTH_LABEL_SIZE = 15
 MONTH_LABEL_GAP = 26  # écart entre le texte du mois et la barre
 MONTH_LABEL_WEIGHT = "normal"  # "normal" pour dégraisser
 MONTH_LABEL_COLOR = "#ffffff"  # étiquettes de semaine voisines : #c3c2b7
+# Month total, on a second rotated line under the month name.
+MONTH_HOURS_SIZE = 11
+MONTH_HOURS_OFFSET = 14  # from the month name's baseline, towards the bars
+MONTH_HOURS_COLOR = "#c3c2b7"
 
 
 CHART_TITLE_H = 26  # bandeau du titre visible, au-dessus de la barre d'en-tête
@@ -906,15 +930,18 @@ def _chart_title_svg(title, x=320, y=18):
     )
 
 
-def _month_labels_svg(groups, top, row_h, row_gap, x):
+def _month_labels_svg(groups, top, row_h, row_gap, x, hours=None):
     """« Juillet26 » écrit verticalement (lu de bas en haut) dans la gouttière
     entre les étiquettes de semaine et les barres, centré sur les lignes du
     mois. Un nom long (Septembre…) est abrégé quand l'étiquette déborde du bloc
     de lignes — l'année est conservée (« Sep.25 ») ; les noms courts (Mai, Juin,
-    Août) restent entiers, les abréger les rallongerait."""
+    Août) restent entiers, les abréger les rallongerait.
+
+    `hours` (cf. billable_hours_by_month), parallel to `groups`, writes each
+    month's total on a second rotated line under its name."""
     pitch = row_h + row_gap
     labels = []
-    for first, last, name, year in groups:
+    for i, (first, last, name, year) in enumerate(groups):
         y0 = top + first * pitch
         y1 = top + last * pitch + row_h
         span = y1 - y0
@@ -927,6 +954,13 @@ def _month_labels_svg(groups, top, row_h, row_gap, x):
             f'font-size="{MONTH_LABEL_SIZE}" font-weight="{MONTH_LABEL_WEIGHT}" '
             f'fill="{MONTH_LABEL_COLOR}">{text}</text>'
         )
+        if hours is not None:
+            labels.append(
+                f'<text transform="translate({x + MONTH_HOURS_OFFSET},{(y0 + y1) / 2:.1f}) rotate(-90)" '
+                f'text-anchor="middle" font-family="system-ui, sans-serif" '
+                f'font-size="{MONTH_HOURS_SIZE}" '
+                f'fill="{MONTH_HOURS_COLOR}">{_format_hm(hours[i])}</text>'
+            )
     return "".join(labels)
 
 
@@ -976,14 +1010,15 @@ def _track_rect(x, y, w, h, rx, fill, stroke=None):
     return f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="{rx}" fill="{fill}"{edge}/>'
 
 
-def render_week_svg(day_hours, max_hours=BILLABLE_MAX_HOURS, week_max_hours=BILLABLE_WEEK_MAX_HOURS, highlight_label=None, current_hours=0.0, title_label="SEMAINE", show_header=True, month_groups=None, bar_start=None, show_title=True, title_totals=True, title_sep=" : ", future_labels=(), tick_hours=None):
+def render_week_svg(day_hours, max_hours=BILLABLE_MAX_HOURS, week_max_hours=BILLABLE_WEEK_MAX_HOURS, highlight_label=None, current_hours=0.0, title_label="SEMAINE", show_header=True, month_groups=None, bar_start=None, show_title=True, title_totals=True, title_sep=" : ", future_labels=(), tick_hours=None, month_hours=None):
     """Render a "SEMAINE : total / Nh" header, then one bar per
     (day_label, hours) pair, most recent first. `show_header=False` drops the
     total header bar (and its vertical space) — /months shows weeks, whose total
     over N weeks says little.
 
     `month_groups` (cf. month_row_groups) writes the month name vertically in the
-    gutter between the row labels and the bars — /months only.
+    gutter between the row labels and the bars — /months only. `month_hours`
+    (cf. billable_hours_by_month) adds each month's total under its name.
 
     Bars past `max_hours` overflow past a boundary marker (in a distinct
     color) instead of being clamped, up to a capped overflow lane.
@@ -1119,7 +1154,8 @@ def render_week_svg(day_hours, max_hours=BILLABLE_MAX_HOURS, week_max_hours=BILL
     month_labels = ""
     if month_groups:
         month_labels = _month_labels_svg(
-            month_groups, top, row_h, row_gap, bar_x - MONTH_LABEL_GAP
+            month_groups, top, row_h, row_gap, bar_x - MONTH_LABEL_GAP,
+            hours=month_hours,
         )
     return f"""<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">
   <title>{title}</title>
@@ -2710,7 +2746,9 @@ def months(secret_path):
     # Une ligne = une semaine : les maxima passent du jour (4h/8h) à la semaine
     # (20h/35h). Pas de barre de total ici (show_header=False) : la page compare
     # les semaines entre elles, le cumul sur N semaines n'apporte rien.
-    month_groups = month_row_groups([monday for monday, _, _, _, _ in weeks])
+    mondays = [monday for monday, _, _, _, _ in weeks]
+    month_groups = month_row_groups(mondays)
+    month_hours = billable_hours_by_month(mondays, _read_csv_rows(CSV_PATH), step=step)
     charts = render_week_svg(
         billable_rows,
         max_hours=BILLABLE_WEEK_MAX_HOURS,
@@ -2718,6 +2756,7 @@ def months(secret_path):
         title_label=f"FACTURABLE — {n} SEMAINES",
         show_header=False,
         month_groups=month_groups,
+        month_hours=month_hours,
     ) + render_activity_week_svg(
         activity_rows,
         max_hours=ACTIVITY_WEEK_MAX_HOURS,
