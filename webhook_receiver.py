@@ -51,7 +51,7 @@ CSV_COLUMNS = ["date", "project", "task", "minutes", "startTime", "endTime"]
 EXPORT_TYPES = {"finish", "pause"}
 SECRET = os.environ.get("WEBHOOK_SECRET", "").strip("/")
 PORT = int(os.environ.get("WEBHOOK_PORT", "5000"))
-APP_VERSION = "0.58.0"  # affiché en pied de page (miroir de pyproject.toml)
+APP_VERSION = "0.58.1"  # affiché en pied de page (miroir de pyproject.toml)
 
 BILLABLE_PROJECTS = {p.lower() for p in _config.get("BILLABLE_PROJECTS", [])}
 BILLABLE_MAX_HOURS = 4
@@ -2864,10 +2864,20 @@ def months(secret_path):
     )
 
 
-def _calendar_title(kind, n, total_hours):
-    """« FACTURABLE — 12 MOIS : 601 h ( 50 h / mois) ». The average divides by
-    every month shown, including empty months and the current, unfinished one."""
-    return f"{kind} — {n} MOIS : {round(total_hours)} h ( {round(total_hours / n)} h / mois)"
+def _elapsed_months(months, today):
+    """How many months the average of `months` divides by: 1 per month, empty
+    ones included, except the current month, weighted by the share of its days
+    elapsed, today included (9 November counts for 9/30)."""
+    return sum(
+        today.day / last_day.day if first_day <= today <= last_day else 1
+        for first_day, last_day, *_ in months
+    )
+
+
+def _calendar_title(kind, n, total_hours, elapsed_months):
+    """« FACTURABLE — 12 MOIS : 601 h ( 53 h / mois) »."""
+    average = round(total_hours / elapsed_months)
+    return f"{kind} — {n} MOIS : {round(total_hours)} h ( {average} h / mois)"
 
 
 @app.get("/calendar", defaults={"secret_path": ""})
@@ -2882,7 +2892,9 @@ def calendar_months(secret_path):
     page = min(_int_arg("p"), CALENDAR_MAX_MONTHS // n)
     step = _round_step()
 
-    months = recent_month_totals(n=n, page=page, step=step)
+    today = datetime.now().date()
+    months = recent_month_totals(today=today, n=n, page=page, step=step)
+    elapsed_months = _elapsed_months(months, today)
     billable_rows = [(label, hours) for _, _, label, hours, _ in months]
     activity_rows = [(label, activity) for _, _, label, _, activity in months]
     prefixes = set()
@@ -2896,7 +2908,7 @@ def calendar_months(secret_path):
         max_hours=CALENDAR_BILLABLE_MAX_HOURS,
         week_max_hours=CALENDAR_BILLABLE_MAX_HOURS * n,
         highlight_label=current_label,
-        title_label=_calendar_title("FACTURABLE", n, billable_total),
+        title_label=_calendar_title("FACTURABLE", n, billable_total, elapsed_months),
         show_header=False,
         title_totals=False,
         hours_format=_format_round_hours,
@@ -2907,7 +2919,7 @@ def calendar_months(secret_path):
         week_max_hours=CALENDAR_ACTIVITY_MAX_HOURS * n,
         uid="calendar",
         highlight_label=current_label,
-        title_label=_calendar_title("ACTIVITÉ", n, activity_total),
+        title_label=_calendar_title("ACTIVITÉ", n, activity_total, elapsed_months),
         show_header=False,
         title_totals=False,
         hours_format=_format_round_hours,

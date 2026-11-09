@@ -1190,6 +1190,30 @@ def test_calendar_page_clamps_n_and_p_and_disables_buttons_at_both_ends(tmp_path
     assert f"/calendar?n=12&p={last + 1}" not in oldest
 
 
+def test_elapsed_months_weights_the_current_month_by_its_elapsed_days(tmp_path):
+    _calendar_client(tmp_path)
+    today = date(2026, 11, 9)
+
+    months = webhook_receiver.recent_month_totals(today=today, n=3)
+
+    assert webhook_receiver._elapsed_months(months, today) == pytest.approx(2 + 9 / 30)
+
+
+def test_elapsed_months_counts_past_windows_in_full(tmp_path):
+    _calendar_client(tmp_path)
+    today = date(2026, 11, 9)
+
+    months = webhook_receiver.recent_month_totals(today=today, n=3, page=1)
+
+    assert webhook_receiver._elapsed_months(months, today) == 3
+
+
+def test_calendar_title_averages_over_elapsed_months():
+    title = webhook_receiver._calendar_title("FACTURABLE", 12, 601, 11.3)
+
+    assert title == "FACTURABLE — 12 MOIS : 601 h ( 53 h / mois)"
+
+
 def test_calendar_page_requires_the_secret(tmp_path, monkeypatch):
     client = _calendar_client(tmp_path)
     monkeypatch.setattr(webhook_receiver, "SECRET", "s3cret")
