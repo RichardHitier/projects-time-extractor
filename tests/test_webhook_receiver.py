@@ -1071,6 +1071,139 @@ def test_months_page_shows_month_totals_on_the_billable_chart_only(tmp_path):
     assert page.count(">2 h</text>") == 1
 
 
+def _calendar_row(day, project, minutes, task="t"):
+    return {"date": day, "project": project, "task": task, "minutes": str(minutes),
+            "startTime": "09:00", "endTime": "10:00"}
+
+
+def _calendar_client(tmp_path, rows=()):
+    webhook_receiver.CSV_PATH = str(tmp_path / "pomofocus_webhook.csv")
+    _write_rows(webhook_receiver.CSV_PATH, rows)
+    return webhook_receiver.app.test_client()
+
+
+def test_recent_month_totals_spans_whole_calendar_months(tmp_path):
+    _calendar_client(tmp_path, [
+        _calendar_row("20260801", "speasy_x", 60),
+        _calendar_row("20260831", "speasy_x", 30),
+        _calendar_row("20260901", "speasy_x", 120),
+        _calendar_row("20260915", "colibri_dev", 600),
+    ])
+
+    months = webhook_receiver.recent_month_totals(today=date(2026, 9, 10), n=2)
+
+    assert months == [
+        (date(2026, 9, 1), date(2026, 9, 30), "Septembre 2026", 2.0,
+         {"speasy": 120, "colibri": 600}),
+        (date(2026, 8, 1), date(2026, 8, 31), "Août 2026", 1.5, {"speasy": 90}),
+    ]
+
+
+def test_recent_month_totals_keeps_empty_months_across_years(tmp_path):
+    _calendar_client(tmp_path)
+
+    months = webhook_receiver.recent_month_totals(today=date(2026, 2, 28), n=4)
+
+    assert [m[2] for m in months] == [
+        "Février 2026", "Janvier 2026", "Décembre 2025", "Novembre 2025",
+    ]
+    assert months[0][1] == date(2026, 2, 28)
+    assert all(m[3] == 0 and m[4] == {} for m in months)
+
+
+def test_recent_month_totals_page_moves_the_window_back(tmp_path):
+    _calendar_client(tmp_path)
+
+    months = webhook_receiver.recent_month_totals(today=date(2026, 11, 9), n=3, page=1)
+
+    assert [m[2] for m in months] == ["Août 2026", "Juillet 2026", "Juin 2026"]
+
+
+def test_recent_month_totals_applies_rounding_step(tmp_path):
+    _calendar_client(tmp_path, [_calendar_row("20260901", "speasy_x", 10)])
+
+    months = webhook_receiver.recent_month_totals(today=date(2026, 9, 10), n=1, step=30)
+
+    assert months[0][3] == 0.5
+
+
+def test_week_renderers_accept_hours_format_and_ref_label():
+    row = [("Mai 2026", 94.3)]
+    custom = webhook_receiver.render_week_svg(
+        row, hours_format=webhook_receiver._format_round_hours, ref_label="80 h",
+    )
+    default = webhook_receiver.render_week_svg(row)
+
+    assert ">94 h</text>" in custom and ">80 h</text>" in custom
+    assert ">94:18</text>" in default and ">80 h</text>" not in default
+
+    activity = webhook_receiver.render_activity_week_svg(
+        [("Mai 2026", {"speasy": 120})],
+        hours_format=webhook_receiver._format_round_hours, ref_label="140 h",
+    )
+    assert ">2 h</text>" in activity and ">140 h</text>" in activity
+
+
+def test_calendar_page_shows_one_row_per_month_with_average_in_titles(tmp_path):
+    today = date.today()
+    client = _calendar_client(tmp_path, [
+        _calendar_row(today.strftime("%Y%m%d"), "speasy_x", 130),
+    ])
+
+    page = client.get("/calendar?n=4").get_data(as_text=True)
+
+    current = webhook_receiver._FR_MONTHS[today.month - 1].capitalize()
+    assert f"{current} {today.year}" in page
+    assert "FACTURABLE — 4 MOIS : 2 h ( 1 h / mois)" in page
+    assert "ACTIVITÉ — 4 MOIS : 2 h ( 1 h / mois)" in page
+    assert page.count(">2 h</text>") == 2      # billable and activity rows
+    assert page.count(">0 h</text>") == 6      # three empty months, two charts
+    assert ">80 h</text>" in page and ">140 h</text>" in page
+
+
+def test_calendar_tab_is_active_and_sits_right_after_months(tmp_path):
+    client = _calendar_client(tmp_path)
+
+    page = client.get("/calendar").get_data(as_text=True)
+
+    assert 'class="active">Calendaire</a>' in page
+    assert page.index(">Mois</a>") < page.index(">Calendaire</a>") < page.index(">Années</a>")
+
+
+def test_calendar_page_clamps_n_and_p_and_disables_buttons_at_both_ends(tmp_path):
+    client = _calendar_client(tmp_path)
+    get = lambda query: client.get(f"/calendar{query}").get_data(as_text=True)  # noqa: E731
+
+    default = get("")
+    assert "FACTURABLE — 12 MOIS" in default
+    assert "/calendar?n=12&p=1" in default       # older months available
+    assert "/calendar?n=12&p=-1" not in default  # newest page
+
+    assert "FACTURABLE — 3 MOIS" in get("?n=1")
+    assert "/calendar?n=2" not in get("?n=1")
+    assert "FACTURABLE — 60 MOIS" in get("?n=999")
+    assert "/calendar?n=61" not in get("?n=999")
+
+    last = webhook_receiver.CALENDAR_MAX_MONTHS // 12
+    oldest = get(f"?p={last + 5}")               # clamped to the last page
+    assert f"/calendar?n=12&p={last - 1}" in oldest
+    assert f"/calendar?n=12&p={last + 1}" not in oldest
+
+
+def test_calendar_page_requires_the_secret(tmp_path, monkeypatch):
+    client = _calendar_client(tmp_path)
+    monkeypatch.setattr(webhook_receiver, "SECRET", "s3cret")
+
+    assert client.get("/calendar").status_code == 404
+    assert client.get("/s3cret/calendar").status_code == 200
+
+
+def test_months_page_keeps_its_html_title(tmp_path):
+    client = _calendar_client(tmp_path)
+
+    assert "<title>4 semaines — " in client.get("/months?n=4").get_data(as_text=True)
+
+
 ROW = {"date": "20260701", "project": "calipso", "task": "vieux nom",
        "minutes": "25", "startTime": "09:00", "endTime": "09:25"}
 

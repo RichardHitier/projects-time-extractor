@@ -51,7 +51,7 @@ CSV_COLUMNS = ["date", "project", "task", "minutes", "startTime", "endTime"]
 EXPORT_TYPES = {"finish", "pause"}
 SECRET = os.environ.get("WEBHOOK_SECRET", "").strip("/")
 PORT = int(os.environ.get("WEBHOOK_PORT", "5000"))
-APP_VERSION = "0.57.1"  # affiché en pied de page (miroir de pyproject.toml)
+APP_VERSION = "0.58.0"  # affiché en pied de page (miroir de pyproject.toml)
 
 BILLABLE_PROJECTS = {p.lower() for p in _config.get("BILLABLE_PROJECTS", [])}
 BILLABLE_MAX_HOURS = 4
@@ -66,6 +66,9 @@ ROUND_STEPS = (BILLING_ROUND_MINUTES,)
 # 200 semaines de recul maximum : les données commencent en sept. 2022, soit 201
 # semaines avant juillet 2026 — la page p=3 (n=60) les atteint.
 MONTH_WEEKS_SHOWN, MONTH_MIN_WEEKS, MONTH_MAX_WEEKS = 60, 2, 200
+
+# /calendar: one row per calendar month, N months per page (?n=), paged by ?p=.
+CALENDAR_MONTHS_SHOWN, CALENDAR_MIN_MONTHS, CALENDAR_MAX_MONTHS = 12, 3, 60
 
 _FR_WEEKDAYS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"]
 _FR_MONTHS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet",
@@ -548,6 +551,33 @@ def recent_week_totals(today=None, n=MONTH_WEEKS_SHOWN, page=0, step=0):
     return weeks
 
 
+def recent_month_totals(today=None, n=CALENDAR_MONTHS_SHOWN, page=0, step=0):
+    """The `n` most recent calendar months, most recent first, as
+    (first_day, last_day, label, billable_hours, {prefix: minutes}) tuples: one
+    row per month, from its 1st to its last day (/calendar). Empty months are
+    kept. `page` moves the window back by `page * n` months."""
+    if today is None:
+        today = datetime.now().date()
+    rows = _read_csv_rows(CSV_PATH)
+    month_index = today.year * 12 + today.month - 1 - page * n
+    months = []
+    for _ in range(n):
+        year, month0 = divmod(month_index, 12)
+        first_day = date(year, month0 + 1, 1)
+        last_day = (first_day + timedelta(days=31)).replace(day=1) - timedelta(days=1)
+        minutes, activity, day = 0, {}, first_day
+        while day <= last_day:
+            key = day.strftime("%Y%m%d")
+            minutes += billable_minutes(rows, key, step=step)
+            for prefix, mins in activity_by_project(rows, key).items():
+                activity[prefix] = activity.get(prefix, 0) + mins
+            day += timedelta(days=1)
+        label = f"{_FR_MONTHS[month0].capitalize()} {year}"
+        months.append((first_day, last_day, label, minutes / 60, activity))
+        month_index -= 1
+    return months
+
+
 def _fr_window(weeks):
     """« février 2023 → mars 2024 » — la période couverte par une fenêtre de
     /months (weeks est trié du plus récent au plus ancien)."""
@@ -576,6 +606,11 @@ def _format_hm(hours):
     total_minutes = round(hours * 60)
     h, m = divmod(total_minutes, 60)
     return f"{h}:{m:02d}"
+
+
+def _format_round_hours(hours):
+    """« 94 h » : whole hours, for the month rows of /calendar."""
+    return f"{round(hours)} h"
 
 
 def _format_signed_hm(hours):
@@ -964,6 +999,17 @@ def _month_labels_svg(groups, top, row_h, row_gap, x, hours=None):
     return "".join(labels)
 
 
+def _ref_label_svg(text, x, y):
+    """Small caption above a chart's end-of-bar marker (/calendar: « 80 h »)."""
+    if not text:
+        return ""
+    return (
+        f'<text x="{x}" y="{y}" text-anchor="middle" '
+        f'font-family="system-ui, sans-serif" font-size="11" '
+        f'fill="#9a9990">{text}</text>'
+    )
+
+
 def _hl_frame(x, y, w, h, rx=4):
     """White outline used to flag the current day's label/hours/bar (white, not
     yellow: yellow is speasy's project color, used by the running-task box)."""
@@ -1010,7 +1056,7 @@ def _track_rect(x, y, w, h, rx, fill, stroke=None):
     return f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="{rx}" fill="{fill}"{edge}/>'
 
 
-def render_week_svg(day_hours, max_hours=BILLABLE_MAX_HOURS, week_max_hours=BILLABLE_WEEK_MAX_HOURS, highlight_label=None, current_hours=0.0, title_label="SEMAINE", show_header=True, month_groups=None, bar_start=None, show_title=True, title_totals=True, title_sep=" : ", future_labels=(), tick_hours=None, month_hours=None):
+def render_week_svg(day_hours, max_hours=BILLABLE_MAX_HOURS, week_max_hours=BILLABLE_WEEK_MAX_HOURS, highlight_label=None, current_hours=0.0, title_label="SEMAINE", show_header=True, month_groups=None, bar_start=None, show_title=True, title_totals=True, title_sep=" : ", future_labels=(), tick_hours=None, month_hours=None, hours_format=_format_hm, ref_label=None):
     """Render a "SEMAINE : total / Nh" header, then one bar per
     (day_label, hours) pair, most recent first. `show_header=False` drops the
     total header bar (and its vertical space) — /months shows weeks, whose total
@@ -1037,6 +1083,9 @@ def render_week_svg(day_hours, max_hours=BILLABLE_MAX_HOURS, week_max_hours=BILL
 
     Rows are labelled, not dated: /months passes weeks rather than days, hence
     `title_label` for the SVG tooltip.
+
+    `hours_format` formats the figure of each row. `ref_label` captions the
+    end-of-bar marker. `title_totals=False` uses `title_label` as the whole title.
     """
     width = 640
     row_h, row_gap = 22, 12
@@ -1050,7 +1099,7 @@ def render_week_svg(day_hours, max_hours=BILLABLE_MAX_HOURS, week_max_hours=BILL
     inset = 3
     height = top + len(day_hours) * (row_h + row_gap)
     total_hours = sum(hours for _, hours in day_hours)
-    title = f"{title_label} : {_format_hm(total_hours)} / {week_max_hours}h"
+    title = f"{title_label} : {_format_hm(total_hours)} / {week_max_hours}h" if title_totals else title_label
     # Titre visible : séparateur libre (/live veut « FACTURABLE 3:30 / 20h » sans
     # deux-points). Le tooltip `title` garde le style « LABEL : … » de toute l'app.
     visible_title = f"{title_label}{title_sep}{_format_hm(total_hours)} / {week_max_hours}h"
@@ -1111,7 +1160,7 @@ def render_week_svg(day_hours, max_hours=BILLABLE_MAX_HOURS, week_max_hours=BILL
                 f'<rect x="{bar_x + bar_w + inset}" y="{y + inset}" width="{overflow_w:.1f}" '
                 f'height="{inner_h}" rx="{corner_radius}" fill="#d9a441"/>'
             )
-        hours_text = _format_hm(hours)
+        hours_text = hours_format(hours)
         hours_w = _text_width(hours_text)
         frames = ""
         if label == highlight_label:
@@ -1157,6 +1206,7 @@ def render_week_svg(day_hours, max_hours=BILLABLE_MAX_HOURS, week_max_hours=BILL
             month_groups, top, row_h, row_gap, bar_x - MONTH_LABEL_GAP,
             hours=month_hours,
         )
+    header_bar += _ref_label_svg(ref_label, bar_x + bar_w, top - 4)
     return f"""<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">
   <title>{title}</title>
   <rect width="{width}" height="{height}" fill="#1a1a19"/>
@@ -1171,6 +1221,9 @@ def render_week_svg(day_hours, max_hours=BILLABLE_MAX_HOURS, week_max_hours=BILL
 # ── Activité par projet (couleurs identiques à `timer day-bars`) ──────────────
 ACTIVITY_MAX_HOURS = 8
 ACTIVITY_WEEK_MAX_HOURS = 35
+# /calendar bar markers: four weeks' worth of the weekly references.
+CALENDAR_BILLABLE_MAX_HOURS = 4 * BILLABLE_WEEK_MAX_HOURS
+CALENDAR_ACTIVITY_MAX_HOURS = 4 * ACTIVITY_WEEK_MAX_HOURS
 
 # tab20 + tab20b (40 couleurs), figées depuis matplotlib pour rester identiques à
 # core.plots._project_color_map sans embarquer matplotlib dans le conteneur.
@@ -1320,7 +1373,7 @@ def render_activity_svg(totals, max_hours=ACTIVITY_MAX_HOURS):
 </svg>"""
 
 
-def render_activity_week_svg(days, max_hours=ACTIVITY_MAX_HOURS, uid="", highlight_label=None, week_max_hours=ACTIVITY_WEEK_MAX_HOURS, current_hours=0.0, current_prefix=None, title_label="ACTIVITÉ SEMAINE", show_header=True, month_groups=None, bar_start=None, show_title=True, title_totals=True, title_sep=" : ", future_labels=()):
+def render_activity_week_svg(days, max_hours=ACTIVITY_MAX_HOURS, uid="", highlight_label=None, week_max_hours=ACTIVITY_WEEK_MAX_HOURS, current_hours=0.0, current_prefix=None, title_label="ACTIVITÉ SEMAINE", show_header=True, month_groups=None, bar_start=None, show_title=True, title_totals=True, title_sep=" : ", future_labels=(), hours_format=_format_hm, ref_label=None):
     """One stacked activity bar per day (most recent first). Row geometry
     matches render_week_svg so the two week charts line up side by side —
     including `show_header` and `month_groups`, to be set the same way on both.
@@ -1337,7 +1390,9 @@ def render_activity_week_svg(days, max_hours=ACTIVITY_MAX_HOURS, uid="", highlig
     FUTURE_COLORS.
 
     Rows are labelled, not dated: /months passes weeks rather than days, hence
-    `title_label` for the SVG tooltip."""
+    `title_label` for the SVG tooltip.
+
+    `hours_format`, `ref_label` and `title_totals=False`: cf. render_week_svg."""
     width = 640
     row_h, row_gap = 22, 12
     header_h = 38 if show_header else 0
@@ -1349,7 +1404,7 @@ def render_activity_week_svg(days, max_hours=ACTIVITY_MAX_HOURS, uid="", highlig
     corner_radius, inset = 5, 3
     height = top + len(days) * (row_h + row_gap)
     week_total = sum(sum(t.values()) for _, t in days) / 60
-    title = f"{title_label} : {_format_hm(week_total)} / {week_max_hours}h"
+    title = f"{title_label} : {_format_hm(week_total)} / {week_max_hours}h" if title_totals else title_label
     # cf. render_week_svg : titre visible à séparateur libre, tooltip « LABEL : … »
     visible_title = f"{title_label}{title_sep}{_format_hm(week_total)} / {week_max_hours}h"
     hatch_defs = ""
@@ -1369,7 +1424,7 @@ def render_activity_week_svg(days, max_hours=ACTIVITY_MAX_HOURS, uid="", highlig
                     f'<rect x="{inner_x + fill_w:.1f}" y="{inner_y}" '
                     f'width="{hatch_w:.1f}" height="{inner_h}" fill="url(#{hid})"/>'
                 )
-        hours_text = _format_hm(sum(totals.values()) / 60)
+        hours_text = hours_format(sum(totals.values()) / 60)
         hours_w = _text_width(hours_text)
         frames = ""
         if label == highlight_label:
@@ -1409,6 +1464,7 @@ def render_activity_week_svg(days, max_hours=ACTIVITY_MAX_HOURS, uid="", highlig
         month_labels = _month_labels_svg(
             month_groups, top, row_h, row_gap, bar_x - MONTH_LABEL_GAP
         )
+    header_bar += _ref_label_svg(ref_label, bar_x + bar_w, top - 4)
     return f"""<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">
   <title>{title}</title>
   <rect width="{width}" height="{height}" fill="#1a1a19"/>
@@ -1654,14 +1710,15 @@ def render_swimlane_svg(days):
 
 
 def _menu_bar(prefix, active):
-    """Shared top navigation across /live, /weeks, /months, /years, /swimlane,
-    /rows, /suivi and /facturation. `active` is one of 'live' | 'weeks' |
-    'month' | 'years' | 'swimlane' | 'rows' | 'suivi' | 'facturation' and gets
-    the highlighted pill."""
+    """Shared top navigation across /live, /weeks, /months, /calendar, /years,
+    /swimlane, /rows, /suivi and /facturation. `active` is one of 'live' |
+    'weeks' | 'month' | 'calendar' | 'years' | 'swimlane' | 'rows' | 'suivi' |
+    'facturation' and gets the highlighted pill."""
     items = [
         ("live", "Live", f"{prefix}/live"),
         ("weeks", "Semaines", f"{prefix}/weeks"),
         ("month", "Mois", f"{prefix}/months"),
+        ("calendar", "Calendaire", f"{prefix}/calendar"),
         ("years", "Années", f"{prefix}/years"),
         ("swimlane", "Swimlane", f"{prefix}/swimlane"),
         ("rows", "Lignes", f"{prefix}/rows"),
@@ -2014,7 +2071,7 @@ MONTH_HTML = """<!doctype html>
 <html lang="fr">
 <head>
 <meta charset="utf-8">
-<title>{count} semaines — {window}</title>
+<title>{page_title}</title>
 <style>
   body {{ font-family: system-ui, sans-serif; margin: 2rem; background: #111; color: #eee; }}
   a {{ color: #3987e5; text-decoration: none; }}
@@ -2797,9 +2854,92 @@ def months(secret_path):
         f'<span class="nav-title">{title}</span>{more}{newer}</p>'
     )
     return MONTH_HTML.format(
-        count=n,
-        window=_fr_window(weeks),
+        page_title=f"{n} semaines — {_fr_window(weeks)}",
         menu=_menu_bar(prefix, "month"),
+        nav=nav,
+        round_choice=_round_choice_html(step),
+        charts=charts,
+        legend=render_activity_legend_svg(_ordered_projects(prefixes)),
+        version=APP_VERSION,
+    )
+
+
+def _calendar_title(kind, n, total_hours):
+    """« FACTURABLE — 12 MOIS : 601 h ( 50 h / mois) ». The average divides by
+    every month shown, including empty months and the current, unfinished one."""
+    return f"{kind} — {n} MOIS : {round(total_hours)} h ( {round(total_hours / n)} h / mois)"
+
+
+@app.get("/calendar", defaults={"secret_path": ""})
+@app.get("/<path:secret_path>/calendar")
+def calendar_months(secret_path):
+    if SECRET and secret_path.strip("/") != SECRET:
+        return "not found\n", 404
+    prefix = f"/{secret_path.strip('/')}" if secret_path.strip("/") else ""
+    n = _int_arg("n") or CALENDAR_MONTHS_SHOWN
+    n = max(CALENDAR_MIN_MONTHS, min(n, CALENDAR_MAX_MONTHS))
+    # the window never starts more than CALENDAR_MAX_MONTHS months back
+    page = min(_int_arg("p"), CALENDAR_MAX_MONTHS // n)
+    step = _round_step()
+
+    months = recent_month_totals(n=n, page=page, step=step)
+    billable_rows = [(label, hours) for _, _, label, hours, _ in months]
+    activity_rows = [(label, activity) for _, _, label, _, activity in months]
+    prefixes = set()
+    for _, activity in activity_rows:
+        prefixes.update(activity)
+    billable_total = sum(hours for _, hours in billable_rows)
+    activity_total = sum(sum(activity.values()) for _, activity in activity_rows) / 60
+    current_label = months[0][2] if page == 0 else None
+    charts = render_week_svg(
+        billable_rows,
+        max_hours=CALENDAR_BILLABLE_MAX_HOURS,
+        week_max_hours=CALENDAR_BILLABLE_MAX_HOURS * n,
+        highlight_label=current_label,
+        title_label=_calendar_title("FACTURABLE", n, billable_total),
+        show_header=False,
+        title_totals=False,
+        hours_format=_format_round_hours,
+        ref_label=f"{CALENDAR_BILLABLE_MAX_HOURS} h",
+    ) + render_activity_week_svg(
+        activity_rows,
+        max_hours=CALENDAR_ACTIVITY_MAX_HOURS,
+        week_max_hours=CALENDAR_ACTIVITY_MAX_HOURS * n,
+        uid="calendar",
+        highlight_label=current_label,
+        title_label=_calendar_title("ACTIVITÉ", n, activity_total),
+        show_header=False,
+        title_totals=False,
+        hours_format=_format_round_hours,
+        ref_label=f"{CALENDAR_ACTIVITY_MAX_HOURS} h",
+    )
+
+    # Changing the page size keeps p, as on /months.
+    fewer = (
+        f'<a href="{prefix}/calendar?n={n - 1}&p={page}">{_CHEVRON_LEFT}−1 mois</a>'
+        if n > CALENDAR_MIN_MONTHS else f'<span class="disabled">{_CHEVRON_LEFT}−1 mois</span>'
+    )
+    more = (
+        f'<a href="{prefix}/calendar?n={n + 1}&p={page}">+1 mois{_CHEVRON_RIGHT}</a>'
+        if n < CALENDAR_MAX_MONTHS else f'<span class="disabled">+1 mois{_CHEVRON_RIGHT}</span>'
+    )
+    older = (
+        f'<a href="{prefix}/calendar?n={n}&p={page + 1}">{_CHEVRON_LEFT}précédents</a>'
+        if page < CALENDAR_MAX_MONTHS // n
+        else f'<span class="disabled">{_CHEVRON_LEFT}précédents</span>'
+    )
+    newer = (
+        f'<a href="{prefix}/calendar?n={n}&p={page - 1}">suivants{_CHEVRON_RIGHT}</a>'
+        if page > 0 else f'<span class="disabled">suivants{_CHEVRON_RIGHT}</span>'
+    )
+    title = f"{n} mois, {_fr_window(months)} : facturable + activité"
+    nav = (
+        f'<p class="weeknav">{older}{fewer}'
+        f'<span class="nav-title">{title}</span>{more}{newer}</p>'
+    )
+    return MONTH_HTML.format(
+        page_title=f"{n} mois — {_fr_window(months)}",
+        menu=_menu_bar(prefix, "calendar"),
         nav=nav,
         round_choice=_round_choice_html(step),
         charts=charts,
