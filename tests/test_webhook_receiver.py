@@ -1167,7 +1167,15 @@ def test_calendar_tab_is_active_and_sits_right_after_months(tmp_path):
     page = client.get("/calendar").get_data(as_text=True)
 
     assert 'class="active">Calendaire</a>' in page
-    assert page.index(">Mois</a>") < page.index(">Calendaire</a>") < page.index(">Années</a>")
+    assert page.index(">Mois</a>") < page.index(">Calendaire</a>") < page.index(">Bilan Annuel</a>")
+
+
+def test_years_tab_is_labelled_bilan_annuel(tmp_path):
+    client = _calendar_client(tmp_path)
+
+    page = client.get("/years").get_data(as_text=True)
+
+    assert 'class="active">Bilan Annuel</a>' in page
 
 
 def test_calendar_page_clamps_n_and_p_and_disables_buttons_at_both_ends(tmp_path):
