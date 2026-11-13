@@ -1166,8 +1166,8 @@ def test_calendar_tab_is_active_and_sits_right_after_months(tmp_path):
 
     page = client.get("/calendar").get_data(as_text=True)
 
-    assert 'class="active">Calendaire</a>' in page
-    assert page.index(">Mois</a>") < page.index(">Calendaire</a>") < page.index(">Bilan Annuel</a>")
+    assert 'class="active">Années</a>' in page
+    assert page.index(">Mois</a>") < page.index(">Années</a>") < page.index(">Bilan Annuel</a>")
 
 
 def test_years_tab_is_labelled_bilan_annuel(tmp_path):
