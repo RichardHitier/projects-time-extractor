@@ -155,8 +155,8 @@ def test_suivi_synthese_page_links_each_cell_to_its_month(tmp_path):
     top, sub = page.split('<nav class="menubar submenu"', 1)
     assert 'href="/suivi" class="active">Projets' in top
     assert ">Facturation</a>" not in top
-    assert 'href="/suivi" class="active">Suivi' in sub
-    assert sub.index(">Suivi</a>") < sub.index(">Facturation</a>")
+    assert 'href="/suivi" class="active">Activités' in sub
+    assert sub.index(">Activités</a>") < sub.index(">Facturation</a>")
 
 
 def test_month_lines_appends_the_month_adjustments_last():
