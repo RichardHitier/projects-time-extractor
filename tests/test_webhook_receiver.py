@@ -1167,7 +1167,28 @@ def test_calendar_tab_is_active_and_sits_right_after_months(tmp_path):
     page = client.get("/calendar").get_data(as_text=True)
 
     assert 'class="active">Années</a>' in page
-    assert page.index(">Mois</a>") < page.index(">Années</a>") < page.index(">Bilan Annuel</a>")
+    assert page.index(">Semaines</a>") < page.index(">Mois</a>") < page.index(">Années</a>")
+
+
+def test_calendrier_groups_weeks_months_and_years_as_sub_tabs(tmp_path):
+    client = _calendar_client(tmp_path)
+
+    for url, label in (("/weeks", "Semaines"), ("/months", "Mois"), ("/calendar", "Années")):
+        page = client.get(url).get_data(as_text=True)
+        top, sub = page.split('<nav class="menubar submenu"', 1)
+        assert 'href="/weeks" class="active">Calendrier</a>' in top
+        assert ">Semaines</a>" not in top
+        assert f'class="active">{label}</a>' in sub
+        assert sub.index(">Semaines</a>") < sub.index(">Mois</a>") < sub.index(">Années</a>")
+
+
+def test_leaf_page_has_no_sub_tabs(tmp_path):
+    client = _calendar_client(tmp_path)
+
+    page = client.get("/years").get_data(as_text=True)
+
+    assert "submenu" not in page
+    assert ">Calendrier</a>" in page
 
 
 def test_years_tab_is_labelled_bilan_annuel(tmp_path):

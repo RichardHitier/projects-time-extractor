@@ -51,7 +51,7 @@ CSV_COLUMNS = ["date", "project", "task", "minutes", "startTime", "endTime"]
 EXPORT_TYPES = {"finish", "pause"}
 SECRET = os.environ.get("WEBHOOK_SECRET", "").strip("/")
 PORT = int(os.environ.get("WEBHOOK_PORT", "5000"))
-APP_VERSION = "0.58.3"  # affiché en pied de page (miroir de pyproject.toml)
+APP_VERSION = "0.59.0"  # affiché en pied de page (miroir de pyproject.toml)
 
 BILLABLE_PROJECTS = {p.lower() for p in _config.get("BILLABLE_PROJECTS", [])}
 BILLABLE_MAX_HOURS = 4
@@ -1709,29 +1709,49 @@ def render_swimlane_svg(days):
 </svg>"""
 
 
-def _menu_bar(prefix, active):
-    """Shared top navigation across /live, /weeks, /months, /calendar, /years,
-    /swimlane, /rows, /suivi and /facturation. `active` is one of 'live' |
-    'weeks' | 'month' | 'calendar' | 'years' | 'swimlane' | 'rows' | 'suivi' |
-    'facturation' and gets the highlighted pill."""
-    items = [
-        ("live", "Live", f"{prefix}/live"),
-        ("weeks", "Semaines", f"{prefix}/weeks"),
-        ("month", "Mois", f"{prefix}/months"),
-        ("calendar", "Années", f"{prefix}/calendar"),
-        ("years", "Bilan Annuel", f"{prefix}/years"),
-        ("swimlane", "Swimlane", f"{prefix}/swimlane"),
-        ("rows", "Lignes", f"{prefix}/rows"),
-        ("suivi", "Suivi", f"{prefix}/suivi"),
-        ("facturation", "Facturation", f"{prefix}/facturation"),
+def _menu_items(prefix):
+    """Top-level entries of the shared menu: (key, label, href, children).
+    A group has children (key, label, href) and links to its first child;
+    a leaf has an empty tuple."""
+    return [
+        ("live", "Live", f"{prefix}/live", ()),
+        ("calendrier", "Calendrier", f"{prefix}/weeks", (
+            ("weeks", "Semaines", f"{prefix}/weeks"),
+            ("month", "Mois", f"{prefix}/months"),
+            ("calendar", "Années", f"{prefix}/calendar"),
+        )),
+        ("years", "Bilan Annuel", f"{prefix}/years", ()),
+        ("swimlane", "Swimlane", f"{prefix}/swimlane", ()),
+        ("rows", "Lignes", f"{prefix}/rows", ()),
+        ("suivi", "Suivi", f"{prefix}/suivi", ()),
+        ("facturation", "Facturation", f"{prefix}/facturation", ()),
     ]
-    links = "".join(
+
+
+def _menu_links(entries, active):
+    """Pills for (key, label, href) entries; the `active` key is highlighted."""
+    return "".join(
         f'<a href="{href}" class="active">{text}</a>'
         if key == active
         else f'<a href="{href}">{text}</a>'
-        for key, text, href in items
+        for key, text, href in entries
     )
-    return f'<nav class="menubar">{links}</nav>'
+
+
+def _menu_bar(prefix, active):
+    """Shared top navigation. `active` is a page key ('live', 'weeks',
+    'month', 'calendar', 'years', 'swimlane', 'rows', 'suivi',
+    'facturation'). When it belongs to a group, the group pill is highlighted
+    and a second row shows the group's sub-tabs."""
+    items = _menu_items(prefix)
+    group = next((i for i in items if any(c[0] == active for c in i[3])), None)
+    top_active = group[0] if group else active
+    menu = (f'<nav class="menubar">'
+            f"{_menu_links([i[:3] for i in items], top_active)}</nav>")
+    if group:
+        menu += (f'<nav class="menubar submenu" style="margin-top:-1rem;'
+                 f'font-size:.85em">{_menu_links(group[3], active)}</nav>')
+    return menu
 
 
 ROUND_CHOICES = ((0, "brut"),) + tuple((s, f"{s}'") for s in ROUND_STEPS)
