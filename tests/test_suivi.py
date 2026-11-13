@@ -152,6 +152,11 @@ def test_suivi_synthese_page_links_each_cell_to_its_month(tmp_path):
     assert "<th>déc. 25</th>" in page
     assert '<a href="/suivi?m=202512">1,00</a>' in page
     assert 'href="/suivi/synthese" class="active">Synthèse' in page
+    top, sub = page.split('<nav class="menubar submenu"', 1)
+    assert 'href="/suivi" class="active">Projets' in top
+    assert ">Facturation</a>" not in top
+    assert 'href="/suivi" class="active">Suivi' in sub
+    assert sub.index(">Suivi</a>") < sub.index(">Facturation</a>")
 
 
 def test_month_lines_appends_the_month_adjustments_last():
@@ -436,6 +441,7 @@ def test_facturation_page_prefills_and_recomputes(tmp_path):
 
     page = client.get("/facturation").get_data(as_text=True)
     assert 'href="/facturation" class="active">Facturation' in page
+    assert 'href="/suivi" class="active">Projets' in page   # groupe Projets
     assert 'href="/facturation" class="active">Prochaine facture' in page
     assert 'href="/suivi/synthese"' not in page   # onglets de /facturation
     # 2,5 j → 2 j pré-remplis, ventilés 1/3 · 2/3 des restes 1 / 2 → 1 / 1

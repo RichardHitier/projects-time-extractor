@@ -51,7 +51,7 @@ CSV_COLUMNS = ["date", "project", "task", "minutes", "startTime", "endTime"]
 EXPORT_TYPES = {"finish", "pause"}
 SECRET = os.environ.get("WEBHOOK_SECRET", "").strip("/")
 PORT = int(os.environ.get("WEBHOOK_PORT", "5000"))
-APP_VERSION = "0.59.0"  # affiché en pied de page (miroir de pyproject.toml)
+APP_VERSION = "0.60.0"  # affiché en pied de page (miroir de pyproject.toml)
 
 BILLABLE_PROJECTS = {p.lower() for p in _config.get("BILLABLE_PROJECTS", [])}
 BILLABLE_MAX_HOURS = 4
@@ -1723,8 +1723,10 @@ def _menu_items(prefix):
         ("years", "Bilan Annuel", f"{prefix}/years", ()),
         ("swimlane", "Swimlane", f"{prefix}/swimlane", ()),
         ("rows", "Lignes", f"{prefix}/rows", ()),
-        ("suivi", "Suivi", f"{prefix}/suivi", ()),
-        ("facturation", "Facturation", f"{prefix}/facturation", ()),
+        ("projets", "Projets", f"{prefix}/suivi", (
+            ("suivi", "Suivi", f"{prefix}/suivi"),
+            ("facturation", "Facturation", f"{prefix}/facturation"),
+        )),
     ]
 
 
