@@ -22,6 +22,7 @@ import io
 import json
 import os
 import shutil
+import zipfile
 from datetime import date, datetime, timedelta, timezone
 from urllib.parse import quote
 
@@ -44,6 +45,12 @@ FACTURATION_PATH = os.environ.get(
     "FACTURATION_YML",
     os.path.join(DATA_DIR, "facturation.yml"),
 )
+# Modèles des documents de facture : <projet>.odt (une facture précédente du
+# client), dans le volume de données — ni dans l'image ni dans git.
+TEMPLATES_DIR = os.environ.get(
+    "INVOICE_TEMPLATES",
+    os.path.join(DATA_DIR, "modeles"),
+)
 EXPORT_PROJECTS = _config.get("EXPORT_PROJECTS", [])
 # Arrondi facturable (minutes) : règle de /suivi et du total « à facturer ».
 BILLING_ROUND_MINUTES = int(_config.get("BILLING_ROUND_MINUTES", 15))
@@ -51,7 +58,7 @@ CSV_COLUMNS = ["date", "project", "task", "minutes", "startTime", "endTime"]
 EXPORT_TYPES = {"finish", "pause"}
 SECRET = os.environ.get("WEBHOOK_SECRET", "").strip("/")
 PORT = int(os.environ.get("WEBHOOK_PORT", "5000"))
-APP_VERSION = "0.61.0"  # affiché en pied de page (miroir de pyproject.toml)
+APP_VERSION = "0.62.0"  # affiché en pied de page (miroir de pyproject.toml)
 
 BILLABLE_PROJECTS = {p.lower() for p in _config.get("BILLABLE_PROJECTS", [])}
 BILLABLE_MAX_HOURS = 4
@@ -2406,6 +2413,10 @@ SUIVI_FACTURES_HTML = """<!doctype html>
   button.del {{ background: none; color: #c77; border: 1px solid #744; border-radius: 999px;
     padding: .1rem .6rem; font-size: .7rem; cursor: pointer; }}
   form.pay {{ display: flex; gap: .4rem; align-items: center; margin: 0; }}
+  td.act {{ white-space: nowrap; color: #666; }}
+  td.act form {{ display: inline; margin: 0 0 0 .8rem; }}
+  a.doc {{ color: #8ab4f8; text-decoration: none; font-size: .75rem; }}
+  a.doc:hover {{ text-decoration: underline; }}
   form.pay input {{ background: #222; color: #ddd; border: 1px solid #444; border-radius: 4px;
     font: inherit; font-size: .75rem; padding: .05rem .3rem; color-scheme: dark; }}
   button.pay {{ background: none; color: #7c7; border: 1px solid #474; border-radius: 999px;
@@ -3455,8 +3466,14 @@ def suivi_factures_page(secret_path):
         + f'<td class="date">{f["trimestre"]}</td>'
         + (f'<td class="date">{ymd(f["declaree"])}</td>' if f["declaree"]
            else ('<td class="todo">à déclarer</td>' if f["payee"] else "<td></td>"))
-        + ("<td></td>" if f["payee"] else
-           f'<td><form method="post" action="{prefix}/facturation/factures/supprimer" '
+        + '<td class="act">'
+        + " · ".join(
+            f'<a class="doc" href="{prefix}/facturation/document?'
+            f'f={quote(f["id"])}&amp;type={kind}" title="{title} (.odt)">'
+            f'{kind}</a>'
+            for kind, title in suivi.DOC_TITLES.items())
+        + ("</td>" if f["payee"] else
+           f'<form method="post" action="{prefix}/facturation/factures/supprimer" '
            f'onsubmit="return confirm(\'Supprimer {html.escape(f["id"])} '
            f'({html.escape(f["commande"])}, '
            f'{suivi.format_jours(f["jours"], trim=True)} j) de '
@@ -3864,6 +3881,46 @@ def facturation_payer(secret_path):
     except (OSError, ValueError) as exc:
         return redirect(f"{back}?err={quote(str(exc))}")
     return redirect(f"{back}?ok={quote(f'{invoice_id} payée le {paid_on:%d/%m/%Y}')}")
+
+
+@app.get("/facturation/document", defaults={"secret_path": ""})
+@app.get("/<path:secret_path>/facturation/document")
+def facturation_document(secret_path):
+    """Download the invoice (?type=FA) or delivery note (?type=BL) of invoice
+    ?f= as .odt, filled from the client's template (TEMPLATES_DIR/<projet>.odt).
+    No PDF here: LibreOffice is not in the container."""
+    if SECRET and secret_path.strip("/") != SECRET:
+        return "not found\n", 404
+    prefix = f"/{secret_path.strip('/')}" if secret_path.strip("/") else ""
+    back = f"{prefix}/facturation/factures"
+    invoice_id = request.args.get("f", "").strip()
+    kind = request.args.get("type", "FA").strip().upper()
+    facturation = suivi.load_facturation(FACTURATION_PATH)
+    invoice = next((f for f in facturation.get("factures") or []
+                    if str(f["id"]) == invoice_id), None)
+    commande = invoice and next(
+        (c for c in facturation.get("commandes") or []
+         if c["nom"] == invoice["commande"]), None)
+    project = str((commande or {}).get("projet") or "")
+    template_bytes = b""   # no project: invoice_odt reports what is missing
+    if project:
+        template = os.path.join(TEMPLATES_DIR, f"{project}.odt")
+        if not os.path.isfile(template):
+            message = (f"modèle manquant : "
+                       f"{os.path.basename(TEMPLATES_DIR)}/{project}.odt")
+            return redirect(f"{back}?err={quote(message)}")
+        with open(template, "rb") as f:
+            template_bytes = f.read()
+    try:
+        odt = suivi.invoice_odt(template_bytes, facturation, invoice_id, kind)
+    except (ValueError, KeyError, IndexError, zipfile.BadZipFile) as exc:
+        return redirect(f"{back}?err={quote(f'{invoice_id} : {exc}')}")
+    filename = f"{suivi.document_number(invoice_id, kind)}.odt"
+    return Response(
+        odt,
+        mimetype="application/vnd.oasis.opendocument.text",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
 
 
 @app.post("/facturation/emettre", defaults={"secret_path": ""})

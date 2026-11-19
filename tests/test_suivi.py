@@ -797,6 +797,127 @@ def test_remove_invoice_drops_only_its_line():
         suivi.remove_invoice(EMIT_YML, "FA20261008")
 
 
+def _cell(text, value=None):
+    attr = f' office:value="{value}"' if value is not None else ""
+    return (f'<table:table-cell{attr}><text:p>{text}</text:p>'
+            '</table:table-cell>')
+
+
+def _row(*cells):
+    return "<table:table-row>" + "".join(cells) + "</table:table-row>"
+
+
+DOC_XML = (
+    '<office:document-content><text:p><text:span>Facture</text:span>'
+    '<text:span> n° : </text:span><text:span>FA20260803_CL</text:span>'
+    '</text:p><text:p>Date : 05/08/2026<text:line-break/>Réf Client : '
+    'CNRS<text:line-break/>Bon de Commande : <text:span>OLD_REF</text:span>'
+    '</text:p><table:table table:name="Tableau1">'
+    + _row(_cell("Désignation"), _cell("Quantité"), _cell("PU"),
+           _cell("HT"))
+    + _row(_cell("WP 1 : Lot un"), _cell("1", 1), _cell("540", 540),
+           _cell("540,00 €", 540))
+    + _row(_cell("WP 2 : Lot deux"), _cell("3", 3), _cell("540", 540),
+           _cell("1 620,00 €", 1620))
+    + '</table:table><table:table table:name="Tableau4">'
+    + _row(_cell("Base HT"), _cell("Taux"), _cell("TVA"), _cell("TTC"))
+    + _row(_cell("x", 1), _cell("20 %", 0.2), _cell("x", 1), _cell("x", 1))
+    + "</table:table></office:document-content>"
+)
+DOC_FACTURATION = {
+    "commandes": [{"nom": "calipso_c", "projet": "calipso",
+                   "ref": "2680L079615", "tjm": 540}],
+    "lots": {"calipso": {"WP_1": "Lot un", "WP_2": "Lot deux"}},
+    "factures": [{"id": "FA20261008", "date": "2026-10-08",
+                  "commande": "calipso_c", "jours": 12,
+                  "lots": {"WP_1": 4, "WP_2": 8}}],
+}
+
+
+def _doc_template():
+    import io
+    import zipfile
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as odt:
+        odt.writestr(zipfile.ZipInfo("mimetype"),
+                     "application/vnd.oasis.opendocument.text")
+        odt.writestr("content.xml", DOC_XML, zipfile.ZIP_DEFLATED)
+        odt.writestr("styles.xml", "<styles/>", zipfile.ZIP_DEFLATED)
+    return buffer.getvalue()
+
+
+def test_invoice_odt_fills_number_date_order_lots_and_totals():
+    import io
+    import zipfile
+    template = _doc_template()
+    odt = suivi.invoice_odt(template, DOC_FACTURATION, "FA20261008", "FA")
+    with zipfile.ZipFile(io.BytesIO(odt)) as z:
+        first = z.infolist()[0]
+        assert (first.filename, first.compress_type) == ("mimetype", 0)
+        assert z.read("styles.xml") == b"<styles/>"
+        xml = z.read("content.xml").decode("utf-8")
+    assert ('<text:span>Facture</text:span><text:span> n° : </text:span>'
+            '<text:span text:style-name="T10">FA20261008_CL</text:span>') in xml
+    assert "Date : 08/10/2026<text:line-break/>Réf" in xml
+    assert "Bon de Commande : <text:span>2680L079615</text:span>" in xml
+    assert _cell("4", 4) in xml and _cell("8", 8) in xml               # days
+    assert _cell("2 160,00 €", 2160) in xml                   # 4 × 540
+    assert _cell("4 320,00 €", 4320) in xml                   # 8 × 540
+    assert _cell("6 480,00 €", 6480) in xml                   # base HT
+    assert _cell("1 296,00 €", 1296) in xml                   # TVA
+    assert _cell("7 776,00 €", 7776) in xml                   # TTC
+    assert _cell("20 %", 0.2) in xml                                   # untouched
+
+    bl = suivi.invoice_odt(template, DOC_FACTURATION, "FA20261008", "BL")
+    with zipfile.ZipFile(io.BytesIO(bl)) as z:
+        xml = z.read("content.xml").decode("utf-8")
+    assert "<text:span>Bon de Livraison</text:span>" in xml
+    assert ">BL20261008_CL</text:span>" in xml
+
+    import pytest
+    for invoice_id, kind in (("FA20990101", "FA"), ("FA20261008", "XX")):
+        with pytest.raises(ValueError):
+            suivi.invoice_odt(template, DOC_FACTURATION, invoice_id, kind)
+    no_ref = {**DOC_FACTURATION, "commandes": [
+        {**DOC_FACTURATION["commandes"][0], "ref": ""}]}
+    with pytest.raises(ValueError):
+        suivi.invoice_odt(template, no_ref, "FA20261008", "FA")
+
+
+def test_register_links_download_the_invoice_documents(tmp_path):
+    import io
+    import zipfile
+    import yaml
+    yml = tmp_path / "facturation.yml"
+    yml.write_text(yaml.safe_dump(DOC_FACTURATION, allow_unicode=True),
+                   encoding="utf-8")
+    webhook_receiver.FACTURATION_PATH = str(yml)
+    webhook_receiver.TEMPLATES_DIR = str(tmp_path / "modeles")
+    client = webhook_receiver.app.test_client()
+
+    page = client.get("/facturation/factures").get_data(as_text=True)
+    assert ('href="/facturation/document?f=FA20261008&amp;type=FA" '
+            'title="Facture (.odt)">FA</a>') in page
+    assert 'href="/facturation/document?f=FA20261008&amp;type=BL"' in page
+
+    resp = client.get("/facturation/document?f=FA20261008&type=BL")
+    assert resp.headers["Location"].endswith(
+        "?err=" + webhook_receiver.quote("modèle manquant : modeles/calipso.odt"))
+
+    (tmp_path / "modeles").mkdir()
+    (tmp_path / "modeles" / "calipso.odt").write_bytes(_doc_template())
+    resp = client.get("/facturation/document?f=FA20261008&type=BL")
+    assert resp.status_code == 200
+    assert resp.mimetype == "application/vnd.oasis.opendocument.text"
+    assert resp.headers["Content-Disposition"] == (
+        "attachment; filename=BL20261008_CL.odt")
+    with zipfile.ZipFile(io.BytesIO(resp.data)) as z:
+        assert ">BL20261008_CL</text:span>" in z.read("content.xml").decode()
+
+    resp = client.get("/facturation/document?f=FA20990101&type=FA")
+    assert "err=" in resp.headers["Location"]
+
+
 def test_mark_invoice_paid_adds_payee_to_its_line_only():
     text = suivi.append_invoice(EMIT_YML, suivi.invoice_yaml_line(EMIT_INVOICE))
     paid = suivi.mark_invoice_paid(text, "FA20261008", "2026-11-15")

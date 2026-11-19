@@ -5,7 +5,9 @@ odfpy) : webhook_receiver.py lit les fichiers et leur passe les données.
 Commandes et factures viennent de facturation.yml, rangé à côté de
 pomofocus_webhook.csv dans le dossier de données.
 """
+import io
 import re
+import zipfile
 
 import yaml
 
@@ -730,3 +732,141 @@ def mark_invoice_paid(text, invoice_id, day):
         line = line[:end] + f", {field}" + line[end:]
     lines[i] = line
     return "".join(lines)
+
+
+# --- invoice documents (.odt), filled from a previous invoice as template ---
+
+DOC_TITLES = {"FA": "Facture", "BL": "Bon de Livraison"}
+
+
+def _odt_eur(value):
+    """1620 → '1 620,00 €' as LibreOffice shows it in the invoice: narrow
+    no-break space between thousands, no-break space before €."""
+    text = f"{value:,.2f}".replace(",", " ").replace(".", ",")
+    return f"{text} €"
+
+
+def _odt_set_cell(cell, value, text):
+    """Table cell XML with its numeric value (if any) and shown text."""
+    cell = re.sub(r'office:value="[^"]*"', f'office:value="{value:g}"', cell)
+    return re.sub(r"(<text:p[^>]*>).*?(</text:p>)",
+                  lambda m: m.group(1) + text + m.group(2), cell, count=1,
+                  flags=re.S)
+
+
+def document_number(invoice_id, kind):
+    """FA20261008, 'BL' → 'BL20261008_CL' (number shown in the document and
+    used as its file name)."""
+    return f"{kind}{invoice_id[2:]}_CL"
+
+
+def fill_invoice_xml(xml, invoice, commande, labels, kind="FA"):
+    """`content.xml` of the template filled for `invoice`: number, date
+    (the one in the number), title (Facture / Bon de Livraison), purchase
+    order, days and HT of each lot row (Tableau1), base HT / TVA / TTC
+    (Tableau4). Everything else is kept. Amounts are written both as
+    `office:value` and as shown text: no reliance on formula recalculation."""
+    number = document_number(invoice["id"], kind)
+    day = invoice_date(invoice["id"])
+    if not day:
+        raise ValueError(f"{invoice['id']} : n° mal formé, pas de date")
+    shown_date = f"{day[8:10]}/{day[5:7]}/{day[:4]}"
+    # number: everything after " n° : " up to the end of the paragraph
+    # (French typography: no-break space before the colon)
+    xml = re.sub(r"(n°[\s ]+:[\s ]*</text:span>).*?(</text:p>)",
+                 rf'\1<text:span text:style-name="T10">{number}</text:span>\2',
+                 xml, count=1, flags=re.S)
+    # title word before " n° : " (« Facture » → « Bon de Livraison »)
+    xml = re.sub(r"(<text:span[^>]*>)Facture(</text:span>"
+                 r"<text:span[^>]*>[\s ]*n°)",
+                 rf"\g<1>{DOC_TITLES[kind]}\2", xml, count=1)
+    xml = re.sub(r"(Date[\s ]+:[\s ]*).*?(<text:line-break/>Réf)",
+                 rf"\g<1>{shown_date}\2", xml, count=1, flags=re.S)
+    xml = re.sub(r"(Bon de Commande : <text:span[^>]*>)[^<]*",
+                 rf"\g<1>{commande['ref']}", xml, count=1)
+
+    tjm = float(commande["tjm"])
+    lots = invoice.get("lots") or {}
+
+    def lot_row(row):
+        cells = re.findall(r"<table:table-cell.*?</table:table-cell>", row,
+                           re.S)
+        designation = re.sub(r"<[^>]+>", "", cells[0]) if cells else ""
+        code = next((c for c, label in labels.items()
+                     if label in designation), None)
+        if code is None:          # header row
+            return row
+        days = float(lots.get(code, 0))
+        new = [cells[0], _odt_set_cell(cells[1], days, f"{days:g}"),
+               cells[2],
+               _odt_set_cell(cells[3], days * tjm, _odt_eur(days * tjm))]
+        for old, cell in zip(cells, new):
+            row = row.replace(old, cell, 1)
+        return row
+
+    def table(name, edit):
+        nonlocal xml
+        start = xml.find(f'table:name="{name}"')
+        if start < 0:
+            raise ValueError(f"modèle : tableau {name} introuvable")
+        end = xml.index("</table:table>", start)
+        xml = xml[:start] + edit(xml[start:end]) + xml[end:]
+
+    table("Tableau1", lambda t: re.sub(
+        r"<table:table-row.*?</table:table-row>",
+        lambda m: lot_row(m.group(0)), t, flags=re.S))
+
+    ht = float(invoice["jours"]) * tjm
+    totals = {0: ht, 2: ht * TVA_RATE, 3: ht * (1 + TVA_RATE)}
+
+    def totals_row(t):
+        rows = re.findall(r"<table:table-row.*?</table:table-row>", t, re.S)
+        if len(rows) < 2:
+            raise ValueError("modèle : ligne des totaux (Tableau4) introuvable")
+        cells = re.findall(r"<table:table-cell.*?</table:table-cell>",
+                           rows[1], re.S)
+        new_row = rows[1]
+        for i, value in totals.items():
+            new_row = new_row.replace(
+                cells[i], _odt_set_cell(cells[i], value, _odt_eur(value)), 1)
+        return t.replace(rows[1], new_row, 1)
+
+    table("Tableau4", totals_row)
+    return xml
+
+
+def invoice_odt(template, facturation, invoice_id, kind):
+    """Bytes of the .odt document `kind` (FA or BL) of invoice `invoice_id`,
+    from `template` (bytes of a previous .odt invoice of the same client).
+    Only `content.xml` changes; `mimetype` stays first and uncompressed (ODF
+    rule). ValueError if the invoice, its commande, purchase order (`ref`)
+    or lot labels are missing."""
+    if kind not in DOC_TITLES:
+        raise ValueError(f"type de document inconnu : {kind!r}")
+    invoice = next((f for f in facturation.get("factures") or []
+                    if str(f["id"]) == invoice_id), None)
+    if invoice is None:
+        raise ValueError(f"{invoice_id} introuvable")
+    commande = next((c for c in facturation.get("commandes") or []
+                     if c["nom"] == invoice["commande"]), None)
+    if commande is None:
+        raise ValueError(f"{invoice_id} : commande {invoice['commande']} "
+                         "introuvable")
+    if not commande.get("ref"):
+        raise ValueError(f"commande {commande['nom']} : pas de bon de "
+                         "commande (`ref`)")
+    labels = (facturation.get("lots") or {}).get(commande.get("projet"))
+    if not labels:
+        raise ValueError(f"projet {commande.get('projet')} : pas de `lots` "
+                         "dans facturation.yml")
+    out = io.BytesIO()
+    with zipfile.ZipFile(io.BytesIO(template)) as src, \
+            zipfile.ZipFile(out, "w") as dst:
+        for item in src.infolist():
+            content = src.read(item.filename)
+            if item.filename == "content.xml":
+                content = fill_invoice_xml(
+                    content.decode("utf-8"), invoice, commande, labels,
+                    kind).encode("utf-8")
+            dst.writestr(item, content, compress_type=item.compress_type)
+    return out.getvalue()
