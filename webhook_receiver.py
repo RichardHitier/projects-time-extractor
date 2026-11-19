@@ -51,7 +51,7 @@ CSV_COLUMNS = ["date", "project", "task", "minutes", "startTime", "endTime"]
 EXPORT_TYPES = {"finish", "pause"}
 SECRET = os.environ.get("WEBHOOK_SECRET", "").strip("/")
 PORT = int(os.environ.get("WEBHOOK_PORT", "5000"))
-APP_VERSION = "0.60.1"  # affiché en pied de page (miroir de pyproject.toml)
+APP_VERSION = "0.61.0"  # affiché en pied de page (miroir de pyproject.toml)
 
 BILLABLE_PROJECTS = {p.lower() for p in _config.get("BILLABLE_PROJECTS", [])}
 BILLABLE_MAX_HOURS = 4
@@ -2405,6 +2405,11 @@ SUIVI_FACTURES_HTML = """<!doctype html>
   .ver {{ color: #666; font-size: .7rem; margin-top: 2rem; }}
   button.del {{ background: none; color: #c77; border: 1px solid #744; border-radius: 999px;
     padding: .1rem .6rem; font-size: .7rem; cursor: pointer; }}
+  form.pay {{ display: flex; gap: .4rem; align-items: center; margin: 0; }}
+  form.pay input {{ background: #222; color: #ddd; border: 1px solid #444; border-radius: 4px;
+    font: inherit; font-size: .75rem; padding: .05rem .3rem; color-scheme: dark; }}
+  button.pay {{ background: none; color: #7c7; border: 1px solid #474; border-radius: 999px;
+    padding: .1rem .6rem; font-size: .7rem; cursor: pointer; }}
   p.flash {{ font-size: .85rem; margin: 0 0 1rem; padding: .5rem .8rem; border-radius: 6px; }}
   p.flash.ok {{ background: #1d3b29; color: #9fe0b5; }}
   p.flash.err {{ background: #3b1d1d; color: #f0a0a0; }}
@@ -3431,6 +3436,7 @@ def suivi_factures_page(secret_path):
     def eur(value, cls="num"):
         return f'<td class="{cls}">{_format_eur(value)}</td>'
 
+    today = date.today().isoformat()
     trs = "".join(
         f'<tr><td class="date">{ymd(f["date"])}</td><td class="id">'
         f'<a href="{prefix}/facturation/journal?f={quote(f["id"])}" '
@@ -3439,7 +3445,13 @@ def suivi_factures_page(secret_path):
         f'<td class="num">{suivi.format_jours(f["jours"], trim=True)}</td>{eur(f["tjm"])}'
         f'{eur(f["ht"], "num eur")}{eur(f["tva"])}{eur(f["ttc"])}'
         + (f'<td class="date">{ymd(f["payee"])}</td>' if f["payee"]
-           else '<td class="todo">impayée</td>')
+           else f'<td class="todo"><form class="pay" method="post" '
+           f'action="{prefix}/facturation/factures/payer">'
+           f'<input type="hidden" name="id" value="{html.escape(f["id"])}">'
+           f'<input type="date" name="payee" value="{today}" '
+           f'min="{html.escape(f["date"])}" max="{today}" required>'
+           '<button class="pay" title="enregistrer la date de paiement">'
+           'payée</button></form></td>')
         + f'<td class="date">{f["trimestre"]}</td>'
         + (f'<td class="date">{ymd(f["declaree"])}</td>' if f["declaree"]
            else ('<td class="todo">à déclarer</td>' if f["payee"] else "<td></td>"))
@@ -3810,6 +3822,48 @@ def facturation_supprimer(secret_path):
     except (OSError, ValueError) as exc:
         return redirect(f"{back}?err={quote(str(exc))}")
     return redirect(f"{back}?ok={quote(f'{invoice_id} supprimée')}")
+
+
+@app.post("/facturation/factures/payer", defaults={"secret_path": ""})
+@app.post("/<path:secret_path>/facturation/factures/payer")
+def facturation_payer(secret_path):
+    """Write the payment date (`payee`) of an unpaid invoice into
+    facturation.yml (register button), then go back to the register with a
+    message (?ok= / ?err=)."""
+    if SECRET and secret_path.strip("/") != SECRET:
+        return "not found\n", 404
+    prefix = f"/{secret_path.strip('/')}" if secret_path.strip("/") else ""
+    back = f"{prefix}/facturation/factures"
+    invoice_id = request.form.get("id", "").strip()
+    day = request.form.get("payee", "").strip()
+    facturation = suivi.load_facturation(FACTURATION_PATH)
+    invoice = next((f for f in facturation.get("factures") or []
+                    if str(f["id"]) == invoice_id), None)
+    if invoice is None:
+        return redirect(f"{back}?err={quote(f'{invoice_id} introuvable')}")
+    if invoice.get("payee"):
+        return redirect(f"{back}?err={quote(f'{invoice_id} est déjà payée')}")
+    try:
+        paid_on = date.fromisoformat(day) if len(day) == 10 else None
+    except ValueError:
+        paid_on = None
+    if paid_on is None:
+        return redirect(f"{back}?err={quote(f'date de paiement invalide : {day!r}')}")
+    issued = str(invoice.get("date") or "")
+    if paid_on > date.today() or day < issued:
+        message = (f"{invoice_id} : paiement le {paid_on:%d/%m/%Y} avant "
+                   "l'émission ou dans le futur")
+        return redirect(f"{back}?err={quote(message)}")
+    try:
+        _rewrite_facturation(
+            lambda text: suivi.mark_invoice_paid(text, invoice_id, day),
+            lambda written: any(
+                str(f["id"]) == invoice_id and str(f.get("payee")) == day
+                for f in written.get("factures") or []),
+        )
+    except (OSError, ValueError) as exc:
+        return redirect(f"{back}?err={quote(str(exc))}")
+    return redirect(f"{back}?ok={quote(f'{invoice_id} payée le {paid_on:%d/%m/%Y}')}")
 
 
 @app.post("/facturation/emettre", defaults={"secret_path": ""})

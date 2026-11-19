@@ -705,3 +705,28 @@ def remove_invoice(text, invoice_id):
         raise ValueError(f"{invoice_id} : ligne introuvable dans "
                          "facturation.yml")
     return "".join(kept)
+
+
+def mark_invoice_paid(text, invoice_id, day):
+    """`text` (facturation.yml) with `payee: "<day>"` added to the line of
+    invoice `invoice_id` (one invoice per line, flow style): before `lots:`,
+    or else before the closing brace. The rest of the file is untouched.
+    ValueError if the line is not found or already has a `payee`."""
+    pattern = re.compile(r"^\s*-\s*\{\s*id:\s*" + re.escape(invoice_id)
+                         + r"\s*,")
+    lines = text.splitlines(keepends=True)
+    found = [i for i, line in enumerate(lines) if pattern.match(line)]
+    if len(found) != 1:
+        raise ValueError(f"{invoice_id} : ligne introuvable dans "
+                         "facturation.yml")
+    i = found[0]
+    if re.search(r"[{,]\s*payee\s*:", lines[i]):
+        raise ValueError(f"{invoice_id} est déjà payée")
+    field = f'payee: "{day}"'
+    line, count = re.subn(r",\s*lots\s*:", f", {field}, lots:", lines[i],
+                          count=1)
+    if not count:
+        end = line.rindex("}")
+        line = line[:end] + f", {field}" + line[end:]
+    lines[i] = line
+    return "".join(lines)

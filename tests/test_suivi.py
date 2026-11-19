@@ -284,7 +284,8 @@ def test_suivi_factures_page_flags_unpaid_and_undeclared(tmp_path):
     page = client.get("/facturation/factures").get_data(as_text=True)
 
     assert "<h2>Registre des factures</h2>" in page
-    assert '<td class="todo">impayée</td>' in page                       # F3
+    assert ('<td class="todo"><form class="pay" method="post" '
+            'action="/facturation/factures/payer">') in page             # F3
     assert '<td class="date">3T26</td><td class="todo">à déclarer</td>' in page  # F1
     assert '<td class="date"></td><td class="todo">à déclarer</td>' in page      # F2
     assert '<td class="num eur">1 000 €</td>' in page   # HT de F1
@@ -794,6 +795,59 @@ def test_remove_invoice_drops_only_its_line():
     import pytest
     with pytest.raises(ValueError):
         suivi.remove_invoice(EMIT_YML, "FA20261008")
+
+
+def test_mark_invoice_paid_adds_payee_to_its_line_only():
+    text = suivi.append_invoice(EMIT_YML, suivi.invoice_yaml_line(EMIT_INVOICE))
+    paid = suivi.mark_invoice_paid(text, "FA20261008", "2026-11-15")
+    assert paid == text.replace(
+        "jours: 12, lots", 'jours: 12, payee: "2026-11-15", lots')
+    no_lots = "factures:\n  - {id: FA1, date: \"2026-01-01\", commande: c, jours: 1}\n"
+    assert suivi.mark_invoice_paid(no_lots, "FA1", "2026-02-01") == (
+        'factures:\n  - {id: FA1, date: "2026-01-01", commande: c, jours: 1,'
+        ' payee: "2026-02-01"}\n')
+    import pytest
+    with pytest.raises(ValueError):
+        suivi.mark_invoice_paid(paid, "FA20261008", "2026-11-16")  # already paid
+    with pytest.raises(ValueError):
+        suivi.mark_invoice_paid(text, "FA20990101", "2026-11-15")  # not found
+
+
+def test_pay_button_records_the_payment_date_of_an_unpaid_invoice(tmp_path):
+    from datetime import date, timedelta
+    yml = tmp_path / "facturation.yml"
+    paid = EMIT_YML.replace("jours: 4, lots", 'jours: 4, payee: "2026-08-25", lots')
+    text = suivi.append_invoice(paid, suivi.invoice_yaml_line(EMIT_INVOICE))
+    yml.write_text(text, encoding="utf-8")
+    webhook_receiver.FACTURATION_PATH = str(yml)
+    client = webhook_receiver.app.test_client()
+
+    page = client.get("/facturation/factures").get_data(as_text=True)
+    assert page.count('action="/facturation/factures/payer"') == 1
+    assert '<td class="date">25/08/2026</td>' in page    # FA20260803 already paid
+    assert f'min="2026-10-08" max="{date.today().isoformat()}"' in page
+
+    tomorrow = (date.today() + timedelta(days=1)).isoformat()
+    for form in ({"id": "FA20260803", "payee": "2026-11-15"},   # already paid
+                 {"id": "FA20990101", "payee": "2026-11-15"},   # not found
+                 {"id": "FA20261008", "payee": "15/11/2026"},   # bad format
+                 {"id": "FA20261008", "payee": "2026-10-07"},   # before issue
+                 {"id": "FA20261008", "payee": tomorrow}):      # future
+        resp = client.post("/facturation/factures/payer", data=form)
+        assert "err=" in resp.headers["Location"], form
+    assert yml.read_text(encoding="utf-8") == text
+
+    resp = client.post("/facturation/factures/payer",
+                       data={"id": "FA20261008", "payee": "2026-11-15"})
+    assert resp.headers["Location"].endswith(
+        "/facturation/factures?ok=FA20261008%20pay%C3%A9e%20le%2015/11/2026")
+    assert yml.read_text(encoding="utf-8") == text.replace(
+        "jours: 12, lots", 'jours: 12, payee: "2026-11-15", lots')
+    assert len(list((tmp_path / "bckp").iterdir())) == 1
+    page = client.get(resp.headers["Location"]).get_data(as_text=True)
+    assert '<p class="flash ok">FA20261008 payée le 15/11/2026</p>' in page
+    assert 'action="/facturation/factures/payer"' not in page
+    assert '<td class="date">15/11/2026</td>' in page
 
 
 def test_delete_button_removes_an_unpaid_invoice_only(tmp_path):
