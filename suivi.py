@@ -232,6 +232,7 @@ def invoice_register(factures, commandes, tva_declarations):
             "ht": ht,
             "tva": ht * TVA_RATE,
             "ttc": ht * (1 + TVA_RATE),
+            "deposee": str(facture.get("deposee") or ""),
             "payee": paid,
             "trimestre": quarter,
             "declaree": str((tva_declarations or {}).get(quarter) or ""),
@@ -709,11 +710,12 @@ def remove_invoice(text, invoice_id):
     return "".join(kept)
 
 
-def mark_invoice_paid(text, invoice_id, day):
-    """`text` (facturation.yml) with `payee: "<day>"` added to the line of
+def set_invoice_date(text, invoice_id, field, day):
+    """`text` (facturation.yml) with `<field>: "<day>"` added to the line of
     invoice `invoice_id` (one invoice per line, flow style): before `lots:`,
     or else before the closing brace. The rest of the file is untouched.
-    ValueError if the line is not found or already has a `payee`."""
+    `field` is a lifecycle date: `deposee` (sent to the client) or `payee`.
+    ValueError if the line is not found or already has that field."""
     pattern = re.compile(r"^\s*-\s*\{\s*id:\s*" + re.escape(invoice_id)
                          + r"\s*,")
     lines = text.splitlines(keepends=True)
@@ -722,14 +724,14 @@ def mark_invoice_paid(text, invoice_id, day):
         raise ValueError(f"{invoice_id} : ligne introuvable dans "
                          "facturation.yml")
     i = found[0]
-    if re.search(r"[{,]\s*payee\s*:", lines[i]):
-        raise ValueError(f"{invoice_id} est déjà payée")
-    field = f'payee: "{day}"'
-    line, count = re.subn(r",\s*lots\s*:", f", {field}, lots:", lines[i],
+    if re.search(rf"[{{,]\s*{field}\s*:", lines[i]):
+        raise ValueError(f"{invoice_id} : `{field}` déjà renseigné")
+    entry = f'{field}: "{day}"'
+    line, count = re.subn(r",\s*lots\s*:", f", {entry}, lots:", lines[i],
                           count=1)
     if not count:
         end = line.rindex("}")
-        line = line[:end] + f", {field}" + line[end:]
+        line = line[:end] + f", {entry}" + line[end:]
     lines[i] = line
     return "".join(lines)
 

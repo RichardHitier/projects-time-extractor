@@ -115,10 +115,11 @@ Validé le 2026-10-08, exemple calipso. Référence des données : le
 | # | Étape | Fichier touché | Aujourd'hui | Cible | Durée |
 |---|---|---|---|---|---|
 | 1 | Lire la ventilation proposée : `/facturation` (ex. WP_1 4 · WP_2 3 · WP_3 5 = 12 j) ; `/facturation/activite` pour les modules (iesa / lees) | — | ✅ appli | — | |
-| 2 | Émettre la facture `FA<date>_CL.odt` (copie de la précédente) | `FA*.odt` | ❌ à la main | ❌ à la main | |
+| 2 | Émettre la facture `FA<date>_CL.odt` et le bon de livraison `BL…` | `FA*.odt`, `BL*.odt` | ✅ liens FA · BL sur `/facturation/factures` (v0.62.0), modèle `modeles/<projet>.odt` ; PDF exporté à la main | — | |
 | 2a | **Enregistrer la facture dès l'émission** : `id`, `date`, `commande`, `jours`, `lots` | `facturation.yml` | ✅ formulaire « Émettre » sur `/facturation` (v0.38.0) | — | |
 | 2b | Écrire les lignes de log (mois, lot, module, description, jours), estampiller la dernière (Facture, Qté, HT, TTC) | `IESA_LOGS.ods` / `SPEASY_LOGS.ods` | 🟡 brouillon `/facturation/journal` à copier-coller (v0.40.0), à relire | — | |
-| 3 | Paiement reçu : date de paiement **et** trimestre de TVA (encaissement) | `facturation.yml` (`payee`, `tva`) | ❌ édition locale + `scp` | champ « payée le » sur `/facturation/factures`, trimestre pré-rempli | |
+| 2c | **Dépôt** : facture envoyée au client (Chorus + mail, FA + BL) | `facturation.yml` (`deposee`) | ✅ bouton « déposer » sur `/facturation/factures` (v0.63.0) ; « supprimer » disparaît | — | |
+| 3 | Paiement reçu : date de paiement **et** trimestre de TVA (encaissement) | `facturation.yml` (`payee`, `tva`) | 🟡 bouton « payée » sur `/facturation/factures`, une fois déposée (v0.61.0, v0.63.0) ; `tva` encore à la main | trimestre pré-rempli | |
 | 4 | Déclaration / paiement de la TVA, une fois par trimestre pour toutes ses factures | `facturation.yml` (`tva_declarations`) | ❌ édition locale + `scp` | champ « déclarée le » dans « TVA par trimestre » | |
 
 Règles :

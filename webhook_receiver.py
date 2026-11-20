@@ -58,7 +58,7 @@ CSV_COLUMNS = ["date", "project", "task", "minutes", "startTime", "endTime"]
 EXPORT_TYPES = {"finish", "pause"}
 SECRET = os.environ.get("WEBHOOK_SECRET", "").strip("/")
 PORT = int(os.environ.get("WEBHOOK_PORT", "5000"))
-APP_VERSION = "0.62.0"  # affiché en pied de page (miroir de pyproject.toml)
+APP_VERSION = "0.63.0"  # affiché en pied de page (miroir de pyproject.toml)
 
 BILLABLE_PROJECTS = {p.lower() for p in _config.get("BILLABLE_PROJECTS", [])}
 BILLABLE_MAX_HOURS = 4
@@ -2435,7 +2435,7 @@ SUIVI_FACTURES_HTML = """<!doctype html>
 <table>
   <thead><tr><th class="txt">Émise le</th><th class="txt">N°</th><th class="txt">Commande</th>
   <th>Jours</th><th>TJM</th><th>HT</th><th>TVA</th><th>TTC</th>
-  <th class="txt">Payée le</th><th class="txt">Trim. TVA</th><th class="txt">Déclarée le</th><th></th></tr></thead>
+  <th class="txt">Déposée le</th><th class="txt">Payée le</th><th class="txt">Trim. TVA</th><th class="txt">Déclarée le</th><th></th></tr></thead>
   <tbody>{rows}</tbody>
 </table>
 </div>
@@ -3448,6 +3448,21 @@ def suivi_factures_page(secret_path):
         return f'<td class="{cls}">{_format_eur(value)}</td>'
 
     today = date.today().isoformat()
+    buttons = {"deposee": ("deposer", "déposer", "enregistrer la date d'envoi au client"),
+               "payee": ("payer", "payée", "enregistrer la date de paiement")}
+
+    def step_form(f, field, since):
+        """Cell with a date (default today, between `since` and today) and the
+        button that records `field` (deposee / payee) for invoice `f`."""
+        action, label, title = buttons[field]
+        return (f'<td class="todo"><form class="pay" method="post" '
+                f'action="{prefix}/facturation/factures/{action}">'
+                f'<input type="hidden" name="id" value="{html.escape(f["id"])}">'
+                f'<input type="date" name="{field}" value="{today}" '
+                f'min="{html.escape(since)}" max="{today}" required>'
+                f'<button class="pay" title="{title}">{label}</button>'
+                '</form></td>')
+
     trs = "".join(
         f'<tr><td class="date">{ymd(f["date"])}</td><td class="id">'
         f'<a href="{prefix}/facturation/journal?f={quote(f["id"])}" '
@@ -3455,14 +3470,12 @@ def suivi_factures_page(secret_path):
         f'<td>{_suivi_dot(f["commande"])}{html.escape(f["commande"])}</td>'
         f'<td class="num">{suivi.format_jours(f["jours"], trim=True)}</td>{eur(f["tjm"])}'
         f'{eur(f["ht"], "num eur")}{eur(f["tva"])}{eur(f["ttc"])}'
+        + (f'<td class="date">{ymd(f["deposee"])}</td>' if f["deposee"]
+           else "<td></td>" if f["payee"]
+           else step_form(f, "deposee", f["date"]))
         + (f'<td class="date">{ymd(f["payee"])}</td>' if f["payee"]
-           else f'<td class="todo"><form class="pay" method="post" '
-           f'action="{prefix}/facturation/factures/payer">'
-           f'<input type="hidden" name="id" value="{html.escape(f["id"])}">'
-           f'<input type="date" name="payee" value="{today}" '
-           f'min="{html.escape(f["date"])}" max="{today}" required>'
-           '<button class="pay" title="enregistrer la date de paiement">'
-           'payée</button></form></td>')
+           else step_form(f, "payee", f["deposee"]) if f["deposee"]
+           else "<td></td>")
         + f'<td class="date">{f["trimestre"]}</td>'
         + (f'<td class="date">{ymd(f["declaree"])}</td>' if f["declaree"]
            else ('<td class="todo">à déclarer</td>' if f["payee"] else "<td></td>"))
@@ -3472,7 +3485,7 @@ def suivi_factures_page(secret_path):
             f'f={quote(f["id"])}&amp;type={kind}" title="{title} (.odt)">'
             f'{kind}</a>'
             for kind, title in suivi.DOC_TITLES.items())
-        + ("</td>" if f["payee"] else
+        + ("</td>" if f["payee"] or f["deposee"] else
            f'<form method="post" action="{prefix}/facturation/factures/supprimer" '
            f'onsubmit="return confirm(\'Supprimer {html.escape(f["id"])} '
            f'({html.escape(f["commande"])}, '
@@ -3488,10 +3501,10 @@ def suivi_factures_page(secret_path):
             '<tr class="total"><td>Total</td><td></td><td></td>'
             f'<td class="num">{suivi.format_jours(sum(f["jours"] for f in register), trim=True)}</td><td></td>'
             f'{eur(sum(f["ht"] for f in register))}{eur(sum(f["tva"] for f in register))}'
-            f'{eur(sum(f["ttc"] for f in register))}<td></td><td></td><td></td><td></td></tr>'
+            f'{eur(sum(f["ttc"] for f in register))}<td></td><td></td><td></td><td></td><td></td></tr>'
         )
     else:
-        trs = '<tr><td colspan="12">aucune facture — ajouter <code>factures</code> dans facturation.yml</td></tr>'
+        trs = '<tr><td colspan="13">aucune facture — ajouter <code>factures</code> dans facturation.yml</td></tr>'
 
     quarters = {}
     for f in register:
@@ -3817,7 +3830,7 @@ def _save_invoice(invoice):
 @app.post("/facturation/factures/supprimer", defaults={"secret_path": ""})
 @app.post("/<path:secret_path>/facturation/factures/supprimer")
 def facturation_supprimer(secret_path):
-    """Retire une facture impayée de facturation.yml (bouton du registre),
+    """Retire une facture ni déposée ni payée de facturation.yml (bouton du registre),
     puis revient sur le registre avec un message (?ok= / ?err=)."""
     if SECRET and secret_path.strip("/") != SECRET:
         return "not found\n", 404
@@ -3829,8 +3842,9 @@ def facturation_supprimer(secret_path):
                     if str(f["id"]) == invoice_id), None)
     if invoice is None:
         return redirect(f"{back}?err={quote(f'{invoice_id} introuvable')}")
-    if invoice.get("payee"):
-        return redirect(f"{back}?err={quote(f'{invoice_id} est payée : à corriger à la main')}")
+    if invoice.get("payee") or invoice.get("deposee"):
+        state = "payée" if invoice.get("payee") else "déposée"
+        return redirect(f"{back}?err={quote(f'{invoice_id} est {state} : à corriger à la main')}")
     try:
         _rewrite_facturation(
             lambda text: suivi.remove_invoice(text, invoice_id),
@@ -3841,46 +3855,76 @@ def facturation_supprimer(secret_path):
     return redirect(f"{back}?ok={quote(f'{invoice_id} supprimée')}")
 
 
-@app.post("/facturation/factures/payer", defaults={"secret_path": ""})
-@app.post("/<path:secret_path>/facturation/factures/payer")
-def facturation_payer(secret_path):
-    """Write the payment date (`payee`) of an unpaid invoice into
-    facturation.yml (register button), then go back to the register with a
-    message (?ok= / ?err=)."""
+# Lifecycle dates of an invoice, in order: émise (date) → déposée → payée.
+INVOICE_STEPS = {
+    "deposee": {"done": "déposée", "event": "dépôt", "after": "date"},
+    "payee": {"done": "payée", "event": "paiement", "after": "deposee"},
+}
+
+
+def _record_invoice_date(secret_path, field):
+    """Write the date `field` (`deposee` or `payee`) of an invoice into
+    facturation.yml (register buttons), then go back to the register with a
+    message (?ok= / ?err=). A step needs the previous one (payée needs
+    déposée), and its date lies between the previous step's date and today."""
     if SECRET and secret_path.strip("/") != SECRET:
         return "not found\n", 404
+    step = INVOICE_STEPS[field]
     prefix = f"/{secret_path.strip('/')}" if secret_path.strip("/") else ""
     back = f"{prefix}/facturation/factures"
+
+    def refuse(message):
+        return redirect(f"{back}?err={quote(message)}")
+
     invoice_id = request.form.get("id", "").strip()
-    day = request.form.get("payee", "").strip()
+    day = request.form.get(field, "").strip()
     facturation = suivi.load_facturation(FACTURATION_PATH)
     invoice = next((f for f in facturation.get("factures") or []
                     if str(f["id"]) == invoice_id), None)
     if invoice is None:
-        return redirect(f"{back}?err={quote(f'{invoice_id} introuvable')}")
+        return refuse(f"{invoice_id} introuvable")
     if invoice.get("payee"):
-        return redirect(f"{back}?err={quote(f'{invoice_id} est déjà payée')}")
+        return refuse(f"{invoice_id} est déjà payée")
+    if invoice.get(field):
+        return refuse(f"{invoice_id} est déjà {step['done']}")
+    previous = str(invoice.get(step["after"]) or "")
+    if not previous:
+        return refuse(f"{invoice_id} : à déposer avant d'être payée")
     try:
-        paid_on = date.fromisoformat(day) if len(day) == 10 else None
+        on = date.fromisoformat(day) if len(day) == 10 else None
     except ValueError:
-        paid_on = None
-    if paid_on is None:
-        return redirect(f"{back}?err={quote(f'date de paiement invalide : {day!r}')}")
-    issued = str(invoice.get("date") or "")
-    if paid_on > date.today() or day < issued:
-        message = (f"{invoice_id} : paiement le {paid_on:%d/%m/%Y} avant "
-                   "l'émission ou dans le futur")
-        return redirect(f"{back}?err={quote(message)}")
+        on = None
+    if on is None:
+        return refuse(f"date de {step['event']} invalide : {day!r}")
+    if on > date.today() or day < previous:
+        what = "l'émission" if step["after"] == "date" else "le dépôt"
+        return refuse(f"{invoice_id} : {step['event']} le {on:%d/%m/%Y} "
+                      f"avant {what} ou dans le futur")
     try:
         _rewrite_facturation(
-            lambda text: suivi.mark_invoice_paid(text, invoice_id, day),
+            lambda text: suivi.set_invoice_date(text, invoice_id, field, day),
             lambda written: any(
-                str(f["id"]) == invoice_id and str(f.get("payee")) == day
+                str(f["id"]) == invoice_id and str(f.get(field)) == day
                 for f in written.get("factures") or []),
         )
     except (OSError, ValueError) as exc:
-        return redirect(f"{back}?err={quote(str(exc))}")
-    return redirect(f"{back}?ok={quote(f'{invoice_id} payée le {paid_on:%d/%m/%Y}')}")
+        return refuse(str(exc))
+    message = f"{invoice_id} {step['done']} le {on:%d/%m/%Y}"
+    return redirect(f"{back}?ok={quote(message)}")
+
+
+@app.post("/facturation/factures/deposer", defaults={"secret_path": ""})
+@app.post("/<path:secret_path>/facturation/factures/deposer")
+def facturation_deposer(secret_path):
+    """Register button « déposer »: the invoice was sent to the client."""
+    return _record_invoice_date(secret_path, "deposee")
+
+
+@app.post("/facturation/factures/payer", defaults={"secret_path": ""})
+@app.post("/<path:secret_path>/facturation/factures/payer")
+def facturation_payer(secret_path):
+    """Register button « payée »: the payment was received."""
+    return _record_invoice_date(secret_path, "payee")
 
 
 @app.get("/facturation/document", defaults={"secret_path": ""})
