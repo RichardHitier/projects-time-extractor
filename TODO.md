@@ -353,3 +353,13 @@ Deux anomalies mineures, notées pour mémoire, sans action décidée :
 - [ ] [2026-10-08] Rattachement séance → commande par date seulement (`suivi.commande_for`) : calipso → calipso_a/b/c selon `debut` dans facturation.yml, sans tenir compte du devis en jours. On ne sait pas à quel moment une commande est soldée en quantité de jours : les jours au-delà du devis restent sur l'ancienne commande (reste à réaliser négatif) au lieu de basculer sur la suivante. À documenter (FACTURATION-CHANTIER.md, D4) et à trancher : bascule par date (actuel), par épuisement du devis, ou date de fin explicite par commande.
 - [x] [2026-10-15] rajouter une ligne dans /rows
 - [ ] [2026-10-16] Infobulle (<title>) sur les segments des barres colorées d'activité : /weeks et /months via _activity_segments (facile, SVG inline) ; /live plus dur (graphes en <img>, il faudrait inliner le SVG en JS). Contenu à trancher : projet + durée, ou détail par sous-projet (activity_by_project à enrichir).
+
+## Compatibilité pandas 3
+
+Le venv (Python 3.14) est épinglé `pandas<3` (2.3.3) en attendant.
+
+- [ ] `web/tools/histories.py:136` : `_df.fillna(0, inplace=True)` lève `TypeError`
+  sous pandas 3 (dtype `str` strict) — fait échouer `test_pomofocus_to_df`,
+  `test_pomo_minutes`, `test_merge_histories`
+- [ ] Supprimer les `inplace=True` dépréciés (PDEP-8) et `freq="d"` → `"D"`
+- [ ] Lever l'épinglage `pandas<3` et le déclarer dans `pyproject.toml` si besoin
