@@ -1,0 +1,756 @@
+{
+  "epics": [
+    {
+      "id": "E1",
+      "title": "Savoir où j'en suis aujourd'hui",
+      "result": "J'ouvre /live et je vois ma journée, ma semaine, la tâche en cours et mon avance ou mon retard."
+    },
+    {
+      "id": "E2",
+      "title": "Relire mon activité passée",
+      "result": "Semaines, mois, années, swimlane : je vois sur quoi j'ai travaillé et combien."
+    },
+    {
+      "id": "E3",
+      "title": "Facturer sans tableur",
+      "result": "Commandes, factures, paiements et TVA se gèrent dans l'appli, sans suivi_chantiers.ods."
+    },
+    {
+      "id": "E4",
+      "title": "Des heures justes",
+      "result": "Chaque séance est enregistrée, corrigeable, et arrondie selon la règle de facturation."
+    },
+    {
+      "id": "E5",
+      "title": "Mon propre timer",
+      "result": "Je ne dépends plus de Pomofocus : compteur interne, projets, sous-projets et tâches."
+    },
+    {
+      "id": "E6",
+      "title": "Socle",
+      "result": "L'appli se déploie seule, est testée, et le code reste maintenable."
+    },
+    {
+      "id": "E7",
+      "title": "Organiser le projet",
+      "result": "Epics, user stories, issues, sprints et versions tiennent dans organisation.json."
+    }
+  ],
+  "sprints": [],
+  "user_stories": [
+    {
+      "id": "U1",
+      "title": "Voir ma journée d'un coup d'œil",
+      "epic": "E1",
+      "priority": "P0",
+      "result": "Je vois combien j'ai fait aujourd'hui sur mes 4h, demi-heure par demi-heure.",
+      "text": "Fait : ligne du jour dans le graphe de semaine de /live, crans de 30 min (v0.54.0), pourcentage, débordement au-delà de 4h. Remplace les jauges billable.svg / activity.svg (TODO.md C9, C10 : périmés)."
+    },
+    {
+      "id": "U2",
+      "title": "Savoir si je suis en avance ou en retard",
+      "epic": "E1",
+      "priority": "P0",
+      "result": "Je vois mes heures de la semaine sur 20h et l'écart à ce que j'aurais dû faire.",
+      "text": "Fait : barre d'en-tête 20h, jour courant encadré, repère « attendu » (4h par jour ouvré, réparties de 8h à 18h) et zone d'écart rouge/verte avec sa durée (v0.64.0, v0.64.1)."
+    },
+    {
+      "id": "U3",
+      "title": "Suivre la tâche en cours",
+      "epic": "E1",
+      "priority": "P0",
+      "result": "Je vois la tâche qui tourne et son temps compte déjà dans mes barres.",
+      "text": "Fait : cadre vert, zone hachurée sur la ligne du jour (specs/tache-en-cours-hachuree-view.md), persistance dans DATA/current_task.json pour survivre à un redémarrage du webhook."
+    },
+    {
+      "id": "U4",
+      "title": "Voir sur quels projets part ma journée",
+      "epic": "E1",
+      "priority": "P1",
+      "result": "Je distingue mes projets dans les barres de /live.",
+      "text": "Fait : graphe d'activité de la semaine coloré par projet, avec légende. Reste I1 (barre facturable par projet) et I2 (swimlane sur /live)."
+    },
+    {
+      "id": "U5",
+      "title": "Une page /live lisible et fiable",
+      "epic": "E1",
+      "priority": "P1",
+      "result": "Tout tient sur un écran et je sais que les données sont à jour.",
+      "text": "Fait : mise en page en deux graphes de semaine côte à côte, tâche en cours en dessous (remplace le layout en grille de TODO.md E22). Reste I3 (heure du dernier webhook reçu)."
+    },
+    {
+      "id": "U6",
+      "title": "Relire mes semaines",
+      "epic": "E2",
+      "priority": "P0",
+      "result": "Je remonte semaine par semaine, facturable et activité côte à côte.",
+      "text": "Fait : /weeks, 12 semaines par page (?p=), jours à venir estompés (FUTURE_COLORS). Reste I4 (jour courant encadré)."
+    },
+    {
+      "id": "U7",
+      "title": "Relire mes mois et mes années",
+      "epic": "E2",
+      "priority": "P0",
+      "result": "Je vois ce que j'ai facturé mois par mois et où j'en suis sur l'année.",
+      "text": "Fait : /months, /calendar (Semaines/Mois/Années, ?n=), /years (Bilan annuel : carrés 52/40, congés, objectif à date v0.53.0). Couvre l'idée « weeks/nn » (IDEAS.md 2026-07-04) et la vue mensuelle (IDEAS.md 2026-07-06, 2026-11-05)."
+    },
+    {
+      "id": "U8",
+      "title": "Voir comment s'enchaînent mes journées",
+      "epic": "E2",
+      "priority": "P1",
+      "result": "Je vois mes séances jour par jour, dans l'ordre, colorées par projet.",
+      "text": "Fait : page /swimlane. Sa version sur /live est I2 (E1)."
+    },
+    {
+      "id": "U9",
+      "title": "Voir l'activité de chaque projet par mois",
+      "epic": "E2",
+      "priority": "P1",
+      "result": "Pour chaque projet, je vois le temps passé mois par mois.",
+      "text": "Fait : Projets › Activités, page du mois et synthèse par mois (v0.60.1)."
+    },
+    {
+      "id": "U10",
+      "title": "Lire le détail d'une barre",
+      "epic": "E2",
+      "priority": "P1",
+      "result": "Au survol d'un segment, je lis le projet et sa durée ; je peux masquer un projet.",
+      "text": "Reste I5 (infobulles) et I6 (légende cliquable)."
+    },
+    {
+      "id": "U11",
+      "title": "Combler le trou de 2025",
+      "epic": "E2",
+      "priority": "P3",
+      "result": "Je sais au moins sur quels projets j'ai travaillé du 11/04 au 30/09/2025.",
+      "text": "Aucune source (ni ODS ni CSV) sur cette période. Reste I7."
+    },
+    {
+      "id": "U12",
+      "title": "Savoir combien j'ai à facturer",
+      "epic": "E3",
+      "priority": "P0",
+      "result": "Je vois en permanence le montant qui reste à facturer.",
+      "text": "Fait : compteur euros (v0.11.0), « à facturer » de /live calculé comme /suivi (v0.29.0), commandes soldées hors total (v0.45.0)."
+    },
+    {
+      "id": "U13",
+      "title": "Suivre mes commandes et leurs lots",
+      "epic": "E3",
+      "priority": "P0",
+      "result": "Pour chaque commande, je vois devis, réalisé, facturé et reste, lot par lot.",
+      "text": "Fait : tableau des commandes (v0.27.0), ajustements (v0.26.0), lots et devis par lot (v0.31.0, v0.32.0). Reste I8 (nouvelle commande) et I9 (rattachement séance → commande)."
+    },
+    {
+      "id": "U14",
+      "title": "Émettre une facture",
+      "epic": "E3",
+      "priority": "P0",
+      "result": "Depuis le temps à facturer, je crée la facture et je télécharge ses documents FA et BL.",
+      "text": "Fait : prochaine facture (v0.32.0), Émettre (v0.38.0), journal (v0.40.0 → v0.43.0), date = date du n° (v0.44.0), suppression d'une impayée (v0.46.0), FA/BL en .odt (v0.62.0). Abandonné le 2026-11-24 : `timer facture` en local + `web-push` (plan_generation_facture.md point 7), l'appli générant les .odt. Reste I10, I11, I12."
+    },
+    {
+      "id": "U15",
+      "title": "Suivre une facture jusqu'au paiement",
+      "epic": "E3",
+      "priority": "P0",
+      "result": "Je vois l'état de chaque facture : créée, déposée, payée.",
+      "text": "Fait : payée + trimestre de TVA (v0.61.0), déposée (v0.63.0)."
+    },
+    {
+      "id": "U16",
+      "title": "Gérer ma TVA",
+      "epic": "E3",
+      "priority": "P1",
+      "result": "Je vois la TVA de chaque trimestre, et quand je l'ai déclarée et payée.",
+      "text": "Fait : TVA par trimestre (v0.28.0), colonne « Déclarée le » en lecture seule. Reste I13."
+    },
+    {
+      "id": "U17",
+      "title": "Ne plus ouvrir suivi_chantiers.ods",
+      "epic": "E3",
+      "priority": "P1",
+      "result": "Le tableur n'est plus nécessaire : tout le cycle de facturation se fait dans l'appli.",
+      "text": "Jalon v1.0.0 de plan_suite.md : plus besoin de l'ODS ni d'éditer facturation.yml à la main (avec I8, I10, I13). Reste I14, I15, I16."
+    },
+    {
+      "id": "U18",
+      "title": "Piloter mes commandes, pas seulement constater",
+      "epic": "E3",
+      "priority": "P2",
+      "result": "Je compare au prévu : je suis alerté avant de dépasser un devis et je sais quand une commande sera finie.",
+      "text": "Candidat v2.0.0 de plan_suite.md (« de la facturation au pilotage »). Reste I17."
+    },
+    {
+      "id": "U19",
+      "title": "Chaque séance est enregistrée",
+      "epic": "E4",
+      "priority": "P0",
+      "result": "Chaque pomodoro arrive dans le CSV sans rien lancer à la main, au bon jour.",
+      "text": "Fait : webhook Pomofocus → pomofocus_webhook.csv, sessions contiguës fusionnées (merge_contiguous_sessions), fuseau Europe/Paris (Dockerfile, docker-compose.yml ; TODO.md A16 périmé). Reste I18."
+    },
+    {
+      "id": "U20",
+      "title": "Un historique complet",
+      "epic": "E4",
+      "priority": "P1",
+      "result": "Tout mon temps depuis septembre 2022 est dans un seul CSV.",
+      "text": "Fait : backfill de pomofocus.csv et de l'archive CAE (backfill_ods.py), le CSV démarre au 01/09/2022. Le trou du 11/04 au 30/09/2025 est I7 (E2)."
+    },
+    {
+      "id": "U21",
+      "title": "Corriger mes lignes",
+      "epic": "E4",
+      "priority": "P0",
+      "result": "Je corrige, ajoute ou supprime une séance depuis le navigateur.",
+      "text": "Fait : /rows (éditer, ajouter, supprimer ; specs/edition-lignes-csv.md), heures normalisées en HH:MM (v0.54.1). Les 3 lignes 8:30 / 9:00 / 7:00 des 19, 20 et 27/10 (TODO_20261019) sont corrigées en production (vérifié par web-sync le 2026-11-24)."
+    },
+    {
+      "id": "U22",
+      "title": "Facturer selon ma règle d'arrondi",
+      "epic": "E4",
+      "priority": "P0",
+      "result": "Je choisis le pas d'arrondi et toutes les pages l'appliquent de la même façon.",
+      "text": "Fait : choix du pas (brut, 6', 10', 12', 15') par cookie (v0.15.0), arrondi par tâche comme /suivi. TODO.md B6, B8 et d périmés."
+    },
+    {
+      "id": "U23",
+      "title": "Lancer et mettre en pause mon timer depuis /live",
+      "epic": "E5",
+      "priority": "P1",
+      "result": "Je démarre, mets en pause et change de tâche sans Pomofocus, depuis le PC ou le téléphone.",
+      "text": "specs/timer-discussion.md (décisions A1-A2, B5-B8, C9, C11, D12, D14). Start/Pause, projet et description autocomplétés, une ligne CSV par segment, état côté serveur. Prérequis fait : persistance de la tâche en cours (DATA/current_task.json). Reste I19, I20, I23, I24, I25."
+    },
+    {
+      "id": "U24",
+      "title": "Être rappelé toutes les 30'",
+      "epic": "E5",
+      "priority": "P1",
+      "result": "Une notification et un son me rappellent toutes les 30' que le timer tourne.",
+      "text": "specs/timer-discussion.md (A3, B4, E15, E16). Notification du navigateur, son joué par la page (coupé par le mute d'onglet). Plus tard : durée réglable, bouton de relance. Reste I21."
+    },
+    {
+      "id": "U25",
+      "title": "Gérer mes projets et sous-projets",
+      "epic": "E5",
+      "priority": "P2",
+      "result": "Je déclare mes projets et sous-projets, et ceux qui se facturent, depuis l'appli.",
+      "text": "specs/timer-discussion.md D13 ; TODO_20261019 « compteur interne + gestion projet/ss projet/taches ». Reste I22."
+    },
+    {
+      "id": "U26",
+      "title": "Déployer sans y penser",
+      "epic": "E6",
+      "priority": "P0",
+      "result": "Un push sur main met la production à jour, en HTTPS, données sauvegardées.",
+      "text": "Fait : GitHub Actions + SSH (TODO.md H21), HTTPS et mot de passe par Caddy (v0.36.0), sauvegarde du CSV sur Google Drive, hooks ruff (commit) et pytest (push). Reste I27, I28."
+    },
+    {
+      "id": "U27",
+      "title": "Un code testé",
+      "epic": "E6",
+      "priority": "P0",
+      "result": "Chaque push passe une suite de tests qui couvre les rendus et la facturation.",
+      "text": "Fait : ~196 tests (webhook_receiver, suivi, backfill, web_sync…), rendus SVG compris (TODO.md G17 périmé)."
+    },
+    {
+      "id": "U28",
+      "title": "Un code maintenable",
+      "epic": "E6",
+      "priority": "P1",
+      "result": "Une règle métier vit à un seul endroit, et la doc décrit l'appli réelle.",
+      "text": "Reste I29 (jour = 8 h), I30 (CLAUDE.md), I31 (base de données pour la facturation), I32 (unifier les applis)."
+    },
+    {
+      "id": "U29",
+      "title": "Rester à jour",
+      "epic": "E6",
+      "priority": "P2",
+      "result": "Les dépendances suivent leurs versions courantes sans épinglage forcé.",
+      "text": "Reste I33 (pandas 3)."
+    },
+    {
+      "id": "U30",
+      "title": "Retirer l'ancien",
+      "epic": "E6",
+      "priority": "P3",
+      "result": "Plus de code mort : une seule appli web, un CLI réduit à ce qui sert.",
+      "text": "Fait : /projects retiré (v0.37.0). Abandonné le 2026-11-24 (reposent sur l'ODS, qui disparaît avec I14) : eighty-hours --plot, plot_all_projects, plot_by_project (TODO.md « Eightyhours », « Suivi chantiers — plots »), et la partie ODS du refactor de core/plots.py. Reste I34, I35."
+    },
+    {
+      "id": "U31",
+      "title": "Tenir ma roadmap dans organisation.json",
+      "epic": "E7",
+      "priority": "P1",
+      "result": "Epics, user stories, issues, sprints et versions sont au même endroit, sur le modèle de Pactole.",
+      "text": "Commencé le 2026-11-24 : epics E1-E7, user stories et issues repris de TODO.md, TODO_20261019.txt, IDEAS.md, plan_suite.md, plan_generation_facture.md et specs/. Reste I36, I37."
+    },
+    {
+      "id": "U32",
+      "title": "Voir et classer ma roadmap sur une page",
+      "epic": "E7",
+      "priority": "P2",
+      "result": "Je classe epics, user stories, issues et sprints sur une page, sans éditer le JSON.",
+      "text": "La page organisation de Pactole (~/01DEV/pactole, son E7 : l'extraire en appli autonome). La brancher sur ce fichier plutôt que la refaire. Reste I38."
+    }
+  ],
+  "issues": [
+    {
+      "id": "I1",
+      "title": "Barre facturable colorée par projet",
+      "user_story": "U4",
+      "type": "Feature",
+      "priority": "P1",
+      "sprint": "",
+      "done": null,
+      "version": null,
+      "text": "TODO.md F3. Segmenter les barres du graphe facturable de /live par projet, avec la couleur `color` de projects-config.yml (comme le graphe d'activité).",
+      "parent": ""
+    },
+    {
+      "id": "I2",
+      "title": "Swimlane de la semaine sur /live",
+      "user_story": "U4",
+      "type": "Feature",
+      "priority": "P1",
+      "sprint": "",
+      "done": null,
+      "version": null,
+      "text": "TODO.md F4. Aujourd'hui seulement sur la page /swimlane. Décidé (ex-Divers 07-06) : à la place du graphe d'activité, avec un bouton pour basculer swimlane / barres. Agencement à trancher.",
+      "parent": ""
+    },
+    {
+      "id": "I3",
+      "title": "Heure du dernier webhook reçu",
+      "user_story": "U5",
+      "type": "Feature",
+      "priority": "P1",
+      "sprint": "",
+      "done": null,
+      "version": null,
+      "text": "TODO.md A18. Le bas de /live affiche « dernière vérification HH:MM », l'heure du dernier appel de la page, pas celle de la dernière donnée reçue. Afficher l'heure du dernier webhook (ou le mtime du CSV) pour savoir que les données sont vivantes.",
+      "parent": ""
+    },
+    {
+      "id": "I4",
+      "title": "Jour courant encadré sur /weeks",
+      "user_story": "U6",
+      "type": "Improvement",
+      "priority": "P1",
+      "sprint": "",
+      "done": null,
+      "version": null,
+      "text": "TODO.md D12-bis. /weeks n'a pas de highlight_label : encadrer le jour courant comme sur /live.",
+      "parent": ""
+    },
+    {
+      "id": "I5",
+      "title": "Infobulles des segments colorés",
+      "user_story": "U10",
+      "type": "Feature",
+      "priority": "P1",
+      "sprint": "",
+      "done": null,
+      "version": null,
+      "text": "TODO.md F11, Divers 2026-10-16. Un <title> par rect de _activity_segments (projet + durée). Facile sur /weeks et /months (SVG inline) ; plus dur sur /live (SVG en <img>). Contenu à trancher : projet + durée, ou détail par sous-projet.",
+      "parent": ""
+    },
+    {
+      "id": "I6",
+      "title": "Légende cliquable : masquer un projet",
+      "user_story": "U10",
+      "type": "Feature",
+      "priority": "P2",
+      "sprint": "",
+      "done": null,
+      "version": null,
+      "text": "TODO.md F20. Activer / désactiver un projet dans les graphes d'activité.",
+      "parent": ""
+    },
+    {
+      "id": "I7",
+      "title": "Projets de 2025 retrouvés par git",
+      "user_story": "U11",
+      "type": "Task",
+      "priority": "P3",
+      "sprint": "",
+      "done": null,
+      "version": null,
+      "text": "IDEAS.md 2026-07-14. Trou du 11/04/2025 au 30/09/2025 : voir si l'historique git des dépôts (repo_to_df, web/tools/histories.py) permet d'identifier les projets travaillés.",
+      "parent": ""
+    },
+    {
+      "id": "I8",
+      "title": "Saisir une nouvelle commande",
+      "user_story": "U13",
+      "type": "Feature",
+      "priority": "P0",
+      "sprint": "",
+      "done": null,
+      "version": null,
+      "text": "plan_suite.md point 4. Formulaire : nom, projet, réf. PUMA, devis_ref, TJM, jours au devis, début, jours par lot. Aujourd'hui : édition de facturation.yml sur le serveur.",
+      "parent": ""
+    },
+    {
+      "id": "I9",
+      "title": "Rattachement séance → commande : trancher la règle",
+      "user_story": "U13",
+      "type": "Task",
+      "priority": "P1",
+      "sprint": "",
+      "done": null,
+      "version": null,
+      "text": "TODO.md Divers 2026-10-08, plan_suite.md point 6. Aujourd'hui par date seulement (suivi.commande_for) : « June Tiny Fixes » rangé sous calipso_c alors que facturé sur calipso_b. Options : par date (actuel), par épuisement du devis, ou date de fin explicite par commande. À documenter dans FACTURATION-CHANTIER.md (D4).",
+      "parent": ""
+    },
+    {
+      "id": "I10",
+      "title": "Corriger une facture",
+      "user_story": "U14",
+      "type": "Feature",
+      "priority": "P0",
+      "sprint": "",
+      "done": null,
+      "version": null,
+      "text": "plan_suite.md point 3, plan_generation_facture.md point 9. La suppression existe (v0.46.0, impayées seulement) ; corriger oblige encore à éditer facturation.yml sur le serveur. À rapprocher des états (point 11) : que peut-on corriger après « déposée » ?",
+      "parent": ""
+    },
+    {
+      "id": "I11",
+      "title": "Modèles .odt génériques",
+      "user_story": "U14",
+      "type": "Improvement",
+      "priority": "P1",
+      "sprint": "",
+      "done": null,
+      "version": null,
+      "text": "plan_generation_facture.md point 3. Ne plus dépendre du nom de style T10 ni des noms de tableaux : repérer les tableaux par leur en-tête (« Désignation », « Base H.T. »).",
+      "parent": ""
+    },
+    {
+      "id": "I12",
+      "title": "Rapport d'activité joint à la facture",
+      "user_story": "U14",
+      "type": "Feature",
+      "priority": "P2",
+      "sprint": "",
+      "done": null,
+      "version": null,
+      "text": "plan_generation_facture.md point 8. Activité de la période par ss-projet (base : /facturation/journal) + solde par issue (prévu / réalisé / reste, comme la feuille Charge de SPEASY_LOGS).",
+      "parent": ""
+    },
+    {
+      "id": "I13",
+      "title": "TVA déclarée et payée",
+      "user_story": "U16",
+      "type": "Feature",
+      "priority": "P0",
+      "sprint": "",
+      "done": null,
+      "version": null,
+      "text": "plan_suite.md point 2, TODO_20261019 « colonne TVA payée ». Deux faits distincts (je déclare, puis je paie), mais faits le même jour en pratique : une seule saisie par trimestre, dans « TVA par trimestre », qui remplit les deux dates.",
+      "parent": ""
+    },
+    {
+      "id": "I14",
+      "title": "Retirer l'ODS du CLI",
+      "user_story": "U17",
+      "type": "Task",
+      "priority": "P1",
+      "sprint": "",
+      "done": null,
+      "version": null,
+      "text": "plan_suite.md point 5. ods-sync, report --view ods, eighty-hours, dev/add_month_sheets.py. Seulement quand suivi_chantiers.ods n'est plus ouvert.",
+      "parent": ""
+    },
+    {
+      "id": "I15",
+      "title": "Corrections ODS hors dépôt : encore utiles ?",
+      "user_story": "U17",
+      "type": "Task",
+      "priority": "P2",
+      "sprint": "",
+      "done": null,
+      "version": null,
+      "text": "TODO.md « Facturation — corrections hors dépôt » : n° de la 3ᵉ facture speasy, colonne PUMA de SPEASY_LOGS, ligne carangues du tableau C de la Synthèse. Vérifier si l'appli les rend inutiles, sinon les faire.",
+      "parent": ""
+    },
+    {
+      "id": "I16",
+      "title": "FACTURATION-CHANTIER.md à jour",
+      "user_story": "U17",
+      "type": "Task",
+      "priority": "P2",
+      "sprint": "",
+      "done": null,
+      "version": null,
+      "text": "plan_suite.md point 8 : cocher D3 et D5 (tranchées), mettre à jour le tableau du §6.",
+      "parent": ""
+    },
+    {
+      "id": "I17",
+      "title": "Prévu par issue et alertes de dépassement",
+      "user_story": "U18",
+      "type": "Feature",
+      "priority": "P2",
+      "sprint": "",
+      "done": null,
+      "version": null,
+      "text": "plan_suite.md v2.0.0 candidat 1. Charge prévue par issue / lot (feuille Charge), alerte de dépassement de devis, prévision de fin de commande.",
+      "parent": ""
+    },
+    {
+      "id": "I18",
+      "title": "Cache des lectures CSV",
+      "user_story": "U19",
+      "type": "Improvement",
+      "priority": "P2",
+      "sprint": "",
+      "done": null,
+      "version": null,
+      "text": "TODO.md A15. À chaque rafraîchissement de /live (3 s), le CSV est relu et analysé plusieurs fois (graphes, légende, api). Cache invalidé par le mtime du fichier.",
+      "parent": ""
+    },
+    {
+      "id": "I19",
+      "title": "Spec du timer : trancher les questions ouvertes",
+      "user_story": "U23",
+      "type": "Task",
+      "priority": "P1",
+      "sprint": "",
+      "done": null,
+      "version": null,
+      "text": "Répondre aux 10 questions de specs/timer-discussion.md (B7a-d, E15, F17, timer sur toutes les semaines, pas de timer et de webhook en même temps, points reportés), puis écrire specs/timer.md. Préalable à I20 et I21.",
+      "parent": ""
+    },
+    {
+      "id": "I20",
+      "title": "Timer Start/Pause sur /live",
+      "user_story": "U23",
+      "type": "Feature",
+      "priority": "P1",
+      "sprint": "",
+      "done": null,
+      "version": null,
+      "text": "Selon specs/timer.md (I19). Réutilise upsert_csv_row et la tâche en cours ; actions sous le chemin secret.",
+      "parent": ""
+    },
+    {
+      "id": "I21",
+      "title": "Rappel toutes les 30'",
+      "user_story": "U24",
+      "type": "Feature",
+      "priority": "P1",
+      "sprint": "",
+      "done": null,
+      "version": null,
+      "text": "Notification du navigateur + son (fichier du thème freedesktop servi par l'appli). Pas de notif si aucun onglet /live n'est ouvert.",
+      "parent": ""
+    },
+    {
+      "id": "I22",
+      "title": "Projets et sous-projets déclarés",
+      "user_story": "U25",
+      "type": "Feature",
+      "priority": "P2",
+      "sprint": "",
+      "done": null,
+      "version": null,
+      "text": "Format projet_ssprojet imposé, déclaration des projets facturables (D13). Lien avec facturation.yml et projects-config.yml à étudier.",
+      "parent": ""
+    },
+    {
+      "id": "I23",
+      "title": "Garde-fou du soir",
+      "user_story": "U23",
+      "type": "Feature",
+      "priority": "P3",
+      "sprint": "",
+      "done": null,
+      "version": null,
+      "text": "C10 : éviter qu'un timer oublié tourne toute la nuit.",
+      "parent": ""
+    },
+    {
+      "id": "I24",
+      "title": "Tampon hors ligne dans le navigateur",
+      "user_story": "U23",
+      "type": "Feature",
+      "priority": "P3",
+      "sprint": "",
+      "done": null,
+      "version": null,
+      "text": "F17 : le timer continue quand le serveur est arrêté ou en redéploiement, et rattrape ensuite.",
+      "parent": ""
+    },
+    {
+      "id": "I25",
+      "title": "Raccourcis clavier du timer",
+      "user_story": "U23",
+      "type": "Feature",
+      "priority": "P2",
+      "sprint": "",
+      "done": null,
+      "version": null,
+      "text": "TODO_20261019 « raccourcis clavier ». Start/Pause et changement de tâche au clavier. Voir aussi I26.",
+      "parent": ""
+    },
+    {
+      "id": "I26",
+      "title": "Raccourcis clavier de navigation",
+      "user_story": "U6",
+      "type": "Improvement",
+      "priority": "P2",
+      "sprint": "",
+      "done": null,
+      "version": null,
+      "text": "TODO_20261019 « raccourcis clavier ». Semaine précédente / suivante, changer d'onglet (Live, Calendrier, Projets…). Voir aussi I25.",
+      "parent": ""
+    },
+    {
+      "id": "I27",
+      "title": "Versionner .pre-commit-config.yaml",
+      "user_story": "U26",
+      "type": "Task",
+      "priority": "P1",
+      "sprint": "",
+      "done": null,
+      "version": null,
+      "text": "Le fichier (et check-pre-commit.sh) n'est pas suivi par git : les hooks ruff / pytest tournent en local mais leur config serait perdue avec le poste.",
+      "parent": ""
+    },
+    {
+      "id": "I28",
+      "title": "Petit ménage",
+      "user_story": "U26",
+      "type": "Task",
+      "priority": "P3",
+      "sprint": "",
+      "done": null,
+      "version": null,
+      "text": "plan_suite.md point 9 : dossier certbot/ sur le VPS, branche locale backup-avant-reword, item D1 de TODO.md (sans effet depuis le retrait de /projects), phrase sur http:// dans le README d'apnee.",
+      "parent": ""
+    },
+    {
+      "id": "I29",
+      "title": "Consolider « jour = 8 h »",
+      "user_story": "U28",
+      "type": "Task",
+      "priority": "P1",
+      "sprint": "",
+      "done": null,
+      "version": null,
+      "text": "TODO.md I-d. En dur à cinq endroits (core/data.py, web/tools/histories.py, cli.py, core/suivi_chantier.py, webhook_receiver.py HOURS_PER_DAY) : un changement de valeur fausserait silencieusement les montants facturés.",
+      "parent": ""
+    },
+    {
+      "id": "I30",
+      "title": "CLAUDE.md à jour",
+      "user_story": "U28",
+      "type": "Task",
+      "priority": "P2",
+      "sprint": "",
+      "done": null,
+      "version": null,
+      "text": "Le CLAUDE.md du projet décrit l'ancienne appli (analysis_web.py, web/tools) ; l'appli active est webhook_receiver.py (/live, /calendar, /facturation…).",
+      "parent": ""
+    },
+    {
+      "id": "I31",
+      "title": "Base de données pour la facturation",
+      "user_story": "U28",
+      "type": "Feature",
+      "priority": "P2",
+      "sprint": "",
+      "done": null,
+      "version": null,
+      "text": "TODO_20261019 « base de données -> facturation », plan_suite.md v2.0.0 candidat 3 : quand les formulaires (états, commandes, corrections) dépassent ce qu'un YAML supporte.",
+      "parent": ""
+    },
+    {
+      "id": "I32",
+      "title": "Unifier les trois applis",
+      "user_story": "U28",
+      "type": "Task",
+      "priority": "P3",
+      "sprint": "",
+      "done": null,
+      "version": null,
+      "text": "TODO.md I-a, b, c, plan_suite.md v2.0.0 candidat 2 : une seule lecture du CSV, des couleurs, du calcul facturable entre webhook_receiver.py, analysis_web.py et le CLI ; trancher SVG ou matplotlib.",
+      "parent": ""
+    },
+    {
+      "id": "I33",
+      "title": "Compatibilité pandas 3",
+      "user_story": "U29",
+      "type": "Task",
+      "priority": "P2",
+      "sprint": "",
+      "done": null,
+      "version": null,
+      "text": "TODO.md « Compatibilité pandas 3 » : web/tools/histories.py fillna(inplace=True) lève TypeError ; supprimer les inplace=True et freq=\"d\" → \"D\" ; lever l'épinglage pandas<3.",
+      "parent": ""
+    },
+    {
+      "id": "I34",
+      "title": "Retirer analysis_web.py et web/",
+      "user_story": "U30",
+      "type": "Task",
+      "priority": "P3",
+      "sprint": "",
+      "done": null,
+      "version": null,
+      "text": "L'ancienne appli Flask, remplacée par webhook_receiver.py. Vérifier ce qui en sert encore (histories git ?) avant de supprimer ; lien avec I32.",
+      "parent": ""
+    },
+    {
+      "id": "I35",
+      "title": "Séparer core/plots.py (hors ODS)",
+      "user_story": "U30",
+      "type": "Task",
+      "priority": "P3",
+      "sprint": "",
+      "done": null,
+      "version": null,
+      "text": "TODO.md « refactor responsabilities », réduit : vues texte dans core/views.py, plots matplotlib seuls dans core/plots.py. La partie ODS part avec I14.",
+      "parent": ""
+    },
+    {
+      "id": "I36",
+      "title": "Définir sprints et versions",
+      "user_story": "U31",
+      "type": "Task",
+      "priority": "P1",
+      "sprint": "",
+      "done": null,
+      "version": null,
+      "text": "Placer les issues ouvertes dans des sprints, chacun visant une version. Premier candidat : le jalon v1.0.0 de plan_suite.md (plus besoin de l'ODS ni d'éditer facturation.yml : I8, I10, I13, I14).",
+      "parent": ""
+    },
+    {
+      "id": "I37",
+      "title": "Une seule source de suivi",
+      "user_story": "U31",
+      "type": "Task",
+      "priority": "P1",
+      "sprint": "",
+      "done": null,
+      "version": null,
+      "text": "Une fois tout repris : marquer TODO.md, TODO_20261019.txt, IDEAS.md, plan_suite.md et plan_generation_facture.md comme remplacés par organisation.json (ou les archiver), et mettre à jour la skill ideas / todo si elle doit écrire ici.",
+      "parent": ""
+    },
+    {
+      "id": "I38",
+      "title": "Brancher la page organisation de Pactole",
+      "user_story": "U32",
+      "type": "Task",
+      "priority": "P2",
+      "sprint": "",
+      "done": null,
+      "version": null,
+      "text": "Dépend de l'extraction de la page en appli autonome (Pactole E7).",
+      "parent": ""
+    }
+  ]
+}
