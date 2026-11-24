@@ -58,7 +58,7 @@ CSV_COLUMNS = ["date", "project", "task", "minutes", "startTime", "endTime"]
 EXPORT_TYPES = {"finish", "pause"}
 SECRET = os.environ.get("WEBHOOK_SECRET", "").strip("/")
 PORT = int(os.environ.get("WEBHOOK_PORT", "5000"))
-APP_VERSION = "0.64.0"  # affiché en pied de page (miroir de pyproject.toml)
+APP_VERSION = "0.64.1"  # affiché en pied de page (miroir de pyproject.toml)
 
 BILLABLE_PROJECTS = {p.lower() for p in _config.get("BILLABLE_PROJECTS", [])}
 BILLABLE_MAX_HOURS = 4
@@ -844,27 +844,33 @@ def _week_header_bar(total_hours, max_hours, value_x, bar_end_x=None, label_x=20
         f'stroke="#5a5a56" stroke-width="1" opacity=".8"/>'
         for i in range(1, divisions)
     )
-    # Libellés de répartition : heures faites dans le remplissage (texte foncé),
-    # heures restantes dans le fond (texte clair). Omis si la zone est trop
-    # étroite pour contenir le texte.
-    split_labels = ""
-    label_min_w = 44
+    # Libellés de répartition, chacun centré dans son segment : heures faites
+    # (texte foncé), écart à l'attendu (dans la zone rouge/verte), heures
+    # restantes (texte clair). Sans `expected_hours` l'écart est vide et l'on
+    # retrouve deux segments. Omis si le segment est trop étroit pour le texte.
     label_attrs = (
         f'y="{y + height // 2 + 5}" text-anchor="middle" '
         f'font-family="system-ui, sans-serif" font-size="13" font-weight="700"'
     )
-    if fill_w >= label_min_w:
-        split_labels += (
-            f'<text x="{bar_x + 3 + fill_w / 2:.1f}" {label_attrs} '
-            f'fill="#1a1a19">{_format_hm(total_hours)}</text>'
-        )
+    inner_x, inner_end = bar_x + 3, bar_x + bar_w - 3
+    x_done = inner_x + fill_w
+    x_expected = x_done
+    if expected_hours is not None and max_hours:
+        x_expected = _header_bar_x(expected_hours, max_hours, bar_x, bar_w)
+    lo, hi = sorted((x_done, x_expected))
+    behind = x_done < x_expected
     remaining = max(0, max_hours - total_hours)
-    rest_w = bar_w - 6 - fill_w
-    if remaining > 0 and rest_w >= label_min_w:
-        split_labels += (
-            f'<text x="{bar_x + 3 + fill_w + rest_w / 2:.1f}" {label_attrs} '
-            f'fill="#c3c2b7">{_format_hm(remaining)}</text>'
-        )
+    segments = [
+        (inner_x, lo, _format_hm(total_hours), "#1a1a19"),
+        (lo, hi, _format_hm(abs(total_hours - (expected_hours or 0))),
+         "#ffffff" if behind else "#1a1a19"),
+        (hi, inner_end, _format_hm(remaining) if remaining > 0 else "", "#c3c2b7"),
+    ]
+    split_labels = "".join(
+        f'<text x="{(x0 + x1) / 2:.1f}" {label_attrs} fill="{color}">{text}</text>'
+        for x0, x1, text, color in segments
+        if text and x1 - x0 >= _text_width(text) + 4
+    )
     value_text = ""
     if show_value:
         value_text = (
@@ -879,12 +885,13 @@ def _week_header_bar(total_hours, max_hours, value_x, bar_end_x=None, label_x=20
   {overflow_rect}
   {ticks}
   {split_labels}
-  {_expected_marker_svg(expected_hours, max_hours, bar_x, bar_w, y, height)}
+  {_expected_marker_svg(total_hours, expected_hours, max_hours, bar_x, bar_w, y, height)}
   {value_text}'''
 
 
 EXPECTED_MARKER_COLOR = "#e5484d"   # repère « attendu » et zone de retard
 EXPECTED_AHEAD_COLOR = "#3fb950"    # zone d'avance
+EXPECTED_AHEAD_MARKER_COLOR = "#0f5323"  # repère en avance : foncé, lisible sur gris et vert clairs
 
 
 def _header_bar_x(hours, max_hours, bar_x, bar_w):
@@ -912,15 +919,17 @@ def _expected_gap_svg(total_hours, expected_hours, max_hours, bar_x, bar_w, y, h
     )
 
 
-def _expected_marker_svg(expected_hours, max_hours, bar_x, bar_w, y, height):
-    """Red vertical marker at `expected_hours` on a header bar of `max_hours`,
-    kept within the bar's 3px inset; its tooltip gives the expected total."""
+def _expected_marker_svg(total_hours, expected_hours, max_hours, bar_x, bar_w, y, height):
+    """Vertical marker at `expected_hours` on a header bar of `max_hours`,
+    kept within the bar's 3px inset: red while `total_hours` is behind, green
+    once caught up. Its tooltip gives the expected total."""
     if expected_hours is None or not max_hours:
         return ""
     x = _header_bar_x(expected_hours, max_hours, bar_x, bar_w)
+    color = EXPECTED_MARKER_COLOR if total_hours < expected_hours else EXPECTED_AHEAD_MARKER_COLOR
     return (
         f'<line x1="{x:.1f}" y1="{y + 3}" x2="{x:.1f}" y2="{y + height - 3}" '
-        f'stroke="{EXPECTED_MARKER_COLOR}" stroke-width="3">'
+        f'stroke="{color}" stroke-width="3">'
         f'<title>attendu : {_format_hm(expected_hours)}</title></line>'
     )
 

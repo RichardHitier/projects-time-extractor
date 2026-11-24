@@ -1738,3 +1738,16 @@ def test_expected_gap_is_red_when_behind_green_when_ahead():
     ahead = webhook_receiver.render_week_svg([("Mardi 24/11", 7.5)], expected_hours=6)
     assert f'fill="{webhook_receiver.EXPECTED_AHEAD_COLOR}" opacity=".45"' in ahead
     assert "avance : 1:30" in ahead
+
+
+def test_header_bar_writes_the_gap_inside_the_colored_zone():
+    svg = webhook_receiver.render_week_svg([("Mardi 24/11", 2.25)], expected_hours=6)
+    labels = re.findall(r'font-weight="700" fill="[^"]+">([^<]+)</text>', svg)
+    assert labels == ["2:15", "3:45", "17:45"]  # fait, retard, reste
+
+
+def test_expected_marker_turns_green_once_caught_up():
+    behind = webhook_receiver.render_week_svg([("Mardi 24/11", 2.25)], expected_hours=6)
+    ahead = webhook_receiver.render_week_svg([("Mardi 24/11", 7.5)], expected_hours=6)
+    assert f'stroke="{webhook_receiver.EXPECTED_MARKER_COLOR}" stroke-width="3"' in behind
+    assert f'stroke="{webhook_receiver.EXPECTED_AHEAD_MARKER_COLOR}" stroke-width="3"' in ahead
