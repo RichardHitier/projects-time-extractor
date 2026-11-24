@@ -2,7 +2,7 @@ import csv
 import json
 import re
 import sys
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -1697,3 +1697,44 @@ def test_api_facturation_is_404_without_file(tmp_path, monkeypatch):
                         str(tmp_path / "absent.yml"))
     resp = webhook_receiver.app.test_client().get("/api/facturation")
     assert resp.status_code == 404
+
+
+@pytest.mark.parametrize("now, expected", [
+    (datetime(2026, 11, 23, 7, 30), 0.0),    # lundi avant 8h : rien d'attendu
+    (datetime(2026, 11, 23, 13, 0), 2.0),    # lundi 13h : moitié de 8h–18h
+    (datetime(2026, 11, 24, 13, 0), 6.0),    # mardi 13h : 4h + 2h
+    (datetime(2026, 11, 24, 20, 0), 8.0),    # mardi soir : journée pleine
+    (datetime(2026, 11, 28, 10, 0), 20.0),   # samedi : semaine complète
+])
+def test_expected_week_hours(now, expected):
+    assert webhook_receiver.expected_week_hours(now) == pytest.approx(expected)
+
+
+def test_render_week_svg_draws_expected_marker_on_header():
+    marker = webhook_receiver.EXPECTED_MARKER_COLOR
+    without = webhook_receiver.render_week_svg([("Mardi 24/11", 2.25)])
+    assert marker not in without
+
+    svg = webhook_receiver.render_week_svg([("Mardi 24/11", 2.25)], expected_hours=6)
+    assert marker in svg
+    assert "attendu : 6:00" in svg
+
+
+def test_billable_week_svg_marker_only_on_current_week(tmp_path):
+    webhook_receiver.CSV_PATH = str(tmp_path / "pomofocus_webhook.csv")
+    client = webhook_receiver.app.test_client()
+    marker = webhook_receiver.EXPECTED_MARKER_COLOR
+
+    assert marker in client.get("/billable-week.svg").get_data(as_text=True)
+    assert marker not in client.get("/billable-week.svg?w=1").get_data(as_text=True)
+
+
+def test_expected_gap_is_red_when_behind_green_when_ahead():
+    rows = [("Mardi 24/11", 0.0)]
+    behind = webhook_receiver.render_week_svg(rows, expected_hours=6)
+    assert f'fill="{webhook_receiver.EXPECTED_MARKER_COLOR}" opacity=".45"' in behind
+    assert "retard : 6:00" in behind
+
+    ahead = webhook_receiver.render_week_svg([("Mardi 24/11", 7.5)], expected_hours=6)
+    assert f'fill="{webhook_receiver.EXPECTED_AHEAD_COLOR}" opacity=".45"' in ahead
+    assert "avance : 1:30" in ahead

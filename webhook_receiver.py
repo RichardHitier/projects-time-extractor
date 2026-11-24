@@ -58,7 +58,7 @@ CSV_COLUMNS = ["date", "project", "task", "minutes", "startTime", "endTime"]
 EXPORT_TYPES = {"finish", "pause"}
 SECRET = os.environ.get("WEBHOOK_SECRET", "").strip("/")
 PORT = int(os.environ.get("WEBHOOK_PORT", "5000"))
-APP_VERSION = "0.63.0"  # affiché en pied de page (miroir de pyproject.toml)
+APP_VERSION = "0.64.0"  # affiché en pied de page (miroir de pyproject.toml)
 
 BILLABLE_PROJECTS = {p.lower() for p in _config.get("BILLABLE_PROJECTS", [])}
 BILLABLE_MAX_HOURS = 4
@@ -476,6 +476,27 @@ def future_day_labels(monday, today=None):
     }
 
 
+# Plage où les heures facturables du jour sont censées se faire : le repère
+# « attendu » de /live avance linéairement entre ces deux heures.
+WORKDAY_START_HOUR = 8
+WORKDAY_END_HOUR = 18
+
+
+def expected_week_hours(now=None, day_hours=BILLABLE_MAX_HOURS):
+    """Billable hours that should be done by `now` since Monday: `day_hours`
+    per elapsed weekday, plus today's share of the WORKDAY_START_HOUR →
+    WORKDAY_END_HOUR window. Saturday and Sunday add nothing."""
+    if now is None:
+        now = datetime.now()
+    weekday = now.weekday()
+    if weekday >= 5:
+        return 5 * day_hours
+    hour = now.hour + now.minute / 60
+    span = WORKDAY_END_HOUR - WORKDAY_START_HOUR
+    today_share = min(max((hour - WORKDAY_START_HOUR) / span, 0), 1)
+    return day_hours * (weekday + today_share)
+
+
 def billable_hours_for_days(monday, last_day, rows, step=0):
     """Billable hours per day from `last_day` down to `monday` (most recent
     first), as (day_label, hours) pairs."""
@@ -780,7 +801,7 @@ def _bar_start_x(labels):
     return max(WEEK_BAR_MIN_X, 20 + round(widest) + 12)
 
 
-def _week_header_bar(total_hours, max_hours, value_x, bar_end_x=None, label_x=20, y=4, height=34, divisions=4, overflow_max=0, show_value=True):
+def _week_header_bar(total_hours, max_hours, value_x, bar_end_x=None, label_x=20, y=4, height=34, divisions=4, overflow_max=0, show_value=True, expected_hours=None):
     """Full-width progress bar used as the header of a week chart, in place of a
     text title. The grey fill is clamped to the bar; a total past `max_hours`
     spills into a gold overflow lane of width `overflow_max` to the right of the
@@ -790,7 +811,11 @@ def _week_header_bar(total_hours, max_hours, value_x, bar_end_x=None, label_x=20
     be aligned with the day-row bars rather than reaching the figures column.
 
     `show_value=False` drops that figure — /live carries the total in the chart
-    title instead, so repeating it beside the bar would be redundant."""
+    title instead, so repeating it beside the bar would be redundant.
+
+    `expected_hours` (cf. expected_week_hours) draws a red marker where the
+    fill should have reached by now, and tints the gap between the fill's end
+    and the marker: red when behind schedule, green when ahead."""
     bar_x = label_x
     if bar_end_x is None:
         bar_end_x = value_x - 12
@@ -850,10 +875,54 @@ def _week_header_bar(total_hours, max_hours, value_x, bar_end_x=None, label_x=20
     return f'''
   <rect x="{bar_x}" y="{y}" width="{bar_w}" height="{height}" rx="{corner_radius}" fill="#2e2e2b"/>
   {fill_rect}
+  {_expected_gap_svg(total_hours, expected_hours, max_hours, bar_x, bar_w, y, height)}
   {overflow_rect}
   {ticks}
   {split_labels}
+  {_expected_marker_svg(expected_hours, max_hours, bar_x, bar_w, y, height)}
   {value_text}'''
+
+
+EXPECTED_MARKER_COLOR = "#e5484d"   # repère « attendu » et zone de retard
+EXPECTED_AHEAD_COLOR = "#3fb950"    # zone d'avance
+
+
+def _header_bar_x(hours, max_hours, bar_x, bar_w):
+    """x of `hours` inside a header bar's 3px inset, clamped to the bar."""
+    ratio = min(max(hours / max_hours, 0), 1)
+    return bar_x + 3 + (bar_w - 6) * ratio
+
+
+def _expected_gap_svg(total_hours, expected_hours, max_hours, bar_x, bar_w, y, height):
+    """Translucent band between the fill's end and the expected marker: red
+    when `total_hours` is behind `expected_hours`, green when ahead."""
+    if expected_hours is None or not max_hours:
+        return ""
+    x_done = _header_bar_x(total_hours, max_hours, bar_x, bar_w)
+    x_expected = _header_bar_x(expected_hours, max_hours, bar_x, bar_w)
+    if abs(x_expected - x_done) < 0.5:
+        return ""
+    color = EXPECTED_MARKER_COLOR if x_done < x_expected else EXPECTED_AHEAD_COLOR
+    x0, x1 = sorted((x_done, x_expected))
+    gap = _format_hm(abs(total_hours - expected_hours))
+    word = "retard" if x_done < x_expected else "avance"
+    return (
+        f'<rect x="{x0:.1f}" y="{y + 3}" width="{x1 - x0:.1f}" height="{height - 6}" '
+        f'fill="{color}" opacity=".45"><title>{word} : {gap}</title></rect>'
+    )
+
+
+def _expected_marker_svg(expected_hours, max_hours, bar_x, bar_w, y, height):
+    """Red vertical marker at `expected_hours` on a header bar of `max_hours`,
+    kept within the bar's 3px inset; its tooltip gives the expected total."""
+    if expected_hours is None or not max_hours:
+        return ""
+    x = _header_bar_x(expected_hours, max_hours, bar_x, bar_w)
+    return (
+        f'<line x1="{x:.1f}" y1="{y + 3}" x2="{x:.1f}" y2="{y + height - 3}" '
+        f'stroke="{EXPECTED_MARKER_COLOR}" stroke-width="3">'
+        f'<title>attendu : {_format_hm(expected_hours)}</title></line>'
+    )
 
 
 def _text_width(s, size=13):
@@ -1063,7 +1132,7 @@ def _track_rect(x, y, w, h, rx, fill, stroke=None):
     return f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="{rx}" fill="{fill}"{edge}/>'
 
 
-def render_week_svg(day_hours, max_hours=BILLABLE_MAX_HOURS, week_max_hours=BILLABLE_WEEK_MAX_HOURS, highlight_label=None, current_hours=0.0, title_label="SEMAINE", show_header=True, month_groups=None, bar_start=None, show_title=True, title_totals=True, title_sep=" : ", future_labels=(), tick_hours=None, month_hours=None, hours_format=_format_hm, ref_label=None):
+def render_week_svg(day_hours, max_hours=BILLABLE_MAX_HOURS, week_max_hours=BILLABLE_WEEK_MAX_HOURS, highlight_label=None, current_hours=0.0, title_label="SEMAINE", show_header=True, month_groups=None, bar_start=None, show_title=True, title_totals=True, title_sep=" : ", future_labels=(), tick_hours=None, month_hours=None, hours_format=_format_hm, ref_label=None, expected_hours=None):
     """Render a "SEMAINE : total / Nh" header, then one bar per
     (day_label, hours) pair, most recent first. `show_header=False` drops the
     total header bar (and its vertical space) — /months shows weeks, whose total
@@ -1093,6 +1162,9 @@ def render_week_svg(day_hours, max_hours=BILLABLE_MAX_HOURS, week_max_hours=BILL
 
     `hours_format` formats the figure of each row. `ref_label` captions the
     end-of-bar marker. `title_totals=False` uses `title_label` as the whole title.
+
+    `expected_hours` : repère rouge « où je devrais en être » sur la barre
+    d'en-tête (cf. _week_header_bar).
     """
     width = 640
     row_h, row_gap = 22, 12
@@ -1206,6 +1278,7 @@ def render_week_svg(day_hours, max_hours=BILLABLE_MAX_HOURS, week_max_hours=BILL
             total_hours, week_max_hours, WEEK_HOURS_RIGHT_X,
             bar_end_x=bar_x + bar_w, divisions=5, overflow_max=overflow_max,
             y=title_h + 4, show_value=not (show_title and title_totals),
+            expected_hours=expected_hours,
         )
     month_labels = ""
     if month_groups:
@@ -3135,6 +3208,7 @@ def billable_week_svg(secret_path):
         bar_start=DAY_BAR_START_X, title_label="FACTURABLE",
         title_totals=True, title_sep=" ", future_labels=future_day_labels(monday),
         tick_hours=0.5,
+        expected_hours=expected_week_hours() if w == 0 else None,
     )
     return Response(svg, mimetype="image/svg+xml", headers={"Cache-Control": "no-store"})
 
